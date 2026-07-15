@@ -1,9 +1,11 @@
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { Shield, Camera, MapPin, TrendingUp, Activity, Users } from "lucide-react";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function Home() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const statsQuery = trpc.report.getStats.useQuery();
   const recentQuery = trpc.report.getRecent.useQuery({ limit: 5 });
 
@@ -20,13 +22,13 @@ export default function Home() {
   };
 
   const incidentLabels: Record<string, string> = {
-    vote_buying: "Vote Buying",
-    ballot_snatching: "Ballot Snatching",
-    intimidation: "Intimidation",
-    bvas_failure: "BVAS Failure",
-    overvoting: "Overvoting",
-    late_arrival: "Late Arrival",
-    other: "Other",
+    vote_buying: t("incident.vote_buying"),
+    ballot_snatching: t("incident.ballot_snatching"),
+    intimidation: t("incident.intimidation"),
+    bvas_failure: t("incident.bvas_failure"),
+    overvoting: t("incident.overvoting"),
+    late_arrival: t("incident.late_arrival"),
+    other: t("incident.other"),
   };
 
   return (
@@ -44,9 +46,9 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className="relative z-10 flex flex-col items-center gap-6">
+        <div className="relative z-10 flex flex-col items-center gap-5">
           {/* Logo */}
-          <div className="w-24 h-24 mb-2">
+          <div className="w-24 h-24 mb-1">
             <img src="/ojutole-logo.png" alt="OJÚTÓLÉ" className="w-full h-full object-contain drop-shadow-[0_0_30px_rgba(37,99,235,0.6)]" />
           </div>
 
@@ -54,39 +56,39 @@ export default function Home() {
           <h1 className="text-3xl font-black tracking-tight text-white" style={{ textShadow: "0 0 40px rgba(37,99,235,0.5)" }}>
             OJÚTÓLÉ
           </h1>
-          <p className="text-xs text-white/40 uppercase tracking-[0.3em] -mt-1">The Eye That Watches</p>
+          <p className="text-xs text-white/40 uppercase tracking-[0.3em] -mt-1">{t("hero.tagline")}</p>
 
           {/* Live Indicator */}
           <div className="flex items-center gap-2 px-4 py-2 rounded-full glass">
             <div className="w-2 h-2 rounded-full bg-[#FF4D6D] animate-pulse-glow" />
-            <span className="text-sm font-medium text-white/80">Live: Election Monitoring Active</span>
+            <span className="text-sm font-medium text-white/80">{t("hero.live")}</span>
           </div>
 
           {/* Headline */}
           <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white leading-[1.2]"
               style={{ textShadow: "0 2px 40px rgba(37,99,235,0.4)" }}>
-            Your Vote,<br />
-            <span className="text-gradient">Your Voice</span>
+            {t("hero.title")}<br />
+            <span className="text-gradient">{t("hero.subtitle")}</span>
           </h2>
 
           <p className="text-base text-white/65 max-w-md">
-            Report electoral irregularities in real-time across Osun State.
+            {t("hero.description")}
           </p>
-
-          {/* USHAF Nigeria Branding */}
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full glass-inner">
-            <span className="text-[10px] text-white/40 uppercase tracking-wider">Powered by</span>
-            <span className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider">USHAF Nigeria</span>
-          </div>
 
           {/* CTA Button */}
           <button
             onClick={() => navigate("/report")}
-            className="btn-primary text-lg mt-4 flex items-center gap-2"
+            className="btn-primary text-lg mt-2 flex items-center gap-2"
           >
             <Camera size={20} />
-            MAKE A REPORT
+            {t("hero.cta")}
           </button>
+
+          {/* USHAF Nigeria Branding */}
+          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full glass-inner">
+            <span className="text-[10px] text-white/40 uppercase tracking-wider">{t("hero.poweredBy")}</span>
+            <span className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider">USHAF Nigeria</span>
+          </div>
         </div>
       </section>
 
@@ -94,9 +96,9 @@ export default function Home() {
       <section className="px-4 -mt-8 relative z-10">
         <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4">
           {[
-            { icon: Activity, label: "Reports Today", value: stats?.total || 0, color: "text-[#F59E0B]" },
-            { icon: MapPin, label: "LGAs Covered", value: "30/30", color: "text-[#2563EB]" },
-            { icon: Users, label: "Citizens Engaged", value: stats?.total ? stats.total * 3 : 0, color: "text-emerald-400" },
+            { icon: Activity, label: t("stats.reports"), value: stats?.total || 0, color: "text-[#F59E0B]" },
+            { icon: MapPin, label: t("stats.lgas"), value: "30/30", color: "text-[#2563EB]" },
+            { icon: Users, label: t("stats.citizens"), value: stats?.total ? stats.total * 3 : 0, color: "text-emerald-400" },
           ].map((stat, i) => (
             <div
               key={i}
@@ -115,13 +117,13 @@ export default function Home() {
       {/* How It Works */}
       <section className="px-4 py-8">
         <h2 className="text-2xl font-black uppercase tracking-tight text-white mb-6">
-          How It Works
+          {t("hiw.title")}
         </h2>
         <div className="space-y-4">
           {[
-            { step: "1", title: "Capture Evidence", desc: "Snap photos, record videos, or voice notes at your polling unit", icon: Camera },
-            { step: "2", title: "Submit Report", desc: "Fill in the incident type and your location is auto-captured", icon: MapPin },
-            { step: "3", title: "Track Impact", desc: "Monitor resolution in real-time and see your impact", icon: TrendingUp },
+            { step: "1", title: t("hiw.step1.title"), desc: t("hiw.step1.desc"), icon: Camera },
+            { step: "2", title: t("hiw.step2.title"), desc: t("hiw.step2.desc"), icon: MapPin },
+            { step: "3", title: t("hiw.step3.title"), desc: t("hiw.step3.desc"), icon: TrendingUp },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-4 glass rounded-2xl p-4">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#2563EB] flex items-center justify-center text-white font-bold">
@@ -140,25 +142,25 @@ export default function Home() {
       <section className="px-4 pb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-black uppercase tracking-tight text-white">
-            Recent Activity
+            {t("recent.title")}
           </h2>
           <button
             onClick={() => navigate("/reports")}
             className="text-sm text-[#2563EB] font-medium"
           >
-            View All
+            {t("recent.viewAll")}
           </button>
         </div>
 
         {recent.length === 0 ? (
           <div className="glass rounded-2xl p-8 text-center">
             <Shield size={40} className="mx-auto text-white/20 mb-3" />
-            <p className="text-white/50">Be the first to report from your polling unit</p>
+            <p className="text-white/50">{t("recent.empty")}</p>
             <button
               onClick={() => navigate("/report")}
               className="mt-4 text-[#2563EB] font-medium text-sm"
             >
-              Make a Report
+              {t("recent.emptyCta")}
             </button>
           </div>
         ) : (
@@ -200,7 +202,7 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-t from-[#0A0E27] via-transparent to-transparent" />
           <div className="absolute bottom-4 left-4 right-4">
             <p className="text-sm font-medium text-white/80">
-              Together, we ensure transparent and credible elections across Osun State
+              {t("hero.description")}
             </p>
           </div>
         </div>
