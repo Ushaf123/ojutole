@@ -1,36 +1,23 @@
-import { eq } from "drizzle-orm";
-import * as schema from "@db/schema";
-import type { InsertUser } from "@db/schema";
-import { getDb } from "./connection";
+import { userStore } from "../json-store";
 import { env } from "../lib/env";
 
 export async function findUserByUnionId(unionId: string) {
-  const rows = await getDb()
-    .select()
-    .from(schema.users)
-    .where(eq(schema.users.unionId, unionId))
-    .limit(1);
-  return rows.at(0);
+  return userStore.getByUnionId(unionId) || null;
 }
 
-export async function upsertUser(data: InsertUser) {
-  const values = { ...data };
-  const updateSet: Partial<InsertUser> = {
-    lastSignInAt: new Date(),
-    ...data,
-  };
+export async function upsertUser(data: {
+  unionId: string;
+  name?: string;
+  email?: string;
+  avatar?: string;
+  lastSignInAt?: Date;
+}) {
+  const role = data.unionId && data.unionId === env.ownerUnionId ? "admin" : undefined;
 
-  if (
-    values.role === undefined &&
-    values.unionId &&
-    values.unionId === env.ownerUnionId
-  ) {
-    values.role = "admin";
-    updateSet.role = "admin";
-  }
-
-  await getDb()
-    .insert(schema.users)
-    .values(values)
-    .onDuplicateKeyUpdate({ set: updateSet });
+  return userStore.upsert({
+    unionId: data.unionId,
+    name: data.name,
+    email: data.email,
+    avatar: data.avatar,
+  });
 }

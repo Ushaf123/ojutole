@@ -1,16 +1,35 @@
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
-import { env } from "../lib/env";
-import * as schema from "@db/schema";
+// Database connection - replaced with JSON file store
+// The json-store.ts module handles all data persistence.
+// This file is kept for compatibility with any code that imports getDb.
 
-const fullSchema = { ...schema };
+import { reportStore, userStore } from "../json-store";
 
-let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
+// Mock db interface that redirects to our JSON store
+// This preserves compatibility with any code using getDb()
+const mockDb = {
+  // User operations
+  query: {
+    users: {
+      findMany: () => userStore.getAll(),
+      findFirst: ({ where }: any) => {
+        if (where?.unionId?.equals) {
+          return userStore.getByUnionId(where.unionId.equals) || null;
+        }
+        if (where?.id?.equals) {
+          return userStore.getById(where.id.equals) || null;
+        }
+        return null;
+      },
+    },
+  },
+  // Insert operations
+  insert: () => ({ values: () => ({ returning: () => [] }) }),
+  // Select operations
+  select: () => ({ from: () => ({ where: () => ({}) }) }),
+  // Update operations
+  update: () => ({ set: () => ({ where: () => ({}) }) }),
+};
 
-export function getDb() {
-  if (!instance) {
-    const client = new Database("/tmp/local.db");
-    instance = drizzle(client, { schema: fullSchema });
-  }
-  return instance;
+export function getDb(): typeof mockDb {
+  return mockDb;
 }

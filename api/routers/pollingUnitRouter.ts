@@ -1,88 +1,64 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "../middleware";
-import { getDb } from "../queries/connection";
-import { pollingUnits } from "@db/schema";
-import { eq, like, and, sql } from "drizzle-orm";
+import {
+  getLGAs,
+  getWardsByLGA,
+  getUnitsByLGAAndWard,
+  getNearbyPollingUnits,
+  getPollingUnitById,
+  searchPollingUnits,
+  getPollingUnits,
+} from "../json-store";
 
 export const pollingUnitRouter = createRouter({
   list: publicQuery
     .input(
-      z.object({
-        lga: z.string().optional(),
-        ward: z.string().optional(),
-        search: z.string().optional(),
-        limit: z.number().min(1).max(500).default(100),
-        offset: z.number().min(0).default(0),
-      }).optional()
+      z
+        .object({
+          lga: z.string().optional(),
+          ward: z.string().optional(),
+          search: z.string().optional(),
+          limit: z.number().min(1).max(500).default(100),
+          offset: z.number().min(0).default(0),
+        })
+        .optional()
     )
-    .query(async ({ input }) => {
-      const db = getDb();
-      const conditions = [];
+    .query(({ input }) => {
+      let units = getPollingUnits();
 
-      if (input?.lga) {
-        conditions.push(eq(pollingUnits.lga, input.lga));
-      }
-      if (input?.ward) {
-        conditions.push(eq(pollingUnits.ward, input.ward));
-      }
       if (input?.search) {
-        conditions.push(like(pollingUnits.name, `%${input.search}%`));
+        units = searchPollingUnits(input.search);
+      } else {
+        if (input?.lga) {
+          units = units.filter((u) => u.lga === input.lga);
+        }
+        if (input?.ward) {
+          units = units.filter((u) => u.ward === input.ward);
+        }
       }
 
-      const where = conditions.length > 0 ? and(...conditions) : undefined;
+      const total = units.length;
+      const limit = input?.limit || 100;
+      const offset = input?.offset || 0;
+      units = units.slice(offset, offset + limit);
 
-      const results = await db
-        .select()
-        .from(pollingUnits)
-        .where(where)
-        .limit(input?.limit || 100)
-        .offset(input?.offset || 0);
-
-      const countResult = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(pollingUnits)
-        .where(where);
-
-      return {
-        units: results,
-        total: countResult[0]?.count || 0,
-      };
+      return { units, total };
     }),
 
   getById: publicQuery
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
-      const db = getDb();
-      const result = await db
-        .select()
-        .from(pollingUnits)
-        .where(eq(pollingUnits.id, input.id));
-      return result[0] || null;
+    .query(({ input }) => {
+      return getPollingUnitById(input.id);
     }),
 
-  getLGAs: publicQuery.query(async () => {
-    const db = getDb();
-    const results = await db
-      .select({ lga: pollingUnits.lga })
-      .from(pollingUnits)
-      .groupBy(pollingUnits.lga)
-      .orderBy(pollingUnits.lga);
-
-    return results.map((r) => r.lga);
+  getLGAs: publicQuery.query(() => {
+    return getLGAs();
   }),
 
   getWardsByLGA: publicQuery
     .input(z.object({ lga: z.string() }))
-    .query(async ({ input }) => {
-      const db = getDb();
-      const results = await db
-        .select({ ward: pollingUnits.ward })
-        .from(pollingUnits)
-        .where(eq(pollingUnits.lga, input.lga))
-        .groupBy(pollingUnits.ward)
-        .orderBy(pollingUnits.ward);
-
-      return results.map((r) => r.ward);
+    .query(({ input }) => {
+      return getWardsByLGA(input.lga);
     }),
 
   getUnitsByLGAAndWard: publicQuery
@@ -92,18 +68,8 @@ export const pollingUnitRouter = createRouter({
         ward: z.string().optional(),
       })
     )
-    .query(async ({ input }) => {
-      const db = getDb();
-      const conditions = [eq(pollingUnits.lga, input.lga)];
-      if (input.ward) {
-        conditions.push(eq(pollingUnits.ward, input.ward));
-      }
-
-      return await db
-        .select()
-        .from(pollingUnits)
-        .where(and(...conditions))
-        .orderBy(pollingUnits.ward, pollingUnits.name);
+    .query(({ input }) => {
+      return getUnitsByLGAAndWard(input.lga, input.ward);
     }),
 
   nearby: publicQuery
@@ -115,23 +81,7 @@ export const pollingUnitRouter = createRouter({
         limit: z.number().default(20),
       })
     )
-    .query(async ({ input }) => {
-      const db = getDb();
-      // Simple bounding box query for nearby units
-      const latDelta = input.radiusKm / 111;
-      const lngDelta = input.radiusKm / (111 * Math.cos((input.lat * Math.PI) / 180));
-
-      const results = await db
-        .select()
-        .from(pollingUnits)
-        .where(
-          and(
-            sql`${pollingUnits.latitude} BETWEEN ${(input.lat - latDelta).toFixed(7)} AND ${(input.lat + latDelta).toFixed(7)}`,
-            sql`${pollingUnits.longitude} BETWEEN ${(input.lng - lngDelta).toFixed(7)} AND ${(input.lng + lngDelta).toFixed(7)}`
-          )
-        )
-        .limit(input.limit);
-
-      return results;
+    .query(({ input }) => {
+      return getNearbyPollingUnits(input.lat, input.lng, input.radiusKm, input.limit);
     }),
 });

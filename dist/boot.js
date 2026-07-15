@@ -11,6 +11,9 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
   if (typeof require !== "undefined") return require.apply(this, arguments);
   throw Error('Dynamic require of "' + x + '" is not supported');
 });
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
@@ -18,11 +21,11 @@ var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
-var __copyProps = (to, from, except2, desc2) => {
+var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except2)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc2 = __getOwnPropDesc(from, key)) || desc2.enumerable });
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
   }
   return to;
 };
@@ -34,6 +37,619 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
   mod
 ));
+
+// node_modules/dotenv/lib/main.js
+var require_main = __commonJS({
+  "node_modules/dotenv/lib/main.js"(exports, module) {
+    var fs = __require("fs");
+    var path = __require("path");
+    var os = __require("os");
+    var crypto3 = __require("crypto");
+    var TIPS = [
+      "\u25C8 encrypted .env [www.dotenvx.com]",
+      "\u25C8 secrets for agents [www.dotenvx.com]",
+      "\u2301 auth for agents [www.vestauth.com]",
+      "\u2318 custom filepath { path: '/custom/path/.env' }",
+      "\u2318 enable debugging { debug: true }",
+      "\u2318 override existing { override: true }",
+      "\u2318 suppress logs { quiet: true }",
+      "\u2318 multiple files { path: ['.env.local', '.env'] }"
+    ];
+    function _getRandomTip() {
+      return TIPS[Math.floor(Math.random() * TIPS.length)];
+    }
+    function parseBoolean(value) {
+      if (typeof value === "string") {
+        return !["false", "0", "no", "off", ""].includes(value.toLowerCase());
+      }
+      return Boolean(value);
+    }
+    function supportsAnsi() {
+      return process.stdout.isTTY;
+    }
+    function dim(text) {
+      return supportsAnsi() ? `\x1B[2m${text}\x1B[0m` : text;
+    }
+    var LINE = /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg;
+    function parse6(src) {
+      const obj = {};
+      let lines = src.toString();
+      lines = lines.replace(/\r\n?/mg, "\n");
+      let match2;
+      while ((match2 = LINE.exec(lines)) != null) {
+        const key = match2[1];
+        let value = match2[2] || "";
+        value = value.trim();
+        const maybeQuote = value[0];
+        value = value.replace(/^(['"`])([\s\S]*)\1$/mg, "$2");
+        if (maybeQuote === '"') {
+          value = value.replace(/\\n/g, "\n");
+          value = value.replace(/\\r/g, "\r");
+        }
+        obj[key] = value;
+      }
+      return obj;
+    }
+    function _parseVault(options) {
+      options = options || {};
+      const vaultPath = _vaultPath(options);
+      options.path = vaultPath;
+      const result = DotenvModule.configDotenv(options);
+      if (!result.parsed) {
+        const err = new Error(`MISSING_DATA: Cannot parse ${vaultPath} for an unknown reason`);
+        err.code = "MISSING_DATA";
+        throw err;
+      }
+      const keys = _dotenvKey(options).split(",");
+      const length = keys.length;
+      let decrypted;
+      for (let i = 0; i < length; i++) {
+        try {
+          const key = keys[i].trim();
+          const attrs = _instructions(result, key);
+          decrypted = DotenvModule.decrypt(attrs.ciphertext, attrs.key);
+          break;
+        } catch (error51) {
+          if (i + 1 >= length) {
+            throw error51;
+          }
+        }
+      }
+      return DotenvModule.parse(decrypted);
+    }
+    function _warn(message2) {
+      console.error(`\u26A0 ${message2}`);
+    }
+    function _debug(message2) {
+      console.log(`\u2506 ${message2}`);
+    }
+    function _log(message2) {
+      console.log(`\u25C7 ${message2}`);
+    }
+    function _dotenvKey(options) {
+      if (options && options.DOTENV_KEY && options.DOTENV_KEY.length > 0) {
+        return options.DOTENV_KEY;
+      }
+      if (process.env.DOTENV_KEY && process.env.DOTENV_KEY.length > 0) {
+        return process.env.DOTENV_KEY;
+      }
+      return "";
+    }
+    function _instructions(result, dotenvKey) {
+      let uri;
+      try {
+        uri = new URL(dotenvKey);
+      } catch (error51) {
+        if (error51.code === "ERR_INVALID_URL") {
+          const err = new Error("INVALID_DOTENV_KEY: Wrong format. Must be in valid uri format like dotenv://:key_1234@dotenvx.com/vault/.env.vault?environment=development");
+          err.code = "INVALID_DOTENV_KEY";
+          throw err;
+        }
+        throw error51;
+      }
+      const key = uri.password;
+      if (!key) {
+        const err = new Error("INVALID_DOTENV_KEY: Missing key part");
+        err.code = "INVALID_DOTENV_KEY";
+        throw err;
+      }
+      const environment = uri.searchParams.get("environment");
+      if (!environment) {
+        const err = new Error("INVALID_DOTENV_KEY: Missing environment part");
+        err.code = "INVALID_DOTENV_KEY";
+        throw err;
+      }
+      const environmentKey = `DOTENV_VAULT_${environment.toUpperCase()}`;
+      const ciphertext = result.parsed[environmentKey];
+      if (!ciphertext) {
+        const err = new Error(`NOT_FOUND_DOTENV_ENVIRONMENT: Cannot locate environment ${environmentKey} in your .env.vault file.`);
+        err.code = "NOT_FOUND_DOTENV_ENVIRONMENT";
+        throw err;
+      }
+      return { ciphertext, key };
+    }
+    function _vaultPath(options) {
+      let possibleVaultPath = null;
+      if (options && options.path && options.path.length > 0) {
+        if (Array.isArray(options.path)) {
+          for (const filepath of options.path) {
+            if (fs.existsSync(filepath)) {
+              possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
+            }
+          }
+        } else {
+          possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
+        }
+      } else {
+        possibleVaultPath = path.resolve(process.cwd(), ".env.vault");
+      }
+      if (fs.existsSync(possibleVaultPath)) {
+        return possibleVaultPath;
+      }
+      return null;
+    }
+    function _resolveHome(envPath) {
+      return envPath[0] === "~" ? path.join(os.homedir(), envPath.slice(1)) : envPath;
+    }
+    function _configVault(options) {
+      const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
+      const quiet = parseBoolean(process.env.DOTENV_CONFIG_QUIET || options && options.quiet);
+      if (debug || !quiet) {
+        _log("loading env from encrypted .env.vault");
+      }
+      const parsed = DotenvModule._parseVault(options);
+      let processEnv = process.env;
+      if (options && options.processEnv != null) {
+        processEnv = options.processEnv;
+      }
+      DotenvModule.populate(processEnv, parsed, options);
+      return { parsed };
+    }
+    function configDotenv(options) {
+      const dotenvPath = path.resolve(process.cwd(), ".env");
+      let encoding = "utf8";
+      let processEnv = process.env;
+      if (options && options.processEnv != null) {
+        processEnv = options.processEnv;
+      }
+      let debug = parseBoolean(processEnv.DOTENV_CONFIG_DEBUG || options && options.debug);
+      let quiet = parseBoolean(processEnv.DOTENV_CONFIG_QUIET || options && options.quiet);
+      if (options && options.encoding) {
+        encoding = options.encoding;
+      } else {
+        if (debug) {
+          _debug("no encoding is specified (UTF-8 is used by default)");
+        }
+      }
+      let optionPaths = [dotenvPath];
+      if (options && options.path) {
+        if (!Array.isArray(options.path)) {
+          optionPaths = [_resolveHome(options.path)];
+        } else {
+          optionPaths = [];
+          for (const filepath of options.path) {
+            optionPaths.push(_resolveHome(filepath));
+          }
+        }
+      }
+      let lastError;
+      const parsedAll = {};
+      for (const path2 of optionPaths) {
+        try {
+          const parsed = DotenvModule.parse(fs.readFileSync(path2, { encoding }));
+          DotenvModule.populate(parsedAll, parsed, options);
+        } catch (e) {
+          if (debug) {
+            _debug(`failed to load ${path2} ${e.message}`);
+          }
+          lastError = e;
+        }
+      }
+      const populated = DotenvModule.populate(processEnv, parsedAll, options);
+      debug = parseBoolean(processEnv.DOTENV_CONFIG_DEBUG || debug);
+      quiet = parseBoolean(processEnv.DOTENV_CONFIG_QUIET || quiet);
+      if (debug || !quiet) {
+        const keysCount = Object.keys(populated).length;
+        const shortPaths = [];
+        for (const filePath of optionPaths) {
+          try {
+            const relative = path.relative(process.cwd(), filePath);
+            shortPaths.push(relative);
+          } catch (e) {
+            if (debug) {
+              _debug(`failed to load ${filePath} ${e.message}`);
+            }
+            lastError = e;
+          }
+        }
+        _log(`injected env (${keysCount}) from ${shortPaths.join(",")} ${dim(`// tip: ${_getRandomTip()}`)}`);
+      }
+      if (lastError) {
+        return { parsed: parsedAll, error: lastError };
+      } else {
+        return { parsed: parsedAll };
+      }
+    }
+    function config2(options) {
+      if (_dotenvKey(options).length === 0) {
+        return DotenvModule.configDotenv(options);
+      }
+      const vaultPath = _vaultPath(options);
+      if (!vaultPath) {
+        _warn(`you set DOTENV_KEY but you are missing a .env.vault file at ${vaultPath}`);
+        return DotenvModule.configDotenv(options);
+      }
+      return DotenvModule._configVault(options);
+    }
+    function decrypt(encrypted, keyStr) {
+      const key = Buffer.from(keyStr.slice(-64), "hex");
+      let ciphertext = Buffer.from(encrypted, "base64");
+      const nonce = ciphertext.subarray(0, 12);
+      const authTag = ciphertext.subarray(-16);
+      ciphertext = ciphertext.subarray(12, -16);
+      try {
+        const aesgcm = crypto3.createDecipheriv("aes-256-gcm", key, nonce);
+        aesgcm.setAuthTag(authTag);
+        return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
+      } catch (error51) {
+        const isRange = error51 instanceof RangeError;
+        const invalidKeyLength = error51.message === "Invalid key length";
+        const decryptionFailed = error51.message === "Unsupported state or unable to authenticate data";
+        if (isRange || invalidKeyLength) {
+          const err = new Error("INVALID_DOTENV_KEY: It must be 64 characters long (or more)");
+          err.code = "INVALID_DOTENV_KEY";
+          throw err;
+        } else if (decryptionFailed) {
+          const err = new Error("DECRYPTION_FAILED: Please check your DOTENV_KEY");
+          err.code = "DECRYPTION_FAILED";
+          throw err;
+        } else {
+          throw error51;
+        }
+      }
+    }
+    function populate(processEnv, parsed, options = {}) {
+      const debug = Boolean(options && options.debug);
+      const override = Boolean(options && options.override);
+      const populated = {};
+      if (typeof parsed !== "object") {
+        const err = new Error("OBJECT_REQUIRED: Please check the processEnv argument being passed to populate");
+        err.code = "OBJECT_REQUIRED";
+        throw err;
+      }
+      for (const key of Object.keys(parsed)) {
+        if (Object.prototype.hasOwnProperty.call(processEnv, key)) {
+          if (override === true) {
+            processEnv[key] = parsed[key];
+            populated[key] = parsed[key];
+          }
+          if (debug) {
+            if (override === true) {
+              _debug(`"${key}" is already defined and WAS overwritten`);
+            } else {
+              _debug(`"${key}" is already defined and was NOT overwritten`);
+            }
+          }
+        } else {
+          processEnv[key] = parsed[key];
+          populated[key] = parsed[key];
+        }
+      }
+      return populated;
+    }
+    var DotenvModule = {
+      configDotenv,
+      _configVault,
+      _parseVault,
+      config: config2,
+      decrypt,
+      parse: parse6,
+      populate
+    };
+    module.exports.configDotenv = DotenvModule.configDotenv;
+    module.exports._configVault = DotenvModule._configVault;
+    module.exports._parseVault = DotenvModule._parseVault;
+    module.exports.config = DotenvModule.config;
+    module.exports.decrypt = DotenvModule.decrypt;
+    module.exports.parse = DotenvModule.parse;
+    module.exports.populate = DotenvModule.populate;
+    module.exports = DotenvModule;
+  }
+});
+
+// node_modules/dotenv/lib/env-options.js
+var require_env_options = __commonJS({
+  "node_modules/dotenv/lib/env-options.js"(exports, module) {
+    var options = {};
+    if (process.env.DOTENV_CONFIG_ENCODING != null) {
+      options.encoding = process.env.DOTENV_CONFIG_ENCODING;
+    }
+    if (process.env.DOTENV_CONFIG_PATH != null) {
+      options.path = process.env.DOTENV_CONFIG_PATH;
+    }
+    if (process.env.DOTENV_CONFIG_QUIET != null) {
+      options.quiet = process.env.DOTENV_CONFIG_QUIET;
+    }
+    if (process.env.DOTENV_CONFIG_DEBUG != null) {
+      options.debug = process.env.DOTENV_CONFIG_DEBUG;
+    }
+    if (process.env.DOTENV_CONFIG_OVERRIDE != null) {
+      options.override = process.env.DOTENV_CONFIG_OVERRIDE;
+    }
+    if (process.env.DOTENV_CONFIG_DOTENV_KEY != null) {
+      options.DOTENV_KEY = process.env.DOTENV_CONFIG_DOTENV_KEY;
+    }
+    module.exports = options;
+  }
+});
+
+// node_modules/dotenv/lib/cli-options.js
+var require_cli_options = __commonJS({
+  "node_modules/dotenv/lib/cli-options.js"(exports, module) {
+    var re = /^dotenv_config_(encoding|path|quiet|debug|override|DOTENV_KEY)=(.+)$/;
+    module.exports = function optionMatcher(args) {
+      const options = args.reduce(function(acc, cur) {
+        const matches = cur.match(re);
+        if (matches) {
+          acc[matches[1]] = matches[2];
+        }
+        return acc;
+      }, {});
+      if (!("quiet" in options)) {
+        options.quiet = "true";
+      }
+      return options;
+    };
+  }
+});
+
+// node_modules/dotenv/config.js
+var init_config = __esm({
+  "node_modules/dotenv/config.js"() {
+    (function() {
+      require_main().config(
+        Object.assign(
+          {},
+          require_env_options(),
+          require_cli_options()(process.argv)
+        )
+      );
+    })();
+  }
+});
+
+// api/lib/env.ts
+function required(name) {
+  const value = process.env[name];
+  if (!value && process.env.NODE_ENV === "production") {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value ?? "";
+}
+var env;
+var init_env = __esm({
+  "api/lib/env.ts"() {
+    init_config();
+    env = {
+      appId: required("APP_ID"),
+      appSecret: required("APP_SECRET"),
+      isProduction: process.env.NODE_ENV === "production",
+      databaseUrl: process.env.DATABASE_URL ?? "",
+      kimiAuthUrl: process.env.KIMI_AUTH_URL ?? "",
+      kimiOpenUrl: process.env.KIMI_OPEN_URL ?? "",
+      ownerUnionId: process.env.OWNER_UNION_ID ?? ""
+    };
+  }
+});
+
+// node_modules/hono/dist/utils/url.js
+var splitPath, splitRoutingPath, extractGroupsFromPath, replaceGroupMarks, patternCache, getPattern, tryDecode, tryDecodeURI, getPath, getPathNoStrict, mergePath, checkOptionalParameter, _decodeURI, _getQueryParam, getQueryParam, getQueryParams, decodeURIComponent_;
+var init_url = __esm({
+  "node_modules/hono/dist/utils/url.js"() {
+    splitPath = (path) => {
+      const paths = path.split("/");
+      if (paths[0] === "") {
+        paths.shift();
+      }
+      return paths;
+    };
+    splitRoutingPath = (routePath) => {
+      const { groups, path } = extractGroupsFromPath(routePath);
+      const paths = splitPath(path);
+      return replaceGroupMarks(paths, groups);
+    };
+    extractGroupsFromPath = (path) => {
+      const groups = [];
+      path = path.replace(/\{[^}]+\}/g, (match2, index) => {
+        const mark = `@${index}`;
+        groups.push([mark, match2]);
+        return mark;
+      });
+      return { groups, path };
+    };
+    replaceGroupMarks = (paths, groups) => {
+      for (let i = groups.length - 1; i >= 0; i--) {
+        const [mark] = groups[i];
+        for (let j = paths.length - 1; j >= 0; j--) {
+          if (paths[j].includes(mark)) {
+            paths[j] = paths[j].replace(mark, groups[i][1]);
+            break;
+          }
+        }
+      }
+      return paths;
+    };
+    patternCache = {};
+    getPattern = (label, next) => {
+      if (label === "*") {
+        return "*";
+      }
+      const match2 = label.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);
+      if (match2) {
+        const cacheKey2 = `${label}#${next}`;
+        if (!patternCache[cacheKey2]) {
+          if (match2[2]) {
+            patternCache[cacheKey2] = next && next[0] !== ":" && next[0] !== "*" ? [cacheKey2, match2[1], new RegExp(`^${match2[2]}(?=/${next})`)] : [label, match2[1], new RegExp(`^${match2[2]}$`)];
+          } else {
+            patternCache[cacheKey2] = [label, match2[1], true];
+          }
+        }
+        return patternCache[cacheKey2];
+      }
+      return null;
+    };
+    tryDecode = (str, decoder2) => {
+      try {
+        return decoder2(str);
+      } catch {
+        return str.replace(/(?:%[0-9A-Fa-f]{2})+/g, (match2) => {
+          try {
+            return decoder2(match2);
+          } catch {
+            return match2;
+          }
+        });
+      }
+    };
+    tryDecodeURI = (str) => tryDecode(str, decodeURI);
+    getPath = (request) => {
+      const url2 = request.url;
+      const start = url2.indexOf("/", url2.indexOf(":") + 4);
+      let i = start;
+      for (; i < url2.length; i++) {
+        const charCode = url2.charCodeAt(i);
+        if (charCode === 37) {
+          const queryIndex = url2.indexOf("?", i);
+          const hashIndex = url2.indexOf("#", i);
+          const end = queryIndex === -1 ? hashIndex === -1 ? void 0 : hashIndex : hashIndex === -1 ? queryIndex : Math.min(queryIndex, hashIndex);
+          const path = url2.slice(start, end);
+          return tryDecodeURI(path.includes("%25") ? path.replace(/%25/g, "%2525") : path);
+        } else if (charCode === 63 || charCode === 35) {
+          break;
+        }
+      }
+      return url2.slice(start, i);
+    };
+    getPathNoStrict = (request) => {
+      const result = getPath(request);
+      return result.length > 1 && result.at(-1) === "/" ? result.slice(0, -1) : result;
+    };
+    mergePath = (base, sub, ...rest) => {
+      if (rest.length) {
+        sub = mergePath(sub, ...rest);
+      }
+      return `${base?.[0] === "/" ? "" : "/"}${base}${sub === "/" ? "" : `${base?.at(-1) === "/" ? "" : "/"}${sub?.[0] === "/" ? sub.slice(1) : sub}`}`;
+    };
+    checkOptionalParameter = (path) => {
+      if (path.charCodeAt(path.length - 1) !== 63 || !path.includes(":")) {
+        return null;
+      }
+      const segments = path.split("/");
+      const results = [];
+      let basePath = "";
+      segments.forEach((segment) => {
+        if (segment !== "" && !/\:/.test(segment)) {
+          basePath += "/" + segment;
+        } else if (/\:/.test(segment)) {
+          if (/\?/.test(segment)) {
+            if (results.length === 0 && basePath === "") {
+              results.push("/");
+            } else {
+              results.push(basePath);
+            }
+            const optionalSegment = segment.replace("?", "");
+            basePath += "/" + optionalSegment;
+            results.push(basePath);
+          } else {
+            basePath += "/" + segment;
+          }
+        }
+      });
+      return results.filter((v, i, a) => a.indexOf(v) === i);
+    };
+    _decodeURI = (value) => {
+      if (!/[%+]/.test(value)) {
+        return value;
+      }
+      if (value.indexOf("+") !== -1) {
+        value = value.replace(/\+/g, " ");
+      }
+      return value.indexOf("%") !== -1 ? tryDecode(value, decodeURIComponent_) : value;
+    };
+    _getQueryParam = (url2, key, multiple) => {
+      let encoded;
+      if (!multiple && key && !/[%+]/.test(key)) {
+        let keyIndex2 = url2.indexOf("?", 8);
+        if (keyIndex2 === -1) {
+          return void 0;
+        }
+        if (!url2.startsWith(key, keyIndex2 + 1)) {
+          keyIndex2 = url2.indexOf(`&${key}`, keyIndex2 + 1);
+        }
+        while (keyIndex2 !== -1) {
+          const trailingKeyCode = url2.charCodeAt(keyIndex2 + key.length + 1);
+          if (trailingKeyCode === 61) {
+            const valueIndex = keyIndex2 + key.length + 2;
+            const endIndex = url2.indexOf("&", valueIndex);
+            return _decodeURI(url2.slice(valueIndex, endIndex === -1 ? void 0 : endIndex));
+          } else if (trailingKeyCode == 38 || isNaN(trailingKeyCode)) {
+            return "";
+          }
+          keyIndex2 = url2.indexOf(`&${key}`, keyIndex2 + 1);
+        }
+        encoded = /[%+]/.test(url2);
+        if (!encoded) {
+          return void 0;
+        }
+      }
+      const results = {};
+      encoded ??= /[%+]/.test(url2);
+      let keyIndex = url2.indexOf("?", 8);
+      while (keyIndex !== -1) {
+        const nextKeyIndex = url2.indexOf("&", keyIndex + 1);
+        let valueIndex = url2.indexOf("=", keyIndex);
+        if (valueIndex > nextKeyIndex && nextKeyIndex !== -1) {
+          valueIndex = -1;
+        }
+        let name = url2.slice(
+          keyIndex + 1,
+          valueIndex === -1 ? nextKeyIndex === -1 ? void 0 : nextKeyIndex : valueIndex
+        );
+        if (encoded) {
+          name = _decodeURI(name);
+        }
+        keyIndex = nextKeyIndex;
+        if (name === "") {
+          continue;
+        }
+        let value;
+        if (valueIndex === -1) {
+          value = "";
+        } else {
+          value = url2.slice(valueIndex + 1, nextKeyIndex === -1 ? void 0 : nextKeyIndex);
+          if (encoded) {
+            value = _decodeURI(value);
+          }
+        }
+        if (multiple) {
+          if (!(results[name] && Array.isArray(results[name]))) {
+            results[name] = [];
+          }
+          ;
+          results[name].push(value);
+        } else {
+          results[name] ??= value;
+        }
+      }
+      return key ? results[key] : results;
+    };
+    getQueryParam = _getQueryParam;
+    getQueryParams = (url2, key) => {
+      return _getQueryParam(url2, key, true);
+    };
+    decodeURIComponent_ = decodeURIComponent;
+  }
+});
 
 // node_modules/cookie/dist/index.js
 var require_dist = __commonJS({
@@ -65,7 +681,7 @@ var require_dist = __commonJS({
       const len = str.length;
       if (len < 2)
         return obj;
-      const dec = options?.decode || decode3;
+      const dec = options?.decode || decode4;
       let index = 0;
       do {
         const eqIdx = eqIndex(str, index, len);
@@ -84,11 +700,11 @@ var require_dist = __commonJS({
       } while (index < len);
       return obj;
     }
-    function stringifyCookie(cookie2, options) {
+    function stringifyCookie(cookie3, options) {
       const enc = options?.encode || encodeURIComponent;
       const cookieStrings = [];
-      for (const name of Object.keys(cookie2)) {
-        const val = cookie2[name];
+      for (const name of Object.keys(cookie3)) {
+        const val = cookie3[name];
         if (val === void 0)
           continue;
         if (!cookieNameRegExp.test(name)) {
@@ -103,52 +719,52 @@ var require_dist = __commonJS({
       return cookieStrings.join("; ");
     }
     function stringifySetCookie(_name, _val, _opts) {
-      const cookie2 = typeof _name === "object" ? _name : { ..._opts, name: _name, value: String(_val) };
+      const cookie3 = typeof _name === "object" ? _name : { ..._opts, name: _name, value: String(_val) };
       const options = typeof _val === "object" ? _val : _opts;
       const enc = options?.encode || encodeURIComponent;
-      if (!cookieNameRegExp.test(cookie2.name)) {
-        throw new TypeError(`argument name is invalid: ${cookie2.name}`);
+      if (!cookieNameRegExp.test(cookie3.name)) {
+        throw new TypeError(`argument name is invalid: ${cookie3.name}`);
       }
-      const value = cookie2.value ? enc(cookie2.value) : "";
+      const value = cookie3.value ? enc(cookie3.value) : "";
       if (!cookieValueRegExp.test(value)) {
-        throw new TypeError(`argument val is invalid: ${cookie2.value}`);
+        throw new TypeError(`argument val is invalid: ${cookie3.value}`);
       }
-      let str = cookie2.name + "=" + value;
-      if (cookie2.maxAge !== void 0) {
-        if (!Number.isInteger(cookie2.maxAge)) {
-          throw new TypeError(`option maxAge is invalid: ${cookie2.maxAge}`);
+      let str = cookie3.name + "=" + value;
+      if (cookie3.maxAge !== void 0) {
+        if (!Number.isInteger(cookie3.maxAge)) {
+          throw new TypeError(`option maxAge is invalid: ${cookie3.maxAge}`);
         }
-        str += "; Max-Age=" + cookie2.maxAge;
+        str += "; Max-Age=" + cookie3.maxAge;
       }
-      if (cookie2.domain) {
-        if (!domainValueRegExp.test(cookie2.domain)) {
-          throw new TypeError(`option domain is invalid: ${cookie2.domain}`);
+      if (cookie3.domain) {
+        if (!domainValueRegExp.test(cookie3.domain)) {
+          throw new TypeError(`option domain is invalid: ${cookie3.domain}`);
         }
-        str += "; Domain=" + cookie2.domain;
+        str += "; Domain=" + cookie3.domain;
       }
-      if (cookie2.path) {
-        if (!pathValueRegExp.test(cookie2.path)) {
-          throw new TypeError(`option path is invalid: ${cookie2.path}`);
+      if (cookie3.path) {
+        if (!pathValueRegExp.test(cookie3.path)) {
+          throw new TypeError(`option path is invalid: ${cookie3.path}`);
         }
-        str += "; Path=" + cookie2.path;
+        str += "; Path=" + cookie3.path;
       }
-      if (cookie2.expires) {
-        if (!isDate2(cookie2.expires) || !Number.isFinite(cookie2.expires.valueOf())) {
-          throw new TypeError(`option expires is invalid: ${cookie2.expires}`);
+      if (cookie3.expires) {
+        if (!isDate2(cookie3.expires) || !Number.isFinite(cookie3.expires.valueOf())) {
+          throw new TypeError(`option expires is invalid: ${cookie3.expires}`);
         }
-        str += "; Expires=" + cookie2.expires.toUTCString();
+        str += "; Expires=" + cookie3.expires.toUTCString();
       }
-      if (cookie2.httpOnly) {
+      if (cookie3.httpOnly) {
         str += "; HttpOnly";
       }
-      if (cookie2.secure) {
+      if (cookie3.secure) {
         str += "; Secure";
       }
-      if (cookie2.partitioned) {
+      if (cookie3.partitioned) {
         str += "; Partitioned";
       }
-      if (cookie2.priority) {
-        const priority = typeof cookie2.priority === "string" ? cookie2.priority.toLowerCase() : void 0;
+      if (cookie3.priority) {
+        const priority = typeof cookie3.priority === "string" ? cookie3.priority.toLowerCase() : void 0;
         switch (priority) {
           case "low":
             str += "; Priority=Low";
@@ -160,11 +776,11 @@ var require_dist = __commonJS({
             str += "; Priority=High";
             break;
           default:
-            throw new TypeError(`option priority is invalid: ${cookie2.priority}`);
+            throw new TypeError(`option priority is invalid: ${cookie3.priority}`);
         }
       }
-      if (cookie2.sameSite) {
-        const sameSite = typeof cookie2.sameSite === "string" ? cookie2.sameSite.toLowerCase() : cookie2.sameSite;
+      if (cookie3.sameSite) {
+        const sameSite = typeof cookie3.sameSite === "string" ? cookie3.sameSite.toLowerCase() : cookie3.sameSite;
         switch (sameSite) {
           case true:
           case "strict":
@@ -177,17 +793,17 @@ var require_dist = __commonJS({
             str += "; SameSite=None";
             break;
           default:
-            throw new TypeError(`option sameSite is invalid: ${cookie2.sameSite}`);
+            throw new TypeError(`option sameSite is invalid: ${cookie3.sameSite}`);
         }
       }
       return str;
     }
     function parseSetCookie(str, options) {
-      const dec = options?.decode || decode3;
+      const dec = options?.decode || decode4;
       const len = str.length;
       const endIdx = endIndex(str, 0, len);
       const eqIdx = eqIndex(str, 0, endIdx);
-      const setCookie = eqIdx === -1 ? { name: "", value: dec(valueSlice(str, 0, endIdx)) } : {
+      const setCookie2 = eqIdx === -1 ? { name: "", value: dec(valueSlice(str, 0, endIdx)) } : {
         name: valueSlice(str, 0, eqIdx),
         value: dec(valueSlice(str, eqIdx + 1, endIdx))
       };
@@ -199,37 +815,37 @@ var require_dist = __commonJS({
         const val = eqIdx2 === -1 ? void 0 : valueSlice(str, eqIdx2 + 1, endIdx2);
         switch (attr.toLowerCase()) {
           case "httponly":
-            setCookie.httpOnly = true;
+            setCookie2.httpOnly = true;
             break;
           case "secure":
-            setCookie.secure = true;
+            setCookie2.secure = true;
             break;
           case "partitioned":
-            setCookie.partitioned = true;
+            setCookie2.partitioned = true;
             break;
           case "domain":
-            setCookie.domain = val;
+            setCookie2.domain = val;
             break;
           case "path":
-            setCookie.path = val;
+            setCookie2.path = val;
             break;
           case "max-age":
             if (val && maxAgeRegExp.test(val))
-              setCookie.maxAge = Number(val);
+              setCookie2.maxAge = Number(val);
             break;
           case "expires":
             if (!val)
               break;
             const date5 = new Date(val);
             if (Number.isFinite(date5.valueOf()))
-              setCookie.expires = date5;
+              setCookie2.expires = date5;
             break;
           case "priority":
             if (!val)
               break;
             const priority = val.toLowerCase();
             if (priority === "low" || priority === "medium" || priority === "high") {
-              setCookie.priority = priority;
+              setCookie2.priority = priority;
             }
             break;
           case "samesite":
@@ -237,13 +853,13 @@ var require_dist = __commonJS({
               break;
             const sameSite = val.toLowerCase();
             if (sameSite === "lax" || sameSite === "strict" || sameSite === "none") {
-              setCookie.sameSite = sameSite;
+              setCookie2.sameSite = sameSite;
             }
             break;
         }
         index = endIdx2 + 1;
       }
-      return setCookie;
+      return setCookie2;
     }
     function endIndex(str, min, len) {
       const index = str.indexOf(";", min);
@@ -269,7 +885,7 @@ var require_dist = __commonJS({
       }
       return str.slice(start, end);
     }
-    function decode3(str) {
+    function decode4(str) {
       if (str.indexOf("%") === -1)
         return str;
       try {
@@ -284,777 +900,3240 @@ var require_dist = __commonJS({
   }
 });
 
-// node_modules/better-sqlite3/lib/util.js
-var require_util = __commonJS({
-  "node_modules/better-sqlite3/lib/util.js"(exports) {
-    "use strict";
-    exports.getBooleanOption = (options, key) => {
-      let value = false;
-      if (key in options && typeof (value = options[key]) !== "boolean") {
-        throw new TypeError(`Expected the "${key}" option to be a boolean`);
-      }
-      return value;
+// contracts/constants.ts
+var Session, ErrorMessages;
+var init_constants = __esm({
+  "contracts/constants.ts"() {
+    Session = {
+      cookieName: "kimi_sid",
+      maxAgeMs: 365 * 24 * 60 * 60 * 1e3
     };
-    exports.cppdb = /* @__PURE__ */ Symbol();
-    exports.inspect = /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom");
+    ErrorMessages = {
+      unauthenticated: "Authentication required",
+      insufficientRole: "Insufficient permissions"
+    };
   }
 });
 
-// node_modules/better-sqlite3/lib/sqlite-error.js
-var require_sqlite_error = __commonJS({
-  "node_modules/better-sqlite3/lib/sqlite-error.js"(exports, module) {
-    "use strict";
-    var descriptor = { value: "SqliteError", writable: true, enumerable: false, configurable: true };
-    function SqliteError(message, code) {
-      if (new.target !== SqliteError) {
-        return new SqliteError(message, code);
-      }
-      if (typeof code !== "string") {
-        throw new TypeError("Expected second argument to be a string");
-      }
-      Error.call(this, message);
-      descriptor.value = "" + message;
-      Object.defineProperty(this, "message", descriptor);
-      Error.captureStackTrace(this, SqliteError);
-      this.code = code;
-    }
-    Object.setPrototypeOf(SqliteError, Error);
-    Object.setPrototypeOf(SqliteError.prototype, Error.prototype);
-    Object.defineProperty(SqliteError.prototype, "name", descriptor);
-    module.exports = SqliteError;
+// api/lib/cookies.ts
+function isLocalhost(headers) {
+  const host = headers.get("host") || "";
+  return host.startsWith("localhost:") || host.startsWith("127.0.0.1:");
+}
+function getSessionCookieOptions(headers) {
+  const localhost = isLocalhost(headers);
+  return {
+    httpOnly: true,
+    path: "/",
+    sameSite: localhost ? "Lax" : "None",
+    secure: !localhost
+  };
+}
+var init_cookies = __esm({
+  "api/lib/cookies.ts"() {
   }
 });
 
-// node_modules/file-uri-to-path/index.js
-var require_file_uri_to_path = __commonJS({
-  "node_modules/file-uri-to-path/index.js"(exports, module) {
-    var sep = __require("path").sep || "/";
-    module.exports = fileUriToPath;
-    function fileUriToPath(uri) {
-      if ("string" != typeof uri || uri.length <= 7 || "file://" != uri.substring(0, 7)) {
-        throw new TypeError("must pass in a file:// URI to convert to a file path");
+// api/json-store.ts
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { dirname } from "path";
+function generatePollingUnits() {
+  const units = [];
+  let id = 1;
+  for (let i = 0; i < OSUN_LGAS.length; i++) {
+    const lga = OSUN_LGAS[i];
+    const wardCount = 3 + i % 3;
+    for (let w = 0; w < wardCount; w++) {
+      const unitCount = 3 + (i + w) % 4;
+      for (let u = 0; u < unitCount; u++) {
+        const wardName = `Ward ${w + 1}`;
+        const puName = `${PU_TEMPLATES[(i + w + u) % PU_TEMPLATES.length]}, ${lga} ${wardName}`;
+        const lat = 7.5 + i * 0.015 + w * 3e-3 + Math.random() * 2e-3;
+        const lng = 4.2 + w * 0.015 + u * 3e-3 + Math.random() * 2e-3;
+        units.push({
+          id,
+          name: puName,
+          lga,
+          ward: wardName,
+          latitude: Math.round(lat * 1e6) / 1e6,
+          longitude: Math.round(lng * 1e6) / 1e6,
+          registrationAreaCode: `${String(i + 1).padStart(2, "0")}-${String(w + 1).padStart(2, "0")}-${String(u + 1).padStart(3, "0")}`
+        });
+        id++;
       }
-      var rest = decodeURI(uri.substring(7));
-      var firstSlash = rest.indexOf("/");
-      var host = rest.substring(0, firstSlash);
-      var path = rest.substring(firstSlash + 1);
-      if ("localhost" == host) host = "";
-      if (host) {
-        host = sep + sep + host;
-      }
-      path = path.replace(/^(.+)\|/, "$1:");
-      if (sep == "\\") {
-        path = path.replace(/\//g, "\\");
-      }
-      if (/^.+\:/.test(path)) {
-      } else {
-        path = sep + path;
-      }
-      return host + path;
     }
   }
-});
-
-// node_modules/bindings/bindings.js
-var require_bindings = __commonJS({
-  "node_modules/bindings/bindings.js"(exports, module) {
-    var fs = __require("fs");
-    var path = __require("path");
-    var fileURLToPath = require_file_uri_to_path();
-    var join = path.join;
-    var dirname = path.dirname;
-    var exists2 = fs.accessSync && function(path2) {
-      try {
-        fs.accessSync(path2);
-      } catch (e) {
-        return false;
-      }
-      return true;
-    } || fs.existsSync || path.existsSync;
-    var defaults = {
-      arrow: process.env.NODE_BINDINGS_ARROW || " \u2192 ",
-      compiled: process.env.NODE_BINDINGS_COMPILED_DIR || "compiled",
-      platform: process.platform,
-      arch: process.arch,
-      nodePreGyp: "node-v" + process.versions.modules + "-" + process.platform + "-" + process.arch,
-      version: process.versions.node,
-      bindings: "bindings.node",
-      try: [
-        // node-gyp's linked version in the "build" dir
-        ["module_root", "build", "bindings"],
-        // node-waf and gyp_addon (a.k.a node-gyp)
-        ["module_root", "build", "Debug", "bindings"],
-        ["module_root", "build", "Release", "bindings"],
-        // Debug files, for development (legacy behavior, remove for node v0.9)
-        ["module_root", "out", "Debug", "bindings"],
-        ["module_root", "Debug", "bindings"],
-        // Release files, but manually compiled (legacy behavior, remove for node v0.9)
-        ["module_root", "out", "Release", "bindings"],
-        ["module_root", "Release", "bindings"],
-        // Legacy from node-waf, node <= 0.4.x
-        ["module_root", "build", "default", "bindings"],
-        // Production "Release" buildtype binary (meh...)
-        ["module_root", "compiled", "version", "platform", "arch", "bindings"],
-        // node-qbs builds
-        ["module_root", "addon-build", "release", "install-root", "bindings"],
-        ["module_root", "addon-build", "debug", "install-root", "bindings"],
-        ["module_root", "addon-build", "default", "install-root", "bindings"],
-        // node-pre-gyp path ./lib/binding/{node_abi}-{platform}-{arch}
-        ["module_root", "lib", "binding", "nodePreGyp", "bindings"]
-      ]
-    };
-    function bindings(opts) {
-      if (typeof opts == "string") {
-        opts = { bindings: opts };
-      } else if (!opts) {
-        opts = {};
-      }
-      Object.keys(defaults).map(function(i2) {
-        if (!(i2 in opts)) opts[i2] = defaults[i2];
-      });
-      if (!opts.module_root) {
-        opts.module_root = exports.getRoot(exports.getFileName());
-      }
-      if (path.extname(opts.bindings) != ".node") {
-        opts.bindings += ".node";
-      }
-      var requireFunc = typeof __webpack_require__ === "function" ? __non_webpack_require__ : __require;
-      var tries = [], i = 0, l = opts.try.length, n, b, err;
-      for (; i < l; i++) {
-        n = join.apply(
-          null,
-          opts.try[i].map(function(p) {
-            return opts[p] || p;
-          })
+  return units;
+}
+function getPollingUnits() {
+  return POLLING_UNITS;
+}
+function getLGAs() {
+  return [...OSUN_LGAS];
+}
+function getWardsByLGA(lga) {
+  const wards = /* @__PURE__ */ new Set();
+  for (const unit of POLLING_UNITS) {
+    if (unit.lga === lga) {
+      wards.add(unit.ward);
+    }
+  }
+  return Array.from(wards).sort();
+}
+function getUnitsByLGAAndWard(lga, ward) {
+  return POLLING_UNITS.filter(
+    (u) => u.lga === lga && (!ward || u.ward === ward)
+  );
+}
+function searchPollingUnits(query) {
+  const q = query.toLowerCase();
+  return POLLING_UNITS.filter(
+    (u) => u.name.toLowerCase().includes(q) || u.lga.toLowerCase().includes(q) || u.ward.toLowerCase().includes(q)
+  );
+}
+function getPollingUnitById(id) {
+  return POLLING_UNITS.find((u) => u.id === id) || null;
+}
+function getNearbyPollingUnits(lat, lng, radiusKm, limit) {
+  const results = [];
+  for (const unit of POLLING_UNITS) {
+    const dLat = (unit.latitude - lat) * Math.PI / 180;
+    const dLng = (unit.longitude - lng) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat * Math.PI / 180) * Math.cos(unit.latitude * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = 6371 * c;
+    if (distance <= radiusKm) {
+      results.push({ ...unit, distance: Math.round(distance * 100) / 100 });
+    }
+  }
+  results.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+  return results.slice(0, limit);
+}
+function ensureDir(path) {
+  const dir = dirname(path);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+function readJsonFile(path, defaultValue) {
+  try {
+    if (!existsSync(path)) return defaultValue;
+    const data = readFileSync(path, "utf-8");
+    return JSON.parse(data);
+  } catch {
+    return defaultValue;
+  }
+}
+function writeJsonFile(path, data) {
+  ensureDir(path);
+  writeFileSync(path, JSON.stringify(data, null, 2), "utf-8");
+}
+function loadReports() {
+  if (reportsCache === null) {
+    reportsCache = readJsonFile(REPORTS_FILE, []);
+    for (const r of reportsCache) {
+      if (r.id >= reportsNextId) reportsNextId = r.id + 1;
+    }
+  }
+  return reportsCache;
+}
+function saveReports() {
+  if (reportsCache !== null) {
+    writeJsonFile(REPORTS_FILE, reportsCache);
+  }
+}
+function loadMedia() {
+  if (mediaCache === null) {
+    mediaCache = readJsonFile("/tmp/report_media.json", []);
+    for (const m of mediaCache) {
+      if (m.id >= mediaNextId) mediaNextId = m.id + 1;
+    }
+  }
+  return mediaCache;
+}
+function saveMedia() {
+  if (mediaCache !== null) {
+    writeJsonFile("/tmp/report_media.json", mediaCache);
+  }
+}
+function loadUsers() {
+  if (usersCache === null) {
+    usersCache = readJsonFile(USERS_FILE, []);
+    for (const u of usersCache) {
+      if (u.id >= usersNextId) usersNextId = u.id + 1;
+    }
+  }
+  return usersCache;
+}
+function saveUsers() {
+  if (usersCache !== null) {
+    writeJsonFile(USERS_FILE, usersCache);
+  }
+}
+var OSUN_LGAS, PU_TEMPLATES, POLLING_UNITS, REPORTS_FILE, USERS_FILE, reportsCache, reportsNextId, mediaCache, mediaNextId, usersCache, usersNextId, reportStore, userStore;
+var init_json_store = __esm({
+  "api/json-store.ts"() {
+    OSUN_LGAS = [
+      "Aiyedaade",
+      "Aiyedire",
+      "Atakunmosa East",
+      "Atakunmosa West",
+      "Boluwaduro",
+      "Boripe",
+      "Ede North",
+      "Ede South",
+      "Egbedore",
+      "Ejigbo",
+      "Ife Central",
+      "Ife East",
+      "Ife North",
+      "Ife South",
+      "Ifedayo",
+      "Ifelodun",
+      "Ila",
+      "Ilesa East",
+      "Ilesa West",
+      "Irepodun",
+      "Irewole",
+      "Isokan",
+      "Iwo",
+      "Obokun",
+      "Odo-Otin",
+      "Ola-Oluwa",
+      "Olorunda",
+      "Oriade",
+      "Orolu",
+      "Osogbo"
+    ];
+    PU_TEMPLATES = [
+      "St. Peter's Pry Sch",
+      "Baptist Day Sch",
+      "Community Pry Sch",
+      "Town Hall",
+      "Market Square",
+      "L.A. Pry Sch",
+      "N.U.D. Pry Sch",
+      "Methodist Pry Sch",
+      "C.A.C. Pry Sch",
+      "Health Centre",
+      "Anglican Pry Sch",
+      "Catholic Pry Sch",
+      "Muslim Pry Sch",
+      "Oba's Palace",
+      "Village Square",
+      "A.U.D. Pry Sch"
+    ];
+    POLLING_UNITS = generatePollingUnits();
+    REPORTS_FILE = "/tmp/reports.json";
+    USERS_FILE = "/tmp/users.json";
+    reportsCache = null;
+    reportsNextId = 1;
+    mediaCache = null;
+    mediaNextId = 1;
+    usersCache = null;
+    usersNextId = 1;
+    reportStore = {
+      getAll() {
+        return [...loadReports()].sort(
+          (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
         );
-        tries.push(n);
-        try {
-          b = opts.path ? requireFunc.resolve(n) : requireFunc(n);
-          if (!opts.path) {
-            b.path = n;
-          }
-          return b;
-        } catch (e) {
-          if (e.code !== "MODULE_NOT_FOUND" && e.code !== "QUALIFIED_PATH_RESOLUTION_FAILED" && !/not find/i.test(e.message)) {
-            throw e;
-          }
+      },
+      getById(id) {
+        return loadReports().find((r) => r.id === id);
+      },
+      getMediaByReportId(reportId) {
+        return loadMedia().filter((m) => m.reportId === reportId);
+      },
+      create(data) {
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        const report = {
+          ...data,
+          id: reportsNextId++,
+          submittedAt: now,
+          updatedAt: now
+        };
+        loadReports().push(report);
+        saveReports();
+        if (data.media && data.media.length > 0) {
+          const mediaRecords = data.media.map((m) => ({
+            id: mediaNextId++,
+            reportId: report.id,
+            mediaType: m.mediaType,
+            url: m.url,
+            thumbnail: m.thumbnail,
+            createdAt: now
+          }));
+          loadMedia().push(...mediaRecords);
+          saveMedia();
         }
-      }
-      err = new Error(
-        "Could not locate the bindings file. Tried:\n" + tries.map(function(a) {
-          return opts.arrow + a;
-        }).join("\n")
-      );
-      err.tries = tries;
-      throw err;
-    }
-    module.exports = exports = bindings;
-    exports.getFileName = function getFileName(calling_file) {
-      var origPST = Error.prepareStackTrace, origSTL = Error.stackTraceLimit, dummy = {}, fileName;
-      Error.stackTraceLimit = 10;
-      Error.prepareStackTrace = function(e, st) {
-        for (var i = 0, l = st.length; i < l; i++) {
-          fileName = st[i].getFileName();
-          if (fileName !== __filename) {
-            if (calling_file) {
-              if (fileName !== calling_file) {
-                return;
-              }
-            } else {
-              return;
-            }
-          }
+        return report.id;
+      },
+      updateStatus(id, status) {
+        const reports = loadReports();
+        const report = reports.find((r) => r.id === id);
+        if (!report) return false;
+        report.status = status;
+        report.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+        saveReports();
+        return true;
+      },
+      getStats() {
+        const all = loadReports();
+        const byStatus = {};
+        const byType = {};
+        const byLGA = {};
+        for (const r of all) {
+          byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+          byType[r.incidentType] = (byType[r.incidentType] || 0) + 1;
+          byLGA[r.lga] = (byLGA[r.lga] || 0) + 1;
         }
-      };
-      Error.captureStackTrace(dummy);
-      dummy.stack;
-      Error.prepareStackTrace = origPST;
-      Error.stackTraceLimit = origSTL;
-      var fileSchema = "file://";
-      if (fileName.indexOf(fileSchema) === 0) {
-        fileName = fileURLToPath(fileName);
+        return {
+          total: all.length,
+          byStatus: Object.entries(byStatus).map(([status, count]) => ({ status, count })),
+          byType: Object.entries(byType).map(([incidentType, count]) => ({ incidentType, count })),
+          byLGA: Object.entries(byLGA).map(([lga, count]) => ({ lga, count })).sort((a, b) => b.count - a.count).slice(0, 10)
+        };
+      },
+      filter(options) {
+        let results = loadReports();
+        if (options.status) {
+          results = results.filter((r) => r.status === options.status);
+        }
+        if (options.lga) {
+          results = results.filter((r) => r.lga === options.lga);
+        }
+        if (options.incidentType) {
+          results = results.filter((r) => r.incidentType === options.incidentType);
+        }
+        results.sort(
+          (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+        );
+        const total = results.length;
+        const limit = options.limit || 20;
+        const offset = options.offset || 0;
+        results = results.slice(offset, offset + limit);
+        return { reports: results, total };
       }
-      return fileName;
     };
-    exports.getRoot = function getRoot(file2) {
-      var dir = dirname(file2), prev;
-      while (true) {
-        if (dir === ".") {
-          dir = process.cwd();
+    userStore = {
+      getAll() {
+        return loadUsers();
+      },
+      getByUnionId(unionId) {
+        return loadUsers().find((u) => u.unionId === unionId);
+      },
+      getById(id) {
+        return loadUsers().find((u) => u.id === id);
+      },
+      upsert(data) {
+        const users2 = loadUsers();
+        const existing = users2.find((u) => u.unionId === data.unionId);
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        if (existing) {
+          existing.name = data.name || existing.name;
+          existing.email = data.email || existing.email;
+          existing.avatar = data.avatar || existing.avatar;
+          existing.lastSignInAt = now;
+          existing.updatedAt = now;
+          saveUsers();
+          return existing;
         }
-        if (exists2(join(dir, "package.json")) || exists2(join(dir, "node_modules"))) {
-          return dir;
+        const newUser = {
+          id: usersNextId++,
+          unionId: data.unionId,
+          name: data.name,
+          email: data.email,
+          avatar: data.avatar,
+          role: "user",
+          createdAt: now,
+          updatedAt: now,
+          lastSignInAt: now
+        };
+        users2.push(newUser);
+        saveUsers();
+        return newUser;
+      }
+    };
+  }
+});
+
+// node_modules/hono/dist/utils/cookie.js
+var validCookieNameRegEx, _serialize, serialize3;
+var init_cookie = __esm({
+  "node_modules/hono/dist/utils/cookie.js"() {
+    init_url();
+    validCookieNameRegEx = /^[\w!#$%&'*.^`|~+-]+$/;
+    _serialize = (name, value, opt = {}) => {
+      if (!validCookieNameRegEx.test(name)) {
+        throw new Error("Invalid cookie name");
+      }
+      let cookie3 = `${name}=${value}`;
+      if (name.startsWith("__Secure-") && !opt.secure) {
+        throw new Error("__Secure- Cookie must have Secure attributes");
+      }
+      if (name.startsWith("__Host-")) {
+        if (!opt.secure) {
+          throw new Error("__Host- Cookie must have Secure attributes");
         }
-        if (prev === dir) {
+        if (opt.path !== "/") {
+          throw new Error('__Host- Cookie must have Path attributes with "/"');
+        }
+        if (opt.domain) {
+          throw new Error("__Host- Cookie must not have Domain attributes");
+        }
+      }
+      for (const key of ["domain", "path", "sameSite", "priority"]) {
+        if (opt[key] && /[;\r\n]/.test(opt[key])) {
+          throw new Error(`${key} must not contain ";", "\\r", or "\\n"`);
+        }
+      }
+      if (opt && typeof opt.maxAge === "number" && opt.maxAge >= 0) {
+        if (opt.maxAge > 3456e4) {
           throw new Error(
-            'Could not find module root given file: "' + file2 + '". Do you have a `package.json` file? '
+            "Cookies Max-Age SHOULD NOT be greater than 400 days (34560000 seconds) in duration."
           );
         }
-        prev = dir;
-        dir = join(dir, "..");
+        cookie3 += `; Max-Age=${opt.maxAge | 0}`;
       }
+      if (opt.domain && opt.prefix !== "host") {
+        cookie3 += `; Domain=${opt.domain}`;
+      }
+      if (opt.path) {
+        cookie3 += `; Path=${opt.path}`;
+      }
+      if (opt.expires) {
+        if (opt.expires.getTime() - Date.now() > 3456e7) {
+          throw new Error(
+            "Cookies Expires SHOULD NOT be greater than 400 days (34560000 seconds) in the future."
+          );
+        }
+        cookie3 += `; Expires=${opt.expires.toUTCString()}`;
+      }
+      if (opt.httpOnly) {
+        cookie3 += "; HttpOnly";
+      }
+      if (opt.secure) {
+        cookie3 += "; Secure";
+      }
+      if (opt.sameSite) {
+        cookie3 += `; SameSite=${opt.sameSite.charAt(0).toUpperCase() + opt.sameSite.slice(1)}`;
+      }
+      if (opt.priority) {
+        cookie3 += `; Priority=${opt.priority.charAt(0).toUpperCase() + opt.priority.slice(1)}`;
+      }
+      if (opt.partitioned) {
+        if (!opt.secure) {
+          throw new Error("Partitioned Cookie must have Secure attributes");
+        }
+        cookie3 += "; Partitioned";
+      }
+      return cookie3;
+    };
+    serialize3 = (name, value, opt) => {
+      value = encodeURIComponent(value);
+      return _serialize(name, value, opt);
     };
   }
 });
 
-// node_modules/better-sqlite3/lib/methods/wrappers.js
-var require_wrappers = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/wrappers.js"(exports) {
-    "use strict";
-    var { cppdb } = require_util();
-    exports.prepare = function prepare(sql2) {
-      return this[cppdb].prepare(sql2, this, false);
-    };
-    exports.exec = function exec(sql2) {
-      this[cppdb].exec(sql2);
-      return this;
-    };
-    exports.close = function close() {
-      this[cppdb].close();
-      return this;
-    };
-    exports.loadExtension = function loadExtension(...args) {
-      this[cppdb].loadExtension(...args);
-      return this;
-    };
-    exports.defaultSafeIntegers = function defaultSafeIntegers(...args) {
-      this[cppdb].defaultSafeIntegers(...args);
-      return this;
-    };
-    exports.unsafeMode = function unsafeMode(...args) {
-      this[cppdb].unsafeMode(...args);
-      return this;
-    };
-    exports.getters = {
-      name: {
-        get: function name() {
-          return this[cppdb].name;
-        },
-        enumerable: true
-      },
-      open: {
-        get: function open() {
-          return this[cppdb].open;
-        },
-        enumerable: true
-      },
-      inTransaction: {
-        get: function inTransaction() {
-          return this[cppdb].inTransaction;
-        },
-        enumerable: true
-      },
-      readonly: {
-        get: function readonly2() {
-          return this[cppdb].readonly;
-        },
-        enumerable: true
-      },
-      memory: {
-        get: function memory() {
-          return this[cppdb].memory;
-        },
-        enumerable: true
-      }
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/transaction.js
-var require_transaction = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/transaction.js"(exports, module) {
-    "use strict";
-    var { cppdb } = require_util();
-    var controllers = /* @__PURE__ */ new WeakMap();
-    module.exports = function transaction(fn) {
-      if (typeof fn !== "function") throw new TypeError("Expected first argument to be a function");
-      const db = this[cppdb];
-      const controller = getController(db, this);
-      const { apply } = Function.prototype;
-      const properties = {
-        default: { value: wrapTransaction(apply, fn, db, controller.default) },
-        deferred: { value: wrapTransaction(apply, fn, db, controller.deferred) },
-        immediate: { value: wrapTransaction(apply, fn, db, controller.immediate) },
-        exclusive: { value: wrapTransaction(apply, fn, db, controller.exclusive) },
-        database: { value: this, enumerable: true }
-      };
-      Object.defineProperties(properties.default.value, properties);
-      Object.defineProperties(properties.deferred.value, properties);
-      Object.defineProperties(properties.immediate.value, properties);
-      Object.defineProperties(properties.exclusive.value, properties);
-      return properties.default.value;
-    };
-    var getController = (db, self) => {
-      let controller = controllers.get(db);
-      if (!controller) {
-        const shared = {
-          commit: db.prepare("COMMIT", self, false),
-          rollback: db.prepare("ROLLBACK", self, false),
-          savepoint: db.prepare("SAVEPOINT `	_bs3.	`", self, false),
-          release: db.prepare("RELEASE `	_bs3.	`", self, false),
-          rollbackTo: db.prepare("ROLLBACK TO `	_bs3.	`", self, false)
-        };
-        controllers.set(db, controller = {
-          default: Object.assign({ begin: db.prepare("BEGIN", self, false) }, shared),
-          deferred: Object.assign({ begin: db.prepare("BEGIN DEFERRED", self, false) }, shared),
-          immediate: Object.assign({ begin: db.prepare("BEGIN IMMEDIATE", self, false) }, shared),
-          exclusive: Object.assign({ begin: db.prepare("BEGIN EXCLUSIVE", self, false) }, shared)
+// node_modules/hono/dist/helper/cookie/index.js
+var generateCookie, setCookie;
+var init_cookie2 = __esm({
+  "node_modules/hono/dist/helper/cookie/index.js"() {
+    init_cookie();
+    generateCookie = (name, value, opt) => {
+      let cookie3;
+      if (opt?.prefix === "secure") {
+        cookie3 = serialize3("__Secure-" + name, value, { path: "/", ...opt, secure: true });
+      } else if (opt?.prefix === "host") {
+        cookie3 = serialize3("__Host-" + name, value, {
+          ...opt,
+          path: "/",
+          secure: true,
+          domain: void 0
         });
-      }
-      return controller;
-    };
-    var wrapTransaction = (apply, fn, db, { begin, commit, rollback, savepoint, release, rollbackTo }) => function sqliteTransaction() {
-      let before, after, undo;
-      if (db.inTransaction) {
-        before = savepoint;
-        after = release;
-        undo = rollbackTo;
       } else {
-        before = begin;
-        after = commit;
-        undo = rollback;
+        cookie3 = serialize3(name, value, { path: "/", ...opt });
       }
-      before.run();
+      return cookie3;
+    };
+    setCookie = (c, name, value, opt) => {
+      const cookie3 = generateCookie(name, value, opt);
+      c.header("Set-Cookie", cookie3, { append: true });
+    };
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/buffer_utils.js
+function concat(...buffers) {
+  const size = buffers.reduce((acc, { length }) => acc + length, 0);
+  const buf = new Uint8Array(size);
+  let i = 0;
+  for (const buffer of buffers) {
+    buf.set(buffer, i);
+    i += buffer.length;
+  }
+  return buf;
+}
+function encode3(string4) {
+  const bytes = new Uint8Array(string4.length);
+  for (let i = 0; i < string4.length; i++) {
+    const code = string4.charCodeAt(i);
+    if (code > 127) {
+      throw new TypeError("non-ASCII string encountered in encode()");
+    }
+    bytes[i] = code;
+  }
+  return bytes;
+}
+var encoder, decoder, MAX_INT32;
+var init_buffer_utils = __esm({
+  "node_modules/jose/dist/webapi/lib/buffer_utils.js"() {
+    encoder = new TextEncoder();
+    decoder = new TextDecoder();
+    MAX_INT32 = 2 ** 32;
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/base64.js
+function encodeBase64(input) {
+  if (Uint8Array.prototype.toBase64) {
+    return input.toBase64();
+  }
+  const CHUNK_SIZE = 32768;
+  const arr = [];
+  for (let i = 0; i < input.length; i += CHUNK_SIZE) {
+    arr.push(String.fromCharCode.apply(null, input.subarray(i, i + CHUNK_SIZE)));
+  }
+  return btoa(arr.join(""));
+}
+function decodeBase64(encoded) {
+  if (Uint8Array.fromBase64) {
+    return Uint8Array.fromBase64(encoded);
+  }
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+var init_base64 = __esm({
+  "node_modules/jose/dist/webapi/lib/base64.js"() {
+  }
+});
+
+// node_modules/jose/dist/webapi/util/base64url.js
+function decode3(input) {
+  if (Uint8Array.fromBase64) {
+    return Uint8Array.fromBase64(typeof input === "string" ? input : decoder.decode(input), {
+      alphabet: "base64url"
+    });
+  }
+  let encoded = input;
+  if (encoded instanceof Uint8Array) {
+    encoded = decoder.decode(encoded);
+  }
+  encoded = encoded.replace(/-/g, "+").replace(/_/g, "/");
+  try {
+    return decodeBase64(encoded);
+  } catch {
+    throw new TypeError("The input to be decoded is not correctly encoded.");
+  }
+}
+function encode4(input) {
+  let unencoded = input;
+  if (typeof unencoded === "string") {
+    unencoded = encoder.encode(unencoded);
+  }
+  if (Uint8Array.prototype.toBase64) {
+    return unencoded.toBase64({ alphabet: "base64url", omitPadding: true });
+  }
+  return encodeBase64(unencoded).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+var init_base64url = __esm({
+  "node_modules/jose/dist/webapi/util/base64url.js"() {
+    init_buffer_utils();
+    init_base64();
+  }
+});
+
+// node_modules/jose/dist/webapi/util/errors.js
+var JOSEError, JWTClaimValidationFailed, JWTExpired, JOSEAlgNotAllowed, JOSENotSupported, JWSInvalid, JWTInvalid, JWKSInvalid, JWKSNoMatchingKey, JWKSMultipleMatchingKeys, JWKSTimeout, JWSSignatureVerificationFailed;
+var init_errors = __esm({
+  "node_modules/jose/dist/webapi/util/errors.js"() {
+    JOSEError = class extends Error {
+      static code = "ERR_JOSE_GENERIC";
+      code = "ERR_JOSE_GENERIC";
+      constructor(message2, options) {
+        super(message2, options);
+        this.name = this.constructor.name;
+        Error.captureStackTrace?.(this, this.constructor);
+      }
+    };
+    JWTClaimValidationFailed = class extends JOSEError {
+      static code = "ERR_JWT_CLAIM_VALIDATION_FAILED";
+      code = "ERR_JWT_CLAIM_VALIDATION_FAILED";
+      claim;
+      reason;
+      payload;
+      constructor(message2, payload, claim = "unspecified", reason = "unspecified") {
+        super(message2, { cause: { claim, reason, payload } });
+        this.claim = claim;
+        this.reason = reason;
+        this.payload = payload;
+      }
+    };
+    JWTExpired = class extends JOSEError {
+      static code = "ERR_JWT_EXPIRED";
+      code = "ERR_JWT_EXPIRED";
+      claim;
+      reason;
+      payload;
+      constructor(message2, payload, claim = "unspecified", reason = "unspecified") {
+        super(message2, { cause: { claim, reason, payload } });
+        this.claim = claim;
+        this.reason = reason;
+        this.payload = payload;
+      }
+    };
+    JOSEAlgNotAllowed = class extends JOSEError {
+      static code = "ERR_JOSE_ALG_NOT_ALLOWED";
+      code = "ERR_JOSE_ALG_NOT_ALLOWED";
+    };
+    JOSENotSupported = class extends JOSEError {
+      static code = "ERR_JOSE_NOT_SUPPORTED";
+      code = "ERR_JOSE_NOT_SUPPORTED";
+    };
+    JWSInvalid = class extends JOSEError {
+      static code = "ERR_JWS_INVALID";
+      code = "ERR_JWS_INVALID";
+    };
+    JWTInvalid = class extends JOSEError {
+      static code = "ERR_JWT_INVALID";
+      code = "ERR_JWT_INVALID";
+    };
+    JWKSInvalid = class extends JOSEError {
+      static code = "ERR_JWKS_INVALID";
+      code = "ERR_JWKS_INVALID";
+    };
+    JWKSNoMatchingKey = class extends JOSEError {
+      static code = "ERR_JWKS_NO_MATCHING_KEY";
+      code = "ERR_JWKS_NO_MATCHING_KEY";
+      constructor(message2 = "no applicable key found in the JSON Web Key Set", options) {
+        super(message2, options);
+      }
+    };
+    JWKSMultipleMatchingKeys = class extends JOSEError {
+      [Symbol.asyncIterator];
+      static code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
+      code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
+      constructor(message2 = "multiple matching keys found in the JSON Web Key Set", options) {
+        super(message2, options);
+      }
+    };
+    JWKSTimeout = class extends JOSEError {
+      static code = "ERR_JWKS_TIMEOUT";
+      code = "ERR_JWKS_TIMEOUT";
+      constructor(message2 = "request timed out", options) {
+        super(message2, options);
+      }
+    };
+    JWSSignatureVerificationFailed = class extends JOSEError {
+      static code = "ERR_JWS_SIGNATURE_VERIFICATION_FAILED";
+      code = "ERR_JWS_SIGNATURE_VERIFICATION_FAILED";
+      constructor(message2 = "signature verification failed", options) {
+        super(message2, options);
+      }
+    };
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/crypto_key.js
+function getHashLength(hash2) {
+  return parseInt(hash2.name.slice(4), 10);
+}
+function getNamedCurve(alg) {
+  switch (alg) {
+    case "ES256":
+      return "P-256";
+    case "ES384":
+      return "P-384";
+    case "ES512":
+      return "P-521";
+    default:
+      throw new Error("unreachable");
+  }
+}
+function checkUsage(key, usage) {
+  if (usage && !key.usages.includes(usage)) {
+    throw new TypeError(`CryptoKey does not support this operation, its usages must include ${usage}.`);
+  }
+}
+function checkSigCryptoKey(key, alg, usage) {
+  switch (alg) {
+    case "HS256":
+    case "HS384":
+    case "HS512": {
+      if (!isAlgorithm(key.algorithm, "HMAC"))
+        throw unusable("HMAC");
+      const expected = parseInt(alg.slice(2), 10);
+      const actual = getHashLength(key.algorithm.hash);
+      if (actual !== expected)
+        throw unusable(`SHA-${expected}`, "algorithm.hash");
+      break;
+    }
+    case "RS256":
+    case "RS384":
+    case "RS512": {
+      if (!isAlgorithm(key.algorithm, "RSASSA-PKCS1-v1_5"))
+        throw unusable("RSASSA-PKCS1-v1_5");
+      const expected = parseInt(alg.slice(2), 10);
+      const actual = getHashLength(key.algorithm.hash);
+      if (actual !== expected)
+        throw unusable(`SHA-${expected}`, "algorithm.hash");
+      break;
+    }
+    case "PS256":
+    case "PS384":
+    case "PS512": {
+      if (!isAlgorithm(key.algorithm, "RSA-PSS"))
+        throw unusable("RSA-PSS");
+      const expected = parseInt(alg.slice(2), 10);
+      const actual = getHashLength(key.algorithm.hash);
+      if (actual !== expected)
+        throw unusable(`SHA-${expected}`, "algorithm.hash");
+      break;
+    }
+    case "Ed25519":
+    case "EdDSA": {
+      if (!isAlgorithm(key.algorithm, "Ed25519"))
+        throw unusable("Ed25519");
+      break;
+    }
+    case "ML-DSA-44":
+    case "ML-DSA-65":
+    case "ML-DSA-87": {
+      if (!isAlgorithm(key.algorithm, alg))
+        throw unusable(alg);
+      break;
+    }
+    case "ES256":
+    case "ES384":
+    case "ES512": {
+      if (!isAlgorithm(key.algorithm, "ECDSA"))
+        throw unusable("ECDSA");
+      const expected = getNamedCurve(alg);
+      const actual = key.algorithm.namedCurve;
+      if (actual !== expected)
+        throw unusable(expected, "algorithm.namedCurve");
+      break;
+    }
+    default:
+      throw new TypeError("CryptoKey does not support this operation");
+  }
+  checkUsage(key, usage);
+}
+var unusable, isAlgorithm;
+var init_crypto_key = __esm({
+  "node_modules/jose/dist/webapi/lib/crypto_key.js"() {
+    unusable = (name, prop = "algorithm.name") => new TypeError(`CryptoKey does not support this operation, its ${prop} must be ${name}`);
+    isAlgorithm = (algorithm, name) => algorithm.name === name;
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/invalid_key_input.js
+function message(msg, actual, ...types) {
+  types = types.filter(Boolean);
+  if (types.length > 2) {
+    const last = types.pop();
+    msg += `one of type ${types.join(", ")}, or ${last}.`;
+  } else if (types.length === 2) {
+    msg += `one of type ${types[0]} or ${types[1]}.`;
+  } else {
+    msg += `of type ${types[0]}.`;
+  }
+  if (actual == null) {
+    msg += ` Received ${actual}`;
+  } else if (typeof actual === "function" && actual.name) {
+    msg += ` Received function ${actual.name}`;
+  } else if (typeof actual === "object" && actual != null) {
+    if (actual.constructor?.name) {
+      msg += ` Received an instance of ${actual.constructor.name}`;
+    }
+  }
+  return msg;
+}
+var invalidKeyInput, withAlg;
+var init_invalid_key_input = __esm({
+  "node_modules/jose/dist/webapi/lib/invalid_key_input.js"() {
+    invalidKeyInput = (actual, ...types) => message("Key must be ", actual, ...types);
+    withAlg = (alg, actual, ...types) => message(`Key for the ${alg} algorithm must be `, actual, ...types);
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/is_key_like.js
+var isCryptoKey, isKeyObject, isKeyLike;
+var init_is_key_like = __esm({
+  "node_modules/jose/dist/webapi/lib/is_key_like.js"() {
+    isCryptoKey = (key) => {
+      if (key?.[Symbol.toStringTag] === "CryptoKey")
+        return true;
       try {
-        const result = apply.call(fn, this, arguments);
-        if (result && typeof result.then === "function") {
-          throw new TypeError("Transaction function cannot return a promise");
+        return key instanceof CryptoKey;
+      } catch {
+        return false;
+      }
+    };
+    isKeyObject = (key) => key?.[Symbol.toStringTag] === "KeyObject";
+    isKeyLike = (key) => isCryptoKey(key) || isKeyObject(key);
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/is_disjoint.js
+function isDisjoint(...headers) {
+  const sources = headers.filter(Boolean);
+  if (sources.length === 0 || sources.length === 1) {
+    return true;
+  }
+  let acc;
+  for (const header of sources) {
+    const parameters = Object.keys(header);
+    if (!acc || acc.size === 0) {
+      acc = new Set(parameters);
+      continue;
+    }
+    for (const parameter of parameters) {
+      if (acc.has(parameter)) {
+        return false;
+      }
+      acc.add(parameter);
+    }
+  }
+  return true;
+}
+var init_is_disjoint = __esm({
+  "node_modules/jose/dist/webapi/lib/is_disjoint.js"() {
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/is_object.js
+function isObject3(input) {
+  if (!isObjectLike(input) || Object.prototype.toString.call(input) !== "[object Object]") {
+    return false;
+  }
+  if (Object.getPrototypeOf(input) === null) {
+    return true;
+  }
+  let proto = input;
+  while (Object.getPrototypeOf(proto) !== null) {
+    proto = Object.getPrototypeOf(proto);
+  }
+  return Object.getPrototypeOf(input) === proto;
+}
+var isObjectLike;
+var init_is_object = __esm({
+  "node_modules/jose/dist/webapi/lib/is_object.js"() {
+    isObjectLike = (value) => typeof value === "object" && value !== null;
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/check_key_length.js
+function checkKeyLength(alg, key) {
+  if (alg.startsWith("RS") || alg.startsWith("PS")) {
+    const { modulusLength } = key.algorithm;
+    if (typeof modulusLength !== "number" || modulusLength < 2048) {
+      throw new TypeError(`${alg} requires key modulusLength to be 2048 bits or larger`);
+    }
+  }
+}
+var init_check_key_length = __esm({
+  "node_modules/jose/dist/webapi/lib/check_key_length.js"() {
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/jwk_to_key.js
+function subtleMapping(jwk) {
+  let algorithm;
+  let keyUsages;
+  switch (jwk.kty) {
+    case "AKP": {
+      switch (jwk.alg) {
+        case "ML-DSA-44":
+        case "ML-DSA-65":
+        case "ML-DSA-87":
+          algorithm = { name: jwk.alg };
+          keyUsages = jwk.priv ? ["sign"] : ["verify"];
+          break;
+        default:
+          throw new JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+      }
+      break;
+    }
+    case "RSA": {
+      switch (jwk.alg) {
+        case "PS256":
+        case "PS384":
+        case "PS512":
+          algorithm = { name: "RSA-PSS", hash: `SHA-${jwk.alg.slice(-3)}` };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "RS256":
+        case "RS384":
+        case "RS512":
+          algorithm = { name: "RSASSA-PKCS1-v1_5", hash: `SHA-${jwk.alg.slice(-3)}` };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "RSA-OAEP":
+        case "RSA-OAEP-256":
+        case "RSA-OAEP-384":
+        case "RSA-OAEP-512":
+          algorithm = {
+            name: "RSA-OAEP",
+            hash: `SHA-${parseInt(jwk.alg.slice(-3), 10) || 1}`
+          };
+          keyUsages = jwk.d ? ["decrypt", "unwrapKey"] : ["encrypt", "wrapKey"];
+          break;
+        default:
+          throw new JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+      }
+      break;
+    }
+    case "EC": {
+      switch (jwk.alg) {
+        case "ES256":
+          algorithm = { name: "ECDSA", namedCurve: "P-256" };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "ES384":
+          algorithm = { name: "ECDSA", namedCurve: "P-384" };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "ES512":
+          algorithm = { name: "ECDSA", namedCurve: "P-521" };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "ECDH-ES":
+        case "ECDH-ES+A128KW":
+        case "ECDH-ES+A192KW":
+        case "ECDH-ES+A256KW":
+          algorithm = { name: "ECDH", namedCurve: jwk.crv };
+          keyUsages = jwk.d ? ["deriveBits"] : [];
+          break;
+        default:
+          throw new JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+      }
+      break;
+    }
+    case "OKP": {
+      switch (jwk.alg) {
+        case "Ed25519":
+        case "EdDSA":
+          algorithm = { name: "Ed25519" };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "ECDH-ES":
+        case "ECDH-ES+A128KW":
+        case "ECDH-ES+A192KW":
+        case "ECDH-ES+A256KW":
+          algorithm = { name: jwk.crv };
+          keyUsages = jwk.d ? ["deriveBits"] : [];
+          break;
+        default:
+          throw new JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+      }
+      break;
+    }
+    default:
+      throw new JOSENotSupported('Invalid or unsupported JWK "kty" (Key Type) Parameter value');
+  }
+  return { algorithm, keyUsages };
+}
+async function jwkToKey(jwk) {
+  if (!jwk.alg) {
+    throw new TypeError('"alg" argument is required when "jwk.alg" is not present');
+  }
+  const { algorithm, keyUsages } = subtleMapping(jwk);
+  const keyData = { ...jwk };
+  if (keyData.kty !== "AKP") {
+    delete keyData.alg;
+  }
+  delete keyData.use;
+  return crypto.subtle.importKey("jwk", keyData, algorithm, jwk.ext ?? (jwk.d || jwk.priv ? false : true), jwk.key_ops ?? keyUsages);
+}
+var init_jwk_to_key = __esm({
+  "node_modules/jose/dist/webapi/lib/jwk_to_key.js"() {
+    init_errors();
+  }
+});
+
+// node_modules/jose/dist/webapi/key/import.js
+async function importJWK(jwk, alg, options) {
+  if (!isObject3(jwk)) {
+    throw new TypeError("JWK must be an object");
+  }
+  let ext;
+  alg ??= jwk.alg;
+  ext ??= options?.extractable ?? jwk.ext;
+  switch (jwk.kty) {
+    case "oct":
+      if (typeof jwk.k !== "string" || !jwk.k) {
+        throw new TypeError('missing "k" (Key Value) Parameter value');
+      }
+      return decode3(jwk.k);
+    case "RSA":
+      if ("oth" in jwk && jwk.oth !== void 0) {
+        throw new JOSENotSupported('RSA JWK "oth" (Other Primes Info) Parameter value is not supported');
+      }
+      return jwkToKey({ ...jwk, alg, ext });
+    case "AKP": {
+      if (typeof jwk.alg !== "string" || !jwk.alg) {
+        throw new TypeError('missing "alg" (Algorithm) Parameter value');
+      }
+      if (alg !== void 0 && alg !== jwk.alg) {
+        throw new TypeError("JWK alg and alg option value mismatch");
+      }
+      return jwkToKey({ ...jwk, ext });
+    }
+    case "EC":
+    case "OKP":
+      return jwkToKey({ ...jwk, alg, ext });
+    default:
+      throw new JOSENotSupported('Unsupported "kty" (Key Type) Parameter value');
+  }
+}
+var init_import = __esm({
+  "node_modules/jose/dist/webapi/key/import.js"() {
+    init_base64url();
+    init_jwk_to_key();
+    init_errors();
+    init_is_object();
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/validate_crit.js
+function validateCrit(Err, recognizedDefault, recognizedOption, protectedHeader, joseHeader) {
+  if (joseHeader.crit !== void 0 && protectedHeader?.crit === void 0) {
+    throw new Err('"crit" (Critical) Header Parameter MUST be integrity protected');
+  }
+  if (!protectedHeader || protectedHeader.crit === void 0) {
+    return /* @__PURE__ */ new Set();
+  }
+  if (!Array.isArray(protectedHeader.crit) || protectedHeader.crit.length === 0 || protectedHeader.crit.some((input) => typeof input !== "string" || input.length === 0)) {
+    throw new Err('"crit" (Critical) Header Parameter MUST be an array of non-empty strings when present');
+  }
+  let recognized;
+  if (recognizedOption !== void 0) {
+    recognized = new Map([...Object.entries(recognizedOption), ...recognizedDefault.entries()]);
+  } else {
+    recognized = recognizedDefault;
+  }
+  for (const parameter of protectedHeader.crit) {
+    if (!recognized.has(parameter)) {
+      throw new JOSENotSupported(`Extension Header Parameter "${parameter}" is not recognized`);
+    }
+    if (joseHeader[parameter] === void 0) {
+      throw new Err(`Extension Header Parameter "${parameter}" is missing`);
+    }
+    if (recognized.get(parameter) && protectedHeader[parameter] === void 0) {
+      throw new Err(`Extension Header Parameter "${parameter}" MUST be integrity protected`);
+    }
+  }
+  return new Set(protectedHeader.crit);
+}
+var init_validate_crit = __esm({
+  "node_modules/jose/dist/webapi/lib/validate_crit.js"() {
+    init_errors();
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/validate_algorithms.js
+function validateAlgorithms(option, algorithms) {
+  if (algorithms !== void 0 && (!Array.isArray(algorithms) || algorithms.some((s) => typeof s !== "string"))) {
+    throw new TypeError(`"${option}" option must be an array of strings`);
+  }
+  if (!algorithms) {
+    return void 0;
+  }
+  return new Set(algorithms);
+}
+var init_validate_algorithms = __esm({
+  "node_modules/jose/dist/webapi/lib/validate_algorithms.js"() {
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/is_jwk.js
+var isJWK, isPrivateJWK, isPublicJWK, isSecretJWK;
+var init_is_jwk = __esm({
+  "node_modules/jose/dist/webapi/lib/is_jwk.js"() {
+    init_is_object();
+    isJWK = (key) => isObject3(key) && typeof key.kty === "string";
+    isPrivateJWK = (key) => key.kty !== "oct" && (key.kty === "AKP" && typeof key.priv === "string" || typeof key.d === "string");
+    isPublicJWK = (key) => key.kty !== "oct" && key.d === void 0 && key.priv === void 0;
+    isSecretJWK = (key) => key.kty === "oct" && typeof key.k === "string";
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/normalize_key.js
+async function normalizeKey(key, alg) {
+  if (key instanceof Uint8Array) {
+    return key;
+  }
+  if (isCryptoKey(key)) {
+    return key;
+  }
+  if (isKeyObject(key)) {
+    if (key.type === "secret") {
+      return key.export();
+    }
+    if ("toCryptoKey" in key && typeof key.toCryptoKey === "function") {
+      try {
+        return handleKeyObject(key, alg);
+      } catch (err) {
+        if (err instanceof TypeError) {
+          throw err;
         }
-        after.run();
-        return result;
-      } catch (ex) {
-        if (db.inTransaction) {
-          undo.run();
-          if (undo !== rollback) after.run();
+      }
+    }
+    let jwk = key.export({ format: "jwk" });
+    return handleJWK(key, jwk, alg);
+  }
+  if (isJWK(key)) {
+    if (key.k) {
+      return decode3(key.k);
+    }
+    return handleJWK(key, key, alg, true);
+  }
+  throw new Error("unreachable");
+}
+var cache, handleJWK, handleKeyObject;
+var init_normalize_key = __esm({
+  "node_modules/jose/dist/webapi/lib/normalize_key.js"() {
+    init_is_jwk();
+    init_base64url();
+    init_jwk_to_key();
+    init_is_key_like();
+    handleJWK = async (key, jwk, alg, freeze = false) => {
+      cache ||= /* @__PURE__ */ new WeakMap();
+      let cached2 = cache.get(key);
+      if (cached2?.[alg]) {
+        return cached2[alg];
+      }
+      const cryptoKey = await jwkToKey({ ...jwk, alg });
+      if (freeze)
+        Object.freeze(key);
+      if (!cached2) {
+        cache.set(key, { [alg]: cryptoKey });
+      } else {
+        cached2[alg] = cryptoKey;
+      }
+      return cryptoKey;
+    };
+    handleKeyObject = (keyObject, alg) => {
+      cache ||= /* @__PURE__ */ new WeakMap();
+      let cached2 = cache.get(keyObject);
+      if (cached2?.[alg]) {
+        return cached2[alg];
+      }
+      const isPublic = keyObject.type === "public";
+      const extractable = isPublic ? true : false;
+      let cryptoKey;
+      if (keyObject.asymmetricKeyType === "x25519") {
+        switch (alg) {
+          case "ECDH-ES":
+          case "ECDH-ES+A128KW":
+          case "ECDH-ES+A192KW":
+          case "ECDH-ES+A256KW":
+            break;
+          default:
+            throw new TypeError("given KeyObject instance cannot be used for this algorithm");
         }
-        throw ex;
+        cryptoKey = keyObject.toCryptoKey(keyObject.asymmetricKeyType, extractable, isPublic ? [] : ["deriveBits"]);
+      }
+      if (keyObject.asymmetricKeyType === "ed25519") {
+        if (alg !== "EdDSA" && alg !== "Ed25519") {
+          throw new TypeError("given KeyObject instance cannot be used for this algorithm");
+        }
+        cryptoKey = keyObject.toCryptoKey(keyObject.asymmetricKeyType, extractable, [
+          isPublic ? "verify" : "sign"
+        ]);
+      }
+      switch (keyObject.asymmetricKeyType) {
+        case "ml-dsa-44":
+        case "ml-dsa-65":
+        case "ml-dsa-87": {
+          if (alg !== keyObject.asymmetricKeyType.toUpperCase()) {
+            throw new TypeError("given KeyObject instance cannot be used for this algorithm");
+          }
+          cryptoKey = keyObject.toCryptoKey(keyObject.asymmetricKeyType, extractable, [
+            isPublic ? "verify" : "sign"
+          ]);
+        }
+      }
+      if (keyObject.asymmetricKeyType === "rsa") {
+        let hash2;
+        switch (alg) {
+          case "RSA-OAEP":
+            hash2 = "SHA-1";
+            break;
+          case "RS256":
+          case "PS256":
+          case "RSA-OAEP-256":
+            hash2 = "SHA-256";
+            break;
+          case "RS384":
+          case "PS384":
+          case "RSA-OAEP-384":
+            hash2 = "SHA-384";
+            break;
+          case "RS512":
+          case "PS512":
+          case "RSA-OAEP-512":
+            hash2 = "SHA-512";
+            break;
+          default:
+            throw new TypeError("given KeyObject instance cannot be used for this algorithm");
+        }
+        if (alg.startsWith("RSA-OAEP")) {
+          return keyObject.toCryptoKey({
+            name: "RSA-OAEP",
+            hash: hash2
+          }, extractable, isPublic ? ["encrypt"] : ["decrypt"]);
+        }
+        cryptoKey = keyObject.toCryptoKey({
+          name: alg.startsWith("PS") ? "RSA-PSS" : "RSASSA-PKCS1-v1_5",
+          hash: hash2
+        }, extractable, [isPublic ? "verify" : "sign"]);
+      }
+      if (keyObject.asymmetricKeyType === "ec") {
+        const nist = /* @__PURE__ */ new Map([
+          ["prime256v1", "P-256"],
+          ["secp384r1", "P-384"],
+          ["secp521r1", "P-521"]
+        ]);
+        const namedCurve = nist.get(keyObject.asymmetricKeyDetails?.namedCurve);
+        if (!namedCurve) {
+          throw new TypeError("given KeyObject instance cannot be used for this algorithm");
+        }
+        if (alg === "ES256" && namedCurve === "P-256") {
+          cryptoKey = keyObject.toCryptoKey({
+            name: "ECDSA",
+            namedCurve
+          }, extractable, [isPublic ? "verify" : "sign"]);
+        }
+        if (alg === "ES384" && namedCurve === "P-384") {
+          cryptoKey = keyObject.toCryptoKey({
+            name: "ECDSA",
+            namedCurve
+          }, extractable, [isPublic ? "verify" : "sign"]);
+        }
+        if (alg === "ES512" && namedCurve === "P-521") {
+          cryptoKey = keyObject.toCryptoKey({
+            name: "ECDSA",
+            namedCurve
+          }, extractable, [isPublic ? "verify" : "sign"]);
+        }
+        if (alg.startsWith("ECDH-ES")) {
+          cryptoKey = keyObject.toCryptoKey({
+            name: "ECDH",
+            namedCurve
+          }, extractable, isPublic ? [] : ["deriveBits"]);
+        }
+      }
+      if (!cryptoKey) {
+        throw new TypeError("given KeyObject instance cannot be used for this algorithm");
+      }
+      if (!cached2) {
+        cache.set(keyObject, { [alg]: cryptoKey });
+      } else {
+        cached2[alg] = cryptoKey;
+      }
+      return cryptoKey;
+    };
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/check_key_type.js
+function checkKeyType(alg, key, usage) {
+  switch (alg.substring(0, 2)) {
+    case "A1":
+    case "A2":
+    case "di":
+    case "HS":
+    case "PB":
+      symmetricTypeCheck(alg, key, usage);
+      break;
+    default:
+      asymmetricTypeCheck(alg, key, usage);
+  }
+}
+var tag, jwkMatchesOp, symmetricTypeCheck, asymmetricTypeCheck;
+var init_check_key_type = __esm({
+  "node_modules/jose/dist/webapi/lib/check_key_type.js"() {
+    init_invalid_key_input();
+    init_is_key_like();
+    init_is_jwk();
+    tag = (key) => key?.[Symbol.toStringTag];
+    jwkMatchesOp = (alg, key, usage) => {
+      if (key.use !== void 0) {
+        let expected;
+        switch (usage) {
+          case "sign":
+          case "verify":
+            expected = "sig";
+            break;
+          case "encrypt":
+          case "decrypt":
+            expected = "enc";
+            break;
+        }
+        if (key.use !== expected) {
+          throw new TypeError(`Invalid key for this operation, its "use" must be "${expected}" when present`);
+        }
+      }
+      if (key.alg !== void 0 && key.alg !== alg) {
+        throw new TypeError(`Invalid key for this operation, its "alg" must be "${alg}" when present`);
+      }
+      if (Array.isArray(key.key_ops)) {
+        let expectedKeyOp;
+        switch (true) {
+          case (usage === "sign" || usage === "verify"):
+          case alg === "dir":
+          case alg.includes("CBC-HS"):
+            expectedKeyOp = usage;
+            break;
+          case alg.startsWith("PBES2"):
+            expectedKeyOp = "deriveBits";
+            break;
+          case /^A\d{3}(?:GCM)?(?:KW)?$/.test(alg):
+            if (!alg.includes("GCM") && alg.endsWith("KW")) {
+              expectedKeyOp = usage === "encrypt" ? "wrapKey" : "unwrapKey";
+            } else {
+              expectedKeyOp = usage;
+            }
+            break;
+          case (usage === "encrypt" && alg.startsWith("RSA")):
+            expectedKeyOp = "wrapKey";
+            break;
+          case usage === "decrypt":
+            expectedKeyOp = alg.startsWith("RSA") ? "unwrapKey" : "deriveBits";
+            break;
+        }
+        if (expectedKeyOp && key.key_ops?.includes?.(expectedKeyOp) === false) {
+          throw new TypeError(`Invalid key for this operation, its "key_ops" must include "${expectedKeyOp}" when present`);
+        }
+      }
+      return true;
+    };
+    symmetricTypeCheck = (alg, key, usage) => {
+      if (key instanceof Uint8Array)
+        return;
+      if (isJWK(key)) {
+        if (isSecretJWK(key) && jwkMatchesOp(alg, key, usage))
+          return;
+        throw new TypeError(`JSON Web Key for symmetric algorithms must have JWK "kty" (Key Type) equal to "oct" and the JWK "k" (Key Value) present`);
+      }
+      if (!isKeyLike(key)) {
+        throw new TypeError(withAlg(alg, key, "CryptoKey", "KeyObject", "JSON Web Key", "Uint8Array"));
+      }
+      if (key.type !== "secret") {
+        throw new TypeError(`${tag(key)} instances for symmetric algorithms must be of type "secret"`);
+      }
+    };
+    asymmetricTypeCheck = (alg, key, usage) => {
+      if (isJWK(key)) {
+        switch (usage) {
+          case "decrypt":
+          case "sign":
+            if (isPrivateJWK(key) && jwkMatchesOp(alg, key, usage))
+              return;
+            throw new TypeError(`JSON Web Key for this operation must be a private JWK`);
+          case "encrypt":
+          case "verify":
+            if (isPublicJWK(key) && jwkMatchesOp(alg, key, usage))
+              return;
+            throw new TypeError(`JSON Web Key for this operation must be a public JWK`);
+        }
+      }
+      if (!isKeyLike(key)) {
+        throw new TypeError(withAlg(alg, key, "CryptoKey", "KeyObject", "JSON Web Key"));
+      }
+      if (key.type === "secret") {
+        throw new TypeError(`${tag(key)} instances for asymmetric algorithms must not be of type "secret"`);
+      }
+      if (key.type === "public") {
+        switch (usage) {
+          case "sign":
+            throw new TypeError(`${tag(key)} instances for asymmetric algorithm signing must be of type "private"`);
+          case "decrypt":
+            throw new TypeError(`${tag(key)} instances for asymmetric algorithm decryption must be of type "private"`);
+        }
+      }
+      if (key.type === "private") {
+        switch (usage) {
+          case "verify":
+            throw new TypeError(`${tag(key)} instances for asymmetric algorithm verifying must be of type "public"`);
+          case "encrypt":
+            throw new TypeError(`${tag(key)} instances for asymmetric algorithm encryption must be of type "public"`);
+        }
       }
     };
   }
 });
 
-// node_modules/better-sqlite3/lib/methods/pragma.js
-var require_pragma = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/pragma.js"(exports, module) {
-    "use strict";
-    var { getBooleanOption, cppdb } = require_util();
-    module.exports = function pragma(source, options) {
-      if (options == null) options = {};
-      if (typeof source !== "string") throw new TypeError("Expected first argument to be a string");
-      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
-      const simple = getBooleanOption(options, "simple");
-      const stmt = this[cppdb].prepare(`PRAGMA ${source}`, this, true);
-      return simple ? stmt.pluck().get() : stmt.all();
+// node_modules/jose/dist/webapi/lib/subtle_dsa.js
+function subtleAlgorithm(alg, algorithm) {
+  const hash2 = `SHA-${alg.slice(-3)}`;
+  switch (alg) {
+    case "HS256":
+    case "HS384":
+    case "HS512":
+      return { hash: hash2, name: "HMAC" };
+    case "PS256":
+    case "PS384":
+    case "PS512":
+      return { hash: hash2, name: "RSA-PSS", saltLength: parseInt(alg.slice(-3), 10) >> 3 };
+    case "RS256":
+    case "RS384":
+    case "RS512":
+      return { hash: hash2, name: "RSASSA-PKCS1-v1_5" };
+    case "ES256":
+    case "ES384":
+    case "ES512":
+      return { hash: hash2, name: "ECDSA", namedCurve: algorithm.namedCurve };
+    case "Ed25519":
+    case "EdDSA":
+      return { name: "Ed25519" };
+    case "ML-DSA-44":
+    case "ML-DSA-65":
+    case "ML-DSA-87":
+      return { name: alg };
+    default:
+      throw new JOSENotSupported(`alg ${alg} is not supported either by JOSE or your javascript runtime`);
+  }
+}
+var init_subtle_dsa = __esm({
+  "node_modules/jose/dist/webapi/lib/subtle_dsa.js"() {
+    init_errors();
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/get_sign_verify_key.js
+async function getSigKey(alg, key, usage) {
+  if (key instanceof Uint8Array) {
+    if (!alg.startsWith("HS")) {
+      throw new TypeError(invalidKeyInput(key, "CryptoKey", "KeyObject", "JSON Web Key"));
+    }
+    return crypto.subtle.importKey("raw", key, { hash: `SHA-${alg.slice(-3)}`, name: "HMAC" }, false, [usage]);
+  }
+  checkSigCryptoKey(key, alg, usage);
+  return key;
+}
+var init_get_sign_verify_key = __esm({
+  "node_modules/jose/dist/webapi/lib/get_sign_verify_key.js"() {
+    init_crypto_key();
+    init_invalid_key_input();
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/verify.js
+async function verify(alg, key, signature, data) {
+  const cryptoKey = await getSigKey(alg, key, "verify");
+  checkKeyLength(alg, cryptoKey);
+  const algorithm = subtleAlgorithm(alg, cryptoKey.algorithm);
+  try {
+    return await crypto.subtle.verify(algorithm, cryptoKey, signature, data);
+  } catch {
+    return false;
+  }
+}
+var init_verify = __esm({
+  "node_modules/jose/dist/webapi/lib/verify.js"() {
+    init_subtle_dsa();
+    init_check_key_length();
+    init_get_sign_verify_key();
+  }
+});
+
+// node_modules/jose/dist/webapi/jws/flattened/verify.js
+async function flattenedVerify(jws, key, options) {
+  if (!isObject3(jws)) {
+    throw new JWSInvalid("Flattened JWS must be an object");
+  }
+  if (jws.protected === void 0 && jws.header === void 0) {
+    throw new JWSInvalid('Flattened JWS must have either of the "protected" or "header" members');
+  }
+  if (jws.protected !== void 0 && typeof jws.protected !== "string") {
+    throw new JWSInvalid("JWS Protected Header incorrect type");
+  }
+  if (jws.payload === void 0) {
+    throw new JWSInvalid("JWS Payload missing");
+  }
+  if (typeof jws.signature !== "string") {
+    throw new JWSInvalid("JWS Signature missing or incorrect type");
+  }
+  if (jws.header !== void 0 && !isObject3(jws.header)) {
+    throw new JWSInvalid("JWS Unprotected Header incorrect type");
+  }
+  let parsedProt = {};
+  if (jws.protected) {
+    try {
+      const protectedHeader = decode3(jws.protected);
+      parsedProt = JSON.parse(decoder.decode(protectedHeader));
+    } catch {
+      throw new JWSInvalid("JWS Protected Header is invalid");
+    }
+  }
+  if (!isDisjoint(parsedProt, jws.header)) {
+    throw new JWSInvalid("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
+  }
+  const joseHeader = {
+    ...parsedProt,
+    ...jws.header
+  };
+  const extensions = validateCrit(JWSInvalid, /* @__PURE__ */ new Map([["b64", true]]), options?.crit, parsedProt, joseHeader);
+  let b64 = true;
+  if (extensions.has("b64")) {
+    b64 = parsedProt.b64;
+    if (typeof b64 !== "boolean") {
+      throw new JWSInvalid('The "b64" (base64url-encode payload) Header Parameter must be a boolean');
+    }
+  }
+  const { alg } = joseHeader;
+  if (typeof alg !== "string" || !alg) {
+    throw new JWSInvalid('JWS "alg" (Algorithm) Header Parameter missing or invalid');
+  }
+  const algorithms = options && validateAlgorithms("algorithms", options.algorithms);
+  if (algorithms && !algorithms.has(alg)) {
+    throw new JOSEAlgNotAllowed('"alg" (Algorithm) Header Parameter value not allowed');
+  }
+  if (b64) {
+    if (typeof jws.payload !== "string") {
+      throw new JWSInvalid("JWS Payload must be a string");
+    }
+  } else if (typeof jws.payload !== "string" && !(jws.payload instanceof Uint8Array)) {
+    throw new JWSInvalid("JWS Payload must be a string or an Uint8Array instance");
+  }
+  let resolvedKey = false;
+  if (typeof key === "function") {
+    key = await key(parsedProt, jws);
+    resolvedKey = true;
+  }
+  checkKeyType(alg, key, "verify");
+  const data = concat(jws.protected !== void 0 ? encode3(jws.protected) : new Uint8Array(), encode3("."), typeof jws.payload === "string" ? b64 ? encode3(jws.payload) : encoder.encode(jws.payload) : jws.payload);
+  let signature;
+  try {
+    signature = decode3(jws.signature);
+  } catch {
+    throw new JWSInvalid("Failed to base64url decode the signature");
+  }
+  const k = await normalizeKey(key, alg);
+  const verified = await verify(alg, k, signature, data);
+  if (!verified) {
+    throw new JWSSignatureVerificationFailed();
+  }
+  let payload;
+  if (b64) {
+    try {
+      payload = decode3(jws.payload);
+    } catch {
+      throw new JWSInvalid("Failed to base64url decode the payload");
+    }
+  } else if (typeof jws.payload === "string") {
+    payload = encoder.encode(jws.payload);
+  } else {
+    payload = jws.payload;
+  }
+  const result = { payload };
+  if (jws.protected !== void 0) {
+    result.protectedHeader = parsedProt;
+  }
+  if (jws.header !== void 0) {
+    result.unprotectedHeader = jws.header;
+  }
+  if (resolvedKey) {
+    return { ...result, key: k };
+  }
+  return result;
+}
+var init_verify2 = __esm({
+  "node_modules/jose/dist/webapi/jws/flattened/verify.js"() {
+    init_base64url();
+    init_verify();
+    init_errors();
+    init_buffer_utils();
+    init_is_disjoint();
+    init_is_object();
+    init_check_key_type();
+    init_validate_crit();
+    init_validate_algorithms();
+    init_normalize_key();
+  }
+});
+
+// node_modules/jose/dist/webapi/jws/compact/verify.js
+async function compactVerify(jws, key, options) {
+  if (jws instanceof Uint8Array) {
+    jws = decoder.decode(jws);
+  }
+  if (typeof jws !== "string") {
+    throw new JWSInvalid("Compact JWS must be a string or Uint8Array");
+  }
+  const { 0: protectedHeader, 1: payload, 2: signature, length } = jws.split(".");
+  if (length !== 3) {
+    throw new JWSInvalid("Invalid Compact JWS");
+  }
+  const verified = await flattenedVerify({ payload, protected: protectedHeader, signature }, key, options);
+  const result = { payload: verified.payload, protectedHeader: verified.protectedHeader };
+  if (typeof key === "function") {
+    return { ...result, key: verified.key };
+  }
+  return result;
+}
+var init_verify3 = __esm({
+  "node_modules/jose/dist/webapi/jws/compact/verify.js"() {
+    init_verify2();
+    init_errors();
+    init_buffer_utils();
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/jwt_claims_set.js
+function secs(str) {
+  const matched = REGEX.exec(str);
+  if (!matched || matched[4] && matched[1]) {
+    throw new TypeError("Invalid time period format");
+  }
+  const value = parseFloat(matched[2]);
+  const unit = matched[3].toLowerCase();
+  let numericDate;
+  switch (unit) {
+    case "sec":
+    case "secs":
+    case "second":
+    case "seconds":
+    case "s":
+      numericDate = Math.round(value);
+      break;
+    case "minute":
+    case "minutes":
+    case "min":
+    case "mins":
+    case "m":
+      numericDate = Math.round(value * minute);
+      break;
+    case "hour":
+    case "hours":
+    case "hr":
+    case "hrs":
+    case "h":
+      numericDate = Math.round(value * hour);
+      break;
+    case "day":
+    case "days":
+    case "d":
+      numericDate = Math.round(value * day);
+      break;
+    case "week":
+    case "weeks":
+    case "w":
+      numericDate = Math.round(value * week);
+      break;
+    default:
+      numericDate = Math.round(value * year);
+      break;
+  }
+  if (matched[1] === "-" || matched[4] === "ago") {
+    return -numericDate;
+  }
+  return numericDate;
+}
+function validateInput(label, input) {
+  if (!Number.isFinite(input)) {
+    throw new TypeError(`Invalid ${label} input`);
+  }
+  return input;
+}
+function validateClaimsSet(protectedHeader, encodedPayload, options = {}) {
+  let payload;
+  try {
+    payload = JSON.parse(decoder.decode(encodedPayload));
+  } catch {
+  }
+  if (!isObject3(payload)) {
+    throw new JWTInvalid("JWT Claims Set must be a top-level JSON object");
+  }
+  const { typ } = options;
+  if (typ && (typeof protectedHeader.typ !== "string" || normalizeTyp(protectedHeader.typ) !== normalizeTyp(typ))) {
+    throw new JWTClaimValidationFailed('unexpected "typ" JWT header value', payload, "typ", "check_failed");
+  }
+  const { requiredClaims = [], issuer, subject, audience, maxTokenAge } = options;
+  const presenceCheck = [...requiredClaims];
+  if (maxTokenAge !== void 0)
+    presenceCheck.push("iat");
+  if (audience !== void 0)
+    presenceCheck.push("aud");
+  if (subject !== void 0)
+    presenceCheck.push("sub");
+  if (issuer !== void 0)
+    presenceCheck.push("iss");
+  for (const claim of new Set(presenceCheck.reverse())) {
+    if (!(claim in payload)) {
+      throw new JWTClaimValidationFailed(`missing required "${claim}" claim`, payload, claim, "missing");
+    }
+  }
+  if (issuer && !(Array.isArray(issuer) ? issuer : [issuer]).includes(payload.iss)) {
+    throw new JWTClaimValidationFailed('unexpected "iss" claim value', payload, "iss", "check_failed");
+  }
+  if (subject && payload.sub !== subject) {
+    throw new JWTClaimValidationFailed('unexpected "sub" claim value', payload, "sub", "check_failed");
+  }
+  if (audience && !checkAudiencePresence(payload.aud, typeof audience === "string" ? [audience] : audience)) {
+    throw new JWTClaimValidationFailed('unexpected "aud" claim value', payload, "aud", "check_failed");
+  }
+  let tolerance;
+  switch (typeof options.clockTolerance) {
+    case "string":
+      tolerance = secs(options.clockTolerance);
+      break;
+    case "number":
+      tolerance = options.clockTolerance;
+      break;
+    case "undefined":
+      tolerance = 0;
+      break;
+    default:
+      throw new TypeError("Invalid clockTolerance option type");
+  }
+  const { currentDate } = options;
+  const now = epoch(currentDate || /* @__PURE__ */ new Date());
+  if ((payload.iat !== void 0 || maxTokenAge) && typeof payload.iat !== "number") {
+    throw new JWTClaimValidationFailed('"iat" claim must be a number', payload, "iat", "invalid");
+  }
+  if (payload.nbf !== void 0) {
+    if (typeof payload.nbf !== "number") {
+      throw new JWTClaimValidationFailed('"nbf" claim must be a number', payload, "nbf", "invalid");
+    }
+    if (payload.nbf > now + tolerance) {
+      throw new JWTClaimValidationFailed('"nbf" claim timestamp check failed', payload, "nbf", "check_failed");
+    }
+  }
+  if (payload.exp !== void 0) {
+    if (typeof payload.exp !== "number") {
+      throw new JWTClaimValidationFailed('"exp" claim must be a number', payload, "exp", "invalid");
+    }
+    if (payload.exp <= now - tolerance) {
+      throw new JWTExpired('"exp" claim timestamp check failed', payload, "exp", "check_failed");
+    }
+  }
+  if (maxTokenAge) {
+    const age = now - payload.iat;
+    const max = typeof maxTokenAge === "number" ? maxTokenAge : secs(maxTokenAge);
+    if (age - tolerance > max) {
+      throw new JWTExpired('"iat" claim timestamp check failed (too far in the past)', payload, "iat", "check_failed");
+    }
+    if (age < 0 - tolerance) {
+      throw new JWTClaimValidationFailed('"iat" claim timestamp check failed (it should be in the past)', payload, "iat", "check_failed");
+    }
+  }
+  return payload;
+}
+var epoch, minute, hour, day, week, year, REGEX, normalizeTyp, checkAudiencePresence, JWTClaimsBuilder;
+var init_jwt_claims_set = __esm({
+  "node_modules/jose/dist/webapi/lib/jwt_claims_set.js"() {
+    init_errors();
+    init_buffer_utils();
+    init_is_object();
+    epoch = (date5) => Math.floor(date5.getTime() / 1e3);
+    minute = 60;
+    hour = minute * 60;
+    day = hour * 24;
+    week = day * 7;
+    year = day * 365.25;
+    REGEX = /^(\+|\-)? ?(\d+|\d+\.\d+) ?(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)(?: (ago|from now))?$/i;
+    normalizeTyp = (value) => {
+      if (value.includes("/")) {
+        return value.toLowerCase();
+      }
+      return `application/${value.toLowerCase()}`;
+    };
+    checkAudiencePresence = (audPayload, audOption) => {
+      if (typeof audPayload === "string") {
+        return audOption.includes(audPayload);
+      }
+      if (Array.isArray(audPayload)) {
+        return audOption.some(Set.prototype.has.bind(new Set(audPayload)));
+      }
+      return false;
+    };
+    JWTClaimsBuilder = class {
+      #payload;
+      constructor(payload) {
+        if (!isObject3(payload)) {
+          throw new TypeError("JWT Claims Set MUST be an object");
+        }
+        this.#payload = structuredClone(payload);
+      }
+      data() {
+        return encoder.encode(JSON.stringify(this.#payload));
+      }
+      get iss() {
+        return this.#payload.iss;
+      }
+      set iss(value) {
+        this.#payload.iss = value;
+      }
+      get sub() {
+        return this.#payload.sub;
+      }
+      set sub(value) {
+        this.#payload.sub = value;
+      }
+      get aud() {
+        return this.#payload.aud;
+      }
+      set aud(value) {
+        this.#payload.aud = value;
+      }
+      set jti(value) {
+        this.#payload.jti = value;
+      }
+      set nbf(value) {
+        if (typeof value === "number") {
+          this.#payload.nbf = validateInput("setNotBefore", value);
+        } else if (value instanceof Date) {
+          this.#payload.nbf = validateInput("setNotBefore", epoch(value));
+        } else {
+          this.#payload.nbf = epoch(/* @__PURE__ */ new Date()) + secs(value);
+        }
+      }
+      set exp(value) {
+        if (typeof value === "number") {
+          this.#payload.exp = validateInput("setExpirationTime", value);
+        } else if (value instanceof Date) {
+          this.#payload.exp = validateInput("setExpirationTime", epoch(value));
+        } else {
+          this.#payload.exp = epoch(/* @__PURE__ */ new Date()) + secs(value);
+        }
+      }
+      set iat(value) {
+        if (value === void 0) {
+          this.#payload.iat = epoch(/* @__PURE__ */ new Date());
+        } else if (value instanceof Date) {
+          this.#payload.iat = validateInput("setIssuedAt", epoch(value));
+        } else if (typeof value === "string") {
+          this.#payload.iat = validateInput("setIssuedAt", epoch(/* @__PURE__ */ new Date()) + secs(value));
+        } else {
+          this.#payload.iat = validateInput("setIssuedAt", value);
+        }
+      }
     };
   }
 });
 
-// node_modules/better-sqlite3/lib/methods/backup.js
-var require_backup = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/backup.js"(exports, module) {
-    "use strict";
-    var fs = __require("fs");
-    var path = __require("path");
-    var { promisify } = __require("util");
-    var { cppdb } = require_util();
-    var fsAccess = promisify(fs.access);
-    module.exports = async function backup(filename, options) {
-      if (options == null) options = {};
-      if (typeof filename !== "string") throw new TypeError("Expected first argument to be a string");
-      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
-      filename = filename.trim();
-      const attachedName = "attached" in options ? options.attached : "main";
-      const handler = "progress" in options ? options.progress : null;
-      if (!filename) throw new TypeError("Backup filename cannot be an empty string");
-      if (filename === ":memory:") throw new TypeError('Invalid backup filename ":memory:"');
-      if (typeof attachedName !== "string") throw new TypeError('Expected the "attached" option to be a string');
-      if (!attachedName) throw new TypeError('The "attached" option cannot be an empty string');
-      if (handler != null && typeof handler !== "function") throw new TypeError('Expected the "progress" option to be a function');
-      await fsAccess(path.dirname(filename)).catch(() => {
-        throw new TypeError("Cannot save backup because the directory does not exist");
-      });
-      const isNewFile = await fsAccess(filename).then(() => false, () => true);
-      return runBackup(this[cppdb].backup(this, attachedName, filename, isNewFile), handler || null);
+// node_modules/jose/dist/webapi/jwt/verify.js
+async function jwtVerify(jwt2, key, options) {
+  const verified = await compactVerify(jwt2, key, options);
+  if (verified.protectedHeader.crit?.includes("b64") && verified.protectedHeader.b64 === false) {
+    throw new JWTInvalid("JWTs MUST NOT use unencoded payload");
+  }
+  const payload = validateClaimsSet(verified.protectedHeader, verified.payload, options);
+  const result = { payload, protectedHeader: verified.protectedHeader };
+  if (typeof key === "function") {
+    return { ...result, key: verified.key };
+  }
+  return result;
+}
+var init_verify4 = __esm({
+  "node_modules/jose/dist/webapi/jwt/verify.js"() {
+    init_verify3();
+    init_jwt_claims_set();
+    init_errors();
+  }
+});
+
+// node_modules/jose/dist/webapi/lib/sign.js
+async function sign(alg, key, data) {
+  const cryptoKey = await getSigKey(alg, key, "sign");
+  checkKeyLength(alg, cryptoKey);
+  const signature = await crypto.subtle.sign(subtleAlgorithm(alg, cryptoKey.algorithm), cryptoKey, data);
+  return new Uint8Array(signature);
+}
+var init_sign = __esm({
+  "node_modules/jose/dist/webapi/lib/sign.js"() {
+    init_subtle_dsa();
+    init_check_key_length();
+    init_get_sign_verify_key();
+  }
+});
+
+// node_modules/jose/dist/webapi/jws/flattened/sign.js
+var FlattenedSign;
+var init_sign2 = __esm({
+  "node_modules/jose/dist/webapi/jws/flattened/sign.js"() {
+    init_base64url();
+    init_sign();
+    init_is_disjoint();
+    init_errors();
+    init_buffer_utils();
+    init_check_key_type();
+    init_validate_crit();
+    init_normalize_key();
+    FlattenedSign = class {
+      #payload;
+      #protectedHeader;
+      #unprotectedHeader;
+      constructor(payload) {
+        if (!(payload instanceof Uint8Array)) {
+          throw new TypeError("payload must be an instance of Uint8Array");
+        }
+        this.#payload = payload;
+      }
+      setProtectedHeader(protectedHeader) {
+        if (this.#protectedHeader) {
+          throw new TypeError("setProtectedHeader can only be called once");
+        }
+        this.#protectedHeader = protectedHeader;
+        return this;
+      }
+      setUnprotectedHeader(unprotectedHeader) {
+        if (this.#unprotectedHeader) {
+          throw new TypeError("setUnprotectedHeader can only be called once");
+        }
+        this.#unprotectedHeader = unprotectedHeader;
+        return this;
+      }
+      async sign(key, options) {
+        if (!this.#protectedHeader && !this.#unprotectedHeader) {
+          throw new JWSInvalid("either setProtectedHeader or setUnprotectedHeader must be called before #sign()");
+        }
+        if (!isDisjoint(this.#protectedHeader, this.#unprotectedHeader)) {
+          throw new JWSInvalid("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
+        }
+        const joseHeader = {
+          ...this.#protectedHeader,
+          ...this.#unprotectedHeader
+        };
+        const extensions = validateCrit(JWSInvalid, /* @__PURE__ */ new Map([["b64", true]]), options?.crit, this.#protectedHeader, joseHeader);
+        let b64 = true;
+        if (extensions.has("b64")) {
+          b64 = this.#protectedHeader.b64;
+          if (typeof b64 !== "boolean") {
+            throw new JWSInvalid('The "b64" (base64url-encode payload) Header Parameter must be a boolean');
+          }
+        }
+        const { alg } = joseHeader;
+        if (typeof alg !== "string" || !alg) {
+          throw new JWSInvalid('JWS "alg" (Algorithm) Header Parameter missing or invalid');
+        }
+        checkKeyType(alg, key, "sign");
+        let payloadS;
+        let payloadB;
+        if (b64) {
+          payloadS = encode4(this.#payload);
+          payloadB = encode3(payloadS);
+        } else {
+          payloadB = this.#payload;
+          payloadS = "";
+        }
+        let protectedHeaderString;
+        let protectedHeaderBytes;
+        if (this.#protectedHeader) {
+          protectedHeaderString = encode4(JSON.stringify(this.#protectedHeader));
+          protectedHeaderBytes = encode3(protectedHeaderString);
+        } else {
+          protectedHeaderString = "";
+          protectedHeaderBytes = new Uint8Array();
+        }
+        const data = concat(protectedHeaderBytes, encode3("."), payloadB);
+        const k = await normalizeKey(key, alg);
+        const signature = await sign(alg, k, data);
+        const jws = {
+          signature: encode4(signature),
+          payload: payloadS
+        };
+        if (this.#unprotectedHeader) {
+          jws.header = this.#unprotectedHeader;
+        }
+        if (this.#protectedHeader) {
+          jws.protected = protectedHeaderString;
+        }
+        return jws;
+      }
     };
-    var runBackup = (backup, handler) => {
-      let rate = 0;
-      let useDefault = true;
-      return new Promise((resolve, reject) => {
-        setImmediate(function step() {
-          try {
-            const progress = backup.transfer(rate);
-            if (!progress.remainingPages) {
-              backup.close();
-              resolve(progress);
-              return;
+  }
+});
+
+// node_modules/jose/dist/webapi/jws/compact/sign.js
+var CompactSign;
+var init_sign3 = __esm({
+  "node_modules/jose/dist/webapi/jws/compact/sign.js"() {
+    init_sign2();
+    CompactSign = class {
+      #flattened;
+      constructor(payload) {
+        this.#flattened = new FlattenedSign(payload);
+      }
+      setProtectedHeader(protectedHeader) {
+        this.#flattened.setProtectedHeader(protectedHeader);
+        return this;
+      }
+      async sign(key, options) {
+        const jws = await this.#flattened.sign(key, options);
+        if (jws.payload === void 0) {
+          throw new TypeError("use the flattened module for creating JWS with b64: false");
+        }
+        return `${jws.protected}.${jws.payload}.${jws.signature}`;
+      }
+    };
+  }
+});
+
+// node_modules/jose/dist/webapi/jwt/sign.js
+var SignJWT;
+var init_sign4 = __esm({
+  "node_modules/jose/dist/webapi/jwt/sign.js"() {
+    init_sign3();
+    init_errors();
+    init_jwt_claims_set();
+    SignJWT = class {
+      #protectedHeader;
+      #jwt;
+      constructor(payload = {}) {
+        this.#jwt = new JWTClaimsBuilder(payload);
+      }
+      setIssuer(issuer) {
+        this.#jwt.iss = issuer;
+        return this;
+      }
+      setSubject(subject) {
+        this.#jwt.sub = subject;
+        return this;
+      }
+      setAudience(audience) {
+        this.#jwt.aud = audience;
+        return this;
+      }
+      setJti(jwtId) {
+        this.#jwt.jti = jwtId;
+        return this;
+      }
+      setNotBefore(input) {
+        this.#jwt.nbf = input;
+        return this;
+      }
+      setExpirationTime(input) {
+        this.#jwt.exp = input;
+        return this;
+      }
+      setIssuedAt(input) {
+        this.#jwt.iat = input;
+        return this;
+      }
+      setProtectedHeader(protectedHeader) {
+        this.#protectedHeader = protectedHeader;
+        return this;
+      }
+      async sign(key, options) {
+        const sig = new CompactSign(this.#jwt.data());
+        sig.setProtectedHeader(this.#protectedHeader);
+        if (Array.isArray(this.#protectedHeader?.crit) && this.#protectedHeader.crit.includes("b64") && this.#protectedHeader.b64 === false) {
+          throw new JWTInvalid("JWTs MUST NOT use unencoded payload");
+        }
+        return sig.sign(key, options);
+      }
+    };
+  }
+});
+
+// node_modules/jose/dist/webapi/jwks/local.js
+function getKtyFromAlg(alg) {
+  switch (typeof alg === "string" && alg.slice(0, 2)) {
+    case "RS":
+    case "PS":
+      return "RSA";
+    case "ES":
+      return "EC";
+    case "Ed":
+      return "OKP";
+    case "ML":
+      return "AKP";
+    default:
+      throw new JOSENotSupported('Unsupported "alg" value for a JSON Web Key Set');
+  }
+}
+function isJWKSLike(jwks2) {
+  return jwks2 && typeof jwks2 === "object" && Array.isArray(jwks2.keys) && jwks2.keys.every(isJWKLike);
+}
+function isJWKLike(key) {
+  return isObject3(key);
+}
+async function importWithAlgCache(cache2, jwk, alg) {
+  const cached2 = cache2.get(jwk) || cache2.set(jwk, {}).get(jwk);
+  if (cached2[alg] === void 0) {
+    const key = await importJWK({ ...jwk, ext: true }, alg);
+    if (key instanceof Uint8Array || key.type !== "public") {
+      throw new JWKSInvalid("JSON Web Key Set members must be public keys");
+    }
+    cached2[alg] = key;
+  }
+  return cached2[alg];
+}
+function createLocalJWKSet(jwks2) {
+  const set2 = new LocalJWKSet(jwks2);
+  const localJWKSet = async (protectedHeader, token) => set2.getKey(protectedHeader, token);
+  Object.defineProperties(localJWKSet, {
+    jwks: {
+      value: () => structuredClone(set2.jwks()),
+      enumerable: false,
+      configurable: false,
+      writable: false
+    }
+  });
+  return localJWKSet;
+}
+var LocalJWKSet;
+var init_local = __esm({
+  "node_modules/jose/dist/webapi/jwks/local.js"() {
+    init_import();
+    init_errors();
+    init_is_object();
+    LocalJWKSet = class {
+      #jwks;
+      #cached = /* @__PURE__ */ new WeakMap();
+      constructor(jwks2) {
+        if (!isJWKSLike(jwks2)) {
+          throw new JWKSInvalid("JSON Web Key Set malformed");
+        }
+        this.#jwks = structuredClone(jwks2);
+      }
+      jwks() {
+        return this.#jwks;
+      }
+      async getKey(protectedHeader, token) {
+        const { alg, kid } = { ...protectedHeader, ...token?.header };
+        const kty = getKtyFromAlg(alg);
+        const candidates = this.#jwks.keys.filter((jwk2) => {
+          let candidate = kty === jwk2.kty;
+          if (candidate && typeof kid === "string") {
+            candidate = kid === jwk2.kid;
+          }
+          if (candidate && (typeof jwk2.alg === "string" || kty === "AKP")) {
+            candidate = alg === jwk2.alg;
+          }
+          if (candidate && typeof jwk2.use === "string") {
+            candidate = jwk2.use === "sig";
+          }
+          if (candidate && Array.isArray(jwk2.key_ops)) {
+            candidate = jwk2.key_ops.includes("verify");
+          }
+          if (candidate) {
+            switch (alg) {
+              case "ES256":
+                candidate = jwk2.crv === "P-256";
+                break;
+              case "ES384":
+                candidate = jwk2.crv === "P-384";
+                break;
+              case "ES512":
+                candidate = jwk2.crv === "P-521";
+                break;
+              case "Ed25519":
+              case "EdDSA":
+                candidate = jwk2.crv === "Ed25519";
+                break;
             }
-            if (useDefault) {
-              useDefault = false;
-              rate = 100;
-            }
-            if (handler) {
-              const ret = handler(progress);
-              if (ret !== void 0) {
-                if (typeof ret === "number" && ret === ret) rate = Math.max(0, Math.min(2147483647, Math.round(ret)));
-                else throw new TypeError("Expected progress callback to return a number or undefined");
+          }
+          return candidate;
+        });
+        const { 0: jwk, length } = candidates;
+        if (length === 0) {
+          throw new JWKSNoMatchingKey();
+        }
+        if (length !== 1) {
+          const error51 = new JWKSMultipleMatchingKeys();
+          const _cached = this.#cached;
+          error51[Symbol.asyncIterator] = async function* () {
+            for (const jwk2 of candidates) {
+              try {
+                yield await importWithAlgCache(_cached, jwk2, alg);
+              } catch {
               }
             }
-            setImmediate(step);
-          } catch (err) {
-            backup.close();
-            reject(err);
+          };
+          throw error51;
+        }
+        return importWithAlgCache(this.#cached, jwk, alg);
+      }
+    };
+  }
+});
+
+// node_modules/jose/dist/webapi/jwks/remote.js
+function isCloudflareWorkers() {
+  return typeof WebSocketPair !== "undefined" || typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers" || typeof EdgeRuntime !== "undefined" && EdgeRuntime === "vercel";
+}
+async function fetchJwks(url2, headers, signal, fetchImpl = fetch) {
+  const response = await fetchImpl(url2, {
+    method: "GET",
+    signal,
+    redirect: "manual",
+    headers
+  }).catch((err) => {
+    if (err.name === "TimeoutError") {
+      throw new JWKSTimeout();
+    }
+    throw err;
+  });
+  if (response.status !== 200) {
+    throw new JOSEError("Expected 200 OK from the JSON Web Key Set HTTP response");
+  }
+  try {
+    return await response.json();
+  } catch {
+    throw new JOSEError("Failed to parse the JSON Web Key Set HTTP response as JSON");
+  }
+}
+function isFreshJwksCache(input, cacheMaxAge) {
+  if (typeof input !== "object" || input === null) {
+    return false;
+  }
+  if (!("uat" in input) || typeof input.uat !== "number" || Date.now() - input.uat >= cacheMaxAge) {
+    return false;
+  }
+  if (!("jwks" in input) || !isObject3(input.jwks) || !Array.isArray(input.jwks.keys) || !Array.prototype.every.call(input.jwks.keys, isObject3)) {
+    return false;
+  }
+  return true;
+}
+function createRemoteJWKSet(url2, options) {
+  const set2 = new RemoteJWKSet(url2, options);
+  const remoteJWKSet = async (protectedHeader, token) => set2.getKey(protectedHeader, token);
+  Object.defineProperties(remoteJWKSet, {
+    coolingDown: {
+      get: () => set2.coolingDown(),
+      enumerable: true,
+      configurable: false
+    },
+    fresh: {
+      get: () => set2.fresh(),
+      enumerable: true,
+      configurable: false
+    },
+    reload: {
+      value: () => set2.reload(),
+      enumerable: true,
+      configurable: false,
+      writable: false
+    },
+    reloading: {
+      get: () => set2.pendingFetch(),
+      enumerable: true,
+      configurable: false
+    },
+    jwks: {
+      value: () => set2.jwks(),
+      enumerable: true,
+      configurable: false,
+      writable: false
+    }
+  });
+  return remoteJWKSet;
+}
+var USER_AGENT, customFetch, jwksCache, RemoteJWKSet;
+var init_remote = __esm({
+  "node_modules/jose/dist/webapi/jwks/remote.js"() {
+    init_errors();
+    init_local();
+    init_is_object();
+    if (typeof navigator === "undefined" || !navigator.userAgent?.startsWith?.("Mozilla/5.0 ")) {
+      const NAME = "jose";
+      const VERSION = "v6.1.3";
+      USER_AGENT = `${NAME}/${VERSION}`;
+    }
+    customFetch = /* @__PURE__ */ Symbol();
+    jwksCache = /* @__PURE__ */ Symbol();
+    RemoteJWKSet = class {
+      #url;
+      #timeoutDuration;
+      #cooldownDuration;
+      #cacheMaxAge;
+      #jwksTimestamp;
+      #pendingFetch;
+      #headers;
+      #customFetch;
+      #local;
+      #cache;
+      constructor(url2, options) {
+        if (!(url2 instanceof URL)) {
+          throw new TypeError("url must be an instance of URL");
+        }
+        this.#url = new URL(url2.href);
+        this.#timeoutDuration = typeof options?.timeoutDuration === "number" ? options?.timeoutDuration : 5e3;
+        this.#cooldownDuration = typeof options?.cooldownDuration === "number" ? options?.cooldownDuration : 3e4;
+        this.#cacheMaxAge = typeof options?.cacheMaxAge === "number" ? options?.cacheMaxAge : 6e5;
+        this.#headers = new Headers(options?.headers);
+        if (USER_AGENT && !this.#headers.has("User-Agent")) {
+          this.#headers.set("User-Agent", USER_AGENT);
+        }
+        if (!this.#headers.has("accept")) {
+          this.#headers.set("accept", "application/json");
+          this.#headers.append("accept", "application/jwk-set+json");
+        }
+        this.#customFetch = options?.[customFetch];
+        if (options?.[jwksCache] !== void 0) {
+          this.#cache = options?.[jwksCache];
+          if (isFreshJwksCache(options?.[jwksCache], this.#cacheMaxAge)) {
+            this.#jwksTimestamp = this.#cache.uat;
+            this.#local = createLocalJWKSet(this.#cache.jwks);
+          }
+        }
+      }
+      pendingFetch() {
+        return !!this.#pendingFetch;
+      }
+      coolingDown() {
+        return typeof this.#jwksTimestamp === "number" ? Date.now() < this.#jwksTimestamp + this.#cooldownDuration : false;
+      }
+      fresh() {
+        return typeof this.#jwksTimestamp === "number" ? Date.now() < this.#jwksTimestamp + this.#cacheMaxAge : false;
+      }
+      jwks() {
+        return this.#local?.jwks();
+      }
+      async getKey(protectedHeader, token) {
+        if (!this.#local || !this.fresh()) {
+          await this.reload();
+        }
+        try {
+          return await this.#local(protectedHeader, token);
+        } catch (err) {
+          if (err instanceof JWKSNoMatchingKey) {
+            if (this.coolingDown() === false) {
+              await this.reload();
+              return this.#local(protectedHeader, token);
+            }
+          }
+          throw err;
+        }
+      }
+      async reload() {
+        if (this.#pendingFetch && isCloudflareWorkers()) {
+          this.#pendingFetch = void 0;
+        }
+        this.#pendingFetch ||= fetchJwks(this.#url.href, this.#headers, AbortSignal.timeout(this.#timeoutDuration), this.#customFetch).then((json2) => {
+          this.#local = createLocalJWKSet(json2);
+          if (this.#cache) {
+            this.#cache.uat = Date.now();
+            this.#cache.jwks = json2;
+          }
+          this.#jwksTimestamp = Date.now();
+          this.#pendingFetch = void 0;
+        }).catch((err) => {
+          this.#pendingFetch = void 0;
+          throw err;
+        });
+        await this.#pendingFetch;
+      }
+    };
+  }
+});
+
+// node_modules/jose/dist/webapi/index.js
+var init_webapi = __esm({
+  "node_modules/jose/dist/webapi/index.js"() {
+    init_verify4();
+    init_sign4();
+    init_remote();
+  }
+});
+
+// contracts/errors.ts
+function appError(status, message2) {
+  return { tag: "app_error", status, message: message2 };
+}
+var Errors;
+var init_errors2 = __esm({
+  "contracts/errors.ts"() {
+    Errors = {
+      badRequest: (msg) => appError(400, msg),
+      unauthorized: (msg) => appError(401, msg),
+      forbidden: (msg) => appError(403, msg),
+      notFound: (msg) => appError(404, msg),
+      internal: (msg) => appError(500, msg)
+    };
+  }
+});
+
+// api/kimi/session.ts
+async function signSessionToken(payload) {
+  const secret = new TextEncoder().encode(env.appSecret);
+  return new SignJWT(payload).setProtectedHeader({ alg: JWT_ALG }).setIssuedAt().setExpirationTime("1 year").sign(secret);
+}
+async function verifySessionToken(token) {
+  if (!token) {
+    console.warn("[session] No token provided for verification.");
+    return null;
+  }
+  try {
+    const secret = new TextEncoder().encode(env.appSecret);
+    const { payload } = await jwtVerify(token, secret, {
+      algorithms: [JWT_ALG]
+    });
+    const { unionId, clientId } = payload;
+    if (!unionId || !clientId) {
+      console.warn("[session] JWT payload missing required fields.");
+      return null;
+    }
+    return { unionId, clientId };
+  } catch (error51) {
+    console.warn("[session] JWT verification failed:", error51);
+    return null;
+  }
+}
+var JWT_ALG;
+var init_session = __esm({
+  "api/kimi/session.ts"() {
+    init_webapi();
+    init_env();
+    JWT_ALG = "HS256";
+  }
+});
+
+// api/kimi/platform.ts
+async function kimiRequest(path, token, init) {
+  const resp = await fetch(`${env.kimiOpenUrl}${path}`, {
+    ...init,
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      ...init?.headers
+    }
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    console.warn(
+      `[kimi] Request to ${path} failed (${resp.status}): ${text}`
+    );
+    return null;
+  }
+  return resp.json();
+}
+var users;
+var init_platform = __esm({
+  "api/kimi/platform.ts"() {
+    init_env();
+    users = {
+      getProfile: (token) => kimiRequest("/v1/users/me/profile", token)
+    };
+  }
+});
+
+// api/queries/users.ts
+async function findUserByUnionId(unionId) {
+  return userStore.getByUnionId(unionId) || null;
+}
+async function upsertUser(data) {
+  const role = data.unionId && data.unionId === env.ownerUnionId ? "admin" : void 0;
+  return userStore.upsert({
+    unionId: data.unionId,
+    name: data.name,
+    email: data.email,
+    avatar: data.avatar
+  });
+}
+var init_users = __esm({
+  "api/queries/users.ts"() {
+    init_json_store();
+    init_env();
+  }
+});
+
+// api/kimi/auth.ts
+var auth_exports = {};
+__export(auth_exports, {
+  authenticateRequest: () => authenticateRequest,
+  createOAuthCallbackHandler: () => createOAuthCallbackHandler,
+  exchangeAuthCode: () => exchangeAuthCode,
+  verifyAccessToken: () => verifyAccessToken
+});
+async function exchangeAuthCode(code, redirectUri) {
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    client_id: env.appId,
+    redirect_uri: redirectUri,
+    client_secret: env.appSecret
+  });
+  const resp = await fetch(`${env.kimiAuthUrl}/api/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString()
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Token exchange failed (${resp.status}): ${text}`);
+  }
+  return resp.json();
+}
+function getJwks() {
+  if (!jwks && env.kimiAuthUrl) {
+    jwks = createRemoteJWKSet(
+      new URL(`${env.kimiAuthUrl}/api/.well-known/jwks.json`)
+    );
+  }
+  return jwks;
+}
+async function verifyAccessToken(accessToken) {
+  const jwksInstance = getJwks();
+  if (!jwksInstance) {
+    throw new Error("Kimi auth not configured - JWKS unavailable");
+  }
+  const { payload } = await jwtVerify(accessToken, jwksInstance);
+  const userId = payload.user_id;
+  const clientId = payload.client_id;
+  if (!userId) {
+    throw new Error("user_id missing from access token");
+  }
+  return { userId, clientId };
+}
+async function authenticateRequest(headers) {
+  const cookies = cookie2.parse(headers.get("cookie") || "");
+  const token = cookies[Session.cookieName];
+  if (!token) {
+    console.warn("[auth] No session cookie found in request.");
+    throw Errors.forbidden("Invalid authentication token.");
+  }
+  const claim = await verifySessionToken(token);
+  if (!claim) {
+    throw Errors.forbidden("Invalid authentication token.");
+  }
+  const user = await findUserByUnionId(claim.unionId);
+  if (!user) {
+    throw Errors.forbidden("User not found. Please re-login.");
+  }
+  return user;
+}
+function createOAuthCallbackHandler() {
+  return async (c) => {
+    const code = c.req.query("code");
+    const state = c.req.query("state");
+    const error51 = c.req.query("error");
+    const errorDescription = c.req.query("error_description");
+    if (error51) {
+      if (error51 === "access_denied") {
+        return c.redirect("/", 302);
+      }
+      return c.json(
+        { error: error51, error_description: errorDescription },
+        400
+      );
+    }
+    if (!code || !state) {
+      return c.json({ error: "code and state are required" }, 400);
+    }
+    try {
+      const redirectUri = atob(state);
+      const tokenResp = await exchangeAuthCode(code, redirectUri);
+      const { userId } = await verifyAccessToken(tokenResp.access_token);
+      const userProfile = await users.getProfile(tokenResp.access_token);
+      if (!userProfile) {
+        throw new Error("Failed to fetch user profile from Kimi Open");
+      }
+      await upsertUser({
+        unionId: userId,
+        name: userProfile.name,
+        avatar: userProfile.avatar_url,
+        lastSignInAt: /* @__PURE__ */ new Date()
+      });
+      const token = await signSessionToken({
+        unionId: userId,
+        clientId: env.appId
+      });
+      const cookieOpts = getSessionCookieOptions(c.req.raw.headers);
+      setCookie(c, Session.cookieName, token, {
+        ...cookieOpts,
+        maxAge: Session.maxAgeMs / 1e3
+      });
+      return c.redirect("/", 302);
+    } catch (error52) {
+      console.error("[OAuth] Callback failed", error52);
+      return c.json({ error: "OAuth callback failed" }, 500);
+    }
+  };
+}
+var cookie2, jwks;
+var init_auth = __esm({
+  "api/kimi/auth.ts"() {
+    init_cookie2();
+    init_webapi();
+    cookie2 = __toESM(require_dist(), 1);
+    init_env();
+    init_cookies();
+    init_constants();
+    init_errors2();
+    init_session();
+    init_platform();
+    init_users();
+    jwks = null;
+  }
+});
+
+// node_modules/@hono/node-server/dist/index.mjs
+var dist_exports = {};
+__export(dist_exports, {
+  RequestError: () => RequestError,
+  createAdaptorServer: () => createAdaptorServer,
+  getRequestListener: () => getRequestListener,
+  serve: () => serve
+});
+import { createServer as createServerHTTP } from "http";
+import { Http2ServerRequest as Http2ServerRequest2, constants as h2constants } from "http2";
+import { Http2ServerRequest } from "http2";
+import { Readable } from "stream";
+import crypto2 from "crypto";
+async function readWithoutBlocking(readPromise) {
+  return Promise.race([readPromise, Promise.resolve().then(() => Promise.resolve(void 0))]);
+}
+function writeFromReadableStreamDefaultReader(reader, writable, currentReadPromise) {
+  const cancel = (error51) => {
+    reader.cancel(error51).catch(() => {
+    });
+  };
+  writable.on("close", cancel);
+  writable.on("error", cancel);
+  (currentReadPromise ?? reader.read()).then(flow, handleStreamError);
+  return reader.closed.finally(() => {
+    writable.off("close", cancel);
+    writable.off("error", cancel);
+  });
+  function handleStreamError(error51) {
+    if (error51) {
+      writable.destroy(error51);
+    }
+  }
+  function onDrain() {
+    reader.read().then(flow, handleStreamError);
+  }
+  function flow({ done, value }) {
+    try {
+      if (done) {
+        writable.end();
+      } else if (!writable.write(value)) {
+        writable.once("drain", onDrain);
+      } else {
+        return reader.read().then(flow, handleStreamError);
+      }
+    } catch (e) {
+      handleStreamError(e);
+    }
+  }
+}
+function writeFromReadableStream(stream, writable) {
+  if (stream.locked) {
+    throw new TypeError("ReadableStream is locked.");
+  } else if (writable.destroyed) {
+    return;
+  }
+  return writeFromReadableStreamDefaultReader(stream.getReader(), writable);
+}
+var RequestError, toRequestError, GlobalRequest, Request2, newHeadersFromIncoming, wrapBodyStream, newRequestFromIncoming, getRequestCache, requestCache, incomingKey, urlKey, headersKey, abortControllerKey, getAbortController, requestPrototype, newRequest, responseCache, getResponseCache, cacheKey, GlobalResponse, Response2, buildOutgoingHttpHeaders, X_ALREADY_SENT, outgoingEnded, incomingDraining, DRAIN_TIMEOUT_MS, MAX_DRAIN_BYTES, drainIncoming, handleRequestError, handleFetchError, handleResponseError, flushHeaders, responseViaCache, isPromise2, responseViaResponseObject, getRequestListener, createAdaptorServer, serve;
+var init_dist = __esm({
+  "node_modules/@hono/node-server/dist/index.mjs"() {
+    RequestError = class extends Error {
+      constructor(message2, options) {
+        super(message2, options);
+        this.name = "RequestError";
+      }
+    };
+    toRequestError = (e) => {
+      if (e instanceof RequestError) {
+        return e;
+      }
+      return new RequestError(e.message, { cause: e });
+    };
+    GlobalRequest = global.Request;
+    Request2 = class extends GlobalRequest {
+      constructor(input, options) {
+        if (typeof input === "object" && getRequestCache in input) {
+          input = input[getRequestCache]();
+        }
+        if (typeof options?.body?.getReader !== "undefined") {
+          ;
+          options.duplex ??= "half";
+        }
+        super(input, options);
+      }
+    };
+    newHeadersFromIncoming = (incoming) => {
+      const headerRecord = [];
+      const rawHeaders = incoming.rawHeaders;
+      for (let i = 0; i < rawHeaders.length; i += 2) {
+        const { [i]: key, [i + 1]: value } = rawHeaders;
+        if (key.charCodeAt(0) !== /*:*/
+        58) {
+          headerRecord.push([key, value]);
+        }
+      }
+      return new Headers(headerRecord);
+    };
+    wrapBodyStream = /* @__PURE__ */ Symbol("wrapBodyStream");
+    newRequestFromIncoming = (method, url2, headers, incoming, abortController) => {
+      const init = {
+        method,
+        headers,
+        signal: abortController.signal
+      };
+      if (method === "TRACE") {
+        init.method = "GET";
+        const req = new Request2(url2, init);
+        Object.defineProperty(req, "method", {
+          get() {
+            return "TRACE";
           }
         });
+        return req;
+      }
+      if (!(method === "GET" || method === "HEAD")) {
+        if ("rawBody" in incoming && incoming.rawBody instanceof Buffer) {
+          init.body = new ReadableStream({
+            start(controller) {
+              controller.enqueue(incoming.rawBody);
+              controller.close();
+            }
+          });
+        } else if (incoming[wrapBodyStream]) {
+          let reader;
+          init.body = new ReadableStream({
+            async pull(controller) {
+              try {
+                reader ||= Readable.toWeb(incoming).getReader();
+                const { done, value } = await reader.read();
+                if (done) {
+                  controller.close();
+                } else {
+                  controller.enqueue(value);
+                }
+              } catch (error51) {
+                controller.error(error51);
+              }
+            }
+          });
+        } else {
+          init.body = Readable.toWeb(incoming);
+        }
+      }
+      return new Request2(url2, init);
+    };
+    getRequestCache = /* @__PURE__ */ Symbol("getRequestCache");
+    requestCache = /* @__PURE__ */ Symbol("requestCache");
+    incomingKey = /* @__PURE__ */ Symbol("incomingKey");
+    urlKey = /* @__PURE__ */ Symbol("urlKey");
+    headersKey = /* @__PURE__ */ Symbol("headersKey");
+    abortControllerKey = /* @__PURE__ */ Symbol("abortControllerKey");
+    getAbortController = /* @__PURE__ */ Symbol("getAbortController");
+    requestPrototype = {
+      get method() {
+        return this[incomingKey].method || "GET";
+      },
+      get url() {
+        return this[urlKey];
+      },
+      get headers() {
+        return this[headersKey] ||= newHeadersFromIncoming(this[incomingKey]);
+      },
+      [getAbortController]() {
+        this[getRequestCache]();
+        return this[abortControllerKey];
+      },
+      [getRequestCache]() {
+        this[abortControllerKey] ||= new AbortController();
+        return this[requestCache] ||= newRequestFromIncoming(
+          this.method,
+          this[urlKey],
+          this.headers,
+          this[incomingKey],
+          this[abortControllerKey]
+        );
+      }
+    };
+    [
+      "body",
+      "bodyUsed",
+      "cache",
+      "credentials",
+      "destination",
+      "integrity",
+      "mode",
+      "redirect",
+      "referrer",
+      "referrerPolicy",
+      "signal",
+      "keepalive"
+    ].forEach((k) => {
+      Object.defineProperty(requestPrototype, k, {
+        get() {
+          return this[getRequestCache]()[k];
+        }
       });
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/serialize.js
-var require_serialize = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/serialize.js"(exports, module) {
-    "use strict";
-    var { cppdb } = require_util();
-    module.exports = function serialize3(options) {
-      if (options == null) options = {};
-      if (typeof options !== "object") throw new TypeError("Expected first argument to be an options object");
-      const attachedName = "attached" in options ? options.attached : "main";
-      if (typeof attachedName !== "string") throw new TypeError('Expected the "attached" option to be a string');
-      if (!attachedName) throw new TypeError('The "attached" option cannot be an empty string');
-      return this[cppdb].serialize(attachedName);
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/function.js
-var require_function = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/function.js"(exports, module) {
-    "use strict";
-    var { getBooleanOption, cppdb } = require_util();
-    module.exports = function defineFunction(name, options, fn) {
-      if (options == null) options = {};
-      if (typeof options === "function") {
-        fn = options;
-        options = {};
-      }
-      if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
-      if (typeof fn !== "function") throw new TypeError("Expected last argument to be a function");
-      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
-      if (!name) throw new TypeError("User-defined function name cannot be an empty string");
-      const safeIntegers = "safeIntegers" in options ? +getBooleanOption(options, "safeIntegers") : 2;
-      const deterministic = getBooleanOption(options, "deterministic");
-      const directOnly = getBooleanOption(options, "directOnly");
-      const varargs = getBooleanOption(options, "varargs");
-      let argCount = -1;
-      if (!varargs) {
-        argCount = fn.length;
-        if (!Number.isInteger(argCount) || argCount < 0) throw new TypeError("Expected function.length to be a positive integer");
-        if (argCount > 100) throw new RangeError("User-defined functions cannot have more than 100 arguments");
-      }
-      this[cppdb].function(fn, name, argCount, safeIntegers, deterministic, directOnly);
-      return this;
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/aggregate.js
-var require_aggregate = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/aggregate.js"(exports, module) {
-    "use strict";
-    var { getBooleanOption, cppdb } = require_util();
-    module.exports = function defineAggregate(name, options) {
-      if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
-      if (typeof options !== "object" || options === null) throw new TypeError("Expected second argument to be an options object");
-      if (!name) throw new TypeError("User-defined function name cannot be an empty string");
-      const start = "start" in options ? options.start : null;
-      const step = getFunctionOption(options, "step", true);
-      const inverse = getFunctionOption(options, "inverse", false);
-      const result = getFunctionOption(options, "result", false);
-      const safeIntegers = "safeIntegers" in options ? +getBooleanOption(options, "safeIntegers") : 2;
-      const deterministic = getBooleanOption(options, "deterministic");
-      const directOnly = getBooleanOption(options, "directOnly");
-      const varargs = getBooleanOption(options, "varargs");
-      let argCount = -1;
-      if (!varargs) {
-        argCount = Math.max(getLength(step), inverse ? getLength(inverse) : 0);
-        if (argCount > 0) argCount -= 1;
-        if (argCount > 100) throw new RangeError("User-defined functions cannot have more than 100 arguments");
-      }
-      this[cppdb].aggregate(start, step, inverse, result, name, argCount, safeIntegers, deterministic, directOnly);
-      return this;
-    };
-    var getFunctionOption = (options, key, required2) => {
-      const value = key in options ? options[key] : null;
-      if (typeof value === "function") return value;
-      if (value != null) throw new TypeError(`Expected the "${key}" option to be a function`);
-      if (required2) throw new TypeError(`Missing required option "${key}"`);
-      return null;
-    };
-    var getLength = ({ length }) => {
-      if (Number.isInteger(length) && length >= 0) return length;
-      throw new TypeError("Expected function.length to be a positive integer");
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/table.js
-var require_table = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/table.js"(exports, module) {
-    "use strict";
-    var { cppdb } = require_util();
-    module.exports = function defineTable(name, factory) {
-      if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
-      if (!name) throw new TypeError("Virtual table module name cannot be an empty string");
-      let eponymous = false;
-      if (typeof factory === "object" && factory !== null) {
-        eponymous = true;
-        factory = defer(parseTableDefinition(factory, "used", name));
-      } else {
-        if (typeof factory !== "function") throw new TypeError("Expected second argument to be a function or a table definition object");
-        factory = wrapFactory(factory);
-      }
-      this[cppdb].table(factory, name, eponymous);
-      return this;
-    };
-    function wrapFactory(factory) {
-      return function virtualTableFactory(moduleName, databaseName, tableName, ...args) {
-        const thisObject = {
-          module: moduleName,
-          database: databaseName,
-          table: tableName
+    });
+    ["arrayBuffer", "blob", "clone", "formData", "json", "text"].forEach((k) => {
+      Object.defineProperty(requestPrototype, k, {
+        value: function() {
+          return this[getRequestCache]()[k]();
+        }
+      });
+    });
+    Object.defineProperty(requestPrototype, /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom"), {
+      value: function(depth, options, inspectFn) {
+        const props = {
+          method: this.method,
+          url: this.url,
+          headers: this.headers,
+          nativeRequest: this[requestCache]
         };
-        const def = apply.call(factory, thisObject, args);
-        if (typeof def !== "object" || def === null) {
-          throw new TypeError(`Virtual table module "${moduleName}" did not return a table definition object`);
+        return `Request (lightweight) ${inspectFn(props, { ...options, depth: depth == null ? null : depth - 1 })}`;
+      }
+    });
+    Object.setPrototypeOf(requestPrototype, Request2.prototype);
+    newRequest = (incoming, defaultHostname) => {
+      const req = Object.create(requestPrototype);
+      req[incomingKey] = incoming;
+      const incomingUrl = incoming.url || "";
+      if (incomingUrl[0] !== "/" && // short-circuit for performance. most requests are relative URL.
+      (incomingUrl.startsWith("http://") || incomingUrl.startsWith("https://"))) {
+        if (incoming instanceof Http2ServerRequest) {
+          throw new RequestError("Absolute URL for :path is not allowed in HTTP/2");
         }
-        return parseTableDefinition(def, "returned", moduleName);
-      };
-    }
-    function parseTableDefinition(def, verb, moduleName) {
-      if (!hasOwnProperty.call(def, "rows")) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition without a "rows" property`);
+        try {
+          const url22 = new URL(incomingUrl);
+          req[urlKey] = url22.href;
+        } catch (e) {
+          throw new RequestError("Invalid absolute URL", { cause: e });
+        }
+        return req;
       }
-      if (!hasOwnProperty.call(def, "columns")) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition without a "columns" property`);
+      const host = (incoming instanceof Http2ServerRequest ? incoming.authority : incoming.headers.host) || defaultHostname;
+      if (!host) {
+        throw new RequestError("Missing host header");
       }
-      const rows = def.rows;
-      if (typeof rows !== "function" || Object.getPrototypeOf(rows) !== GeneratorFunctionPrototype) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "rows" property (should be a generator function)`);
-      }
-      let columns = def.columns;
-      if (!Array.isArray(columns) || !(columns = [...columns]).every((x) => typeof x === "string")) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "columns" property (should be an array of strings)`);
-      }
-      if (columns.length !== new Set(columns).size) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with duplicate column names`);
-      }
-      if (!columns.length) {
-        throw new RangeError(`Virtual table module "${moduleName}" ${verb} a table definition with zero columns`);
-      }
-      let parameters;
-      if (hasOwnProperty.call(def, "parameters")) {
-        parameters = def.parameters;
-        if (!Array.isArray(parameters) || !(parameters = [...parameters]).every((x) => typeof x === "string")) {
-          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "parameters" property (should be an array of strings)`);
+      let scheme;
+      if (incoming instanceof Http2ServerRequest) {
+        scheme = incoming.scheme;
+        if (!(scheme === "http" || scheme === "https")) {
+          throw new RequestError("Unsupported scheme");
         }
       } else {
-        parameters = inferParameters(rows);
+        scheme = incoming.socket && incoming.socket.encrypted ? "https" : "http";
       }
-      if (parameters.length !== new Set(parameters).size) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with duplicate parameter names`);
+      const url2 = new URL(`${scheme}://${host}${incomingUrl}`);
+      if (url2.hostname.length !== host.length && url2.hostname !== host.replace(/:\d+$/, "")) {
+        throw new RequestError("Invalid host header");
       }
-      if (parameters.length > 32) {
-        throw new RangeError(`Virtual table module "${moduleName}" ${verb} a table definition with more than the maximum number of 32 parameters`);
+      req[urlKey] = url2.href;
+      return req;
+    };
+    responseCache = /* @__PURE__ */ Symbol("responseCache");
+    getResponseCache = /* @__PURE__ */ Symbol("getResponseCache");
+    cacheKey = /* @__PURE__ */ Symbol("cache");
+    GlobalResponse = global.Response;
+    Response2 = class _Response {
+      #body;
+      #init;
+      [getResponseCache]() {
+        delete this[cacheKey];
+        return this[responseCache] ||= new GlobalResponse(this.#body, this.#init);
       }
-      for (const parameter of parameters) {
-        if (columns.includes(parameter)) {
-          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with column "${parameter}" which was ambiguously defined as both a column and parameter`);
-        }
-      }
-      let safeIntegers = 2;
-      if (hasOwnProperty.call(def, "safeIntegers")) {
-        const bool = def.safeIntegers;
-        if (typeof bool !== "boolean") {
-          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "safeIntegers" property (should be a boolean)`);
-        }
-        safeIntegers = +bool;
-      }
-      let directOnly = false;
-      if (hasOwnProperty.call(def, "directOnly")) {
-        directOnly = def.directOnly;
-        if (typeof directOnly !== "boolean") {
-          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "directOnly" property (should be a boolean)`);
-        }
-      }
-      const columnDefinitions = [
-        ...parameters.map(identifier).map((str) => `${str} HIDDEN`),
-        ...columns.map(identifier)
-      ];
-      return [
-        `CREATE TABLE x(${columnDefinitions.join(", ")});`,
-        wrapGenerator(rows, new Map(columns.map((x, i) => [x, parameters.length + i])), moduleName),
-        parameters,
-        safeIntegers,
-        directOnly
-      ];
-    }
-    function wrapGenerator(generator, columnMap, moduleName) {
-      return function* virtualTable(...args) {
-        const output = args.map((x) => Buffer.isBuffer(x) ? Buffer.from(x) : x);
-        for (let i = 0; i < columnMap.size; ++i) {
-          output.push(null);
-        }
-        for (const row of generator(...args)) {
-          if (Array.isArray(row)) {
-            extractRowArray(row, output, columnMap.size, moduleName);
-            yield output;
-          } else if (typeof row === "object" && row !== null) {
-            extractRowObject(row, output, columnMap, moduleName);
-            yield output;
+      constructor(body, init) {
+        let headers;
+        this.#body = body;
+        if (init instanceof _Response) {
+          const cachedGlobalResponse = init[responseCache];
+          if (cachedGlobalResponse) {
+            this.#init = cachedGlobalResponse;
+            this[getResponseCache]();
+            return;
           } else {
-            throw new TypeError(`Virtual table module "${moduleName}" yielded something that isn't a valid row object`);
+            this.#init = init.#init;
+            headers = new Headers(init.#init.headers);
+          }
+        } else {
+          this.#init = init;
+        }
+        if (typeof body === "string" || typeof body?.getReader !== "undefined" || body instanceof Blob || body instanceof Uint8Array) {
+          ;
+          this[cacheKey] = [init?.status || 200, body, headers || init?.headers];
+        }
+      }
+      get headers() {
+        const cache2 = this[cacheKey];
+        if (cache2) {
+          if (!(cache2[2] instanceof Headers)) {
+            cache2[2] = new Headers(
+              cache2[2] || { "content-type": "text/plain; charset=UTF-8" }
+            );
+          }
+          return cache2[2];
+        }
+        return this[getResponseCache]().headers;
+      }
+      get status() {
+        return this[cacheKey]?.[0] ?? this[getResponseCache]().status;
+      }
+      get ok() {
+        const status = this.status;
+        return status >= 200 && status < 300;
+      }
+    };
+    ["body", "bodyUsed", "redirected", "statusText", "trailers", "type", "url"].forEach((k) => {
+      Object.defineProperty(Response2.prototype, k, {
+        get() {
+          return this[getResponseCache]()[k];
+        }
+      });
+    });
+    ["arrayBuffer", "blob", "clone", "formData", "json", "text"].forEach((k) => {
+      Object.defineProperty(Response2.prototype, k, {
+        value: function() {
+          return this[getResponseCache]()[k]();
+        }
+      });
+    });
+    Object.defineProperty(Response2.prototype, /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom"), {
+      value: function(depth, options, inspectFn) {
+        const props = {
+          status: this.status,
+          headers: this.headers,
+          ok: this.ok,
+          nativeResponse: this[responseCache]
+        };
+        return `Response (lightweight) ${inspectFn(props, { ...options, depth: depth == null ? null : depth - 1 })}`;
+      }
+    });
+    Object.setPrototypeOf(Response2, GlobalResponse);
+    Object.setPrototypeOf(Response2.prototype, GlobalResponse.prototype);
+    buildOutgoingHttpHeaders = (headers) => {
+      const res = {};
+      if (!(headers instanceof Headers)) {
+        headers = new Headers(headers ?? void 0);
+      }
+      const cookies = [];
+      for (const [k, v] of headers) {
+        if (k === "set-cookie") {
+          cookies.push(v);
+        } else {
+          res[k] = v;
+        }
+      }
+      if (cookies.length > 0) {
+        res["set-cookie"] = cookies;
+      }
+      res["content-type"] ??= "text/plain; charset=UTF-8";
+      return res;
+    };
+    X_ALREADY_SENT = "x-hono-already-sent";
+    if (typeof global.crypto === "undefined") {
+      global.crypto = crypto2;
+    }
+    outgoingEnded = /* @__PURE__ */ Symbol("outgoingEnded");
+    incomingDraining = /* @__PURE__ */ Symbol("incomingDraining");
+    DRAIN_TIMEOUT_MS = 500;
+    MAX_DRAIN_BYTES = 64 * 1024 * 1024;
+    drainIncoming = (incoming) => {
+      const incomingWithDrainState = incoming;
+      if (incoming.destroyed || incomingWithDrainState[incomingDraining]) {
+        return;
+      }
+      incomingWithDrainState[incomingDraining] = true;
+      if (incoming instanceof Http2ServerRequest2) {
+        try {
+          ;
+          incoming.stream?.close?.(h2constants.NGHTTP2_NO_ERROR);
+        } catch {
+        }
+        return;
+      }
+      let bytesRead = 0;
+      const cleanup = () => {
+        clearTimeout(timer);
+        incoming.off("data", onData);
+        incoming.off("end", cleanup);
+        incoming.off("error", cleanup);
+      };
+      const forceClose = () => {
+        cleanup();
+        const socket = incoming.socket;
+        if (socket && !socket.destroyed) {
+          socket.destroySoon();
+        }
+      };
+      const timer = setTimeout(forceClose, DRAIN_TIMEOUT_MS);
+      timer.unref?.();
+      const onData = (chunk) => {
+        bytesRead += chunk.length;
+        if (bytesRead > MAX_DRAIN_BYTES) {
+          forceClose();
+        }
+      };
+      incoming.on("data", onData);
+      incoming.on("end", cleanup);
+      incoming.on("error", cleanup);
+      incoming.resume();
+    };
+    handleRequestError = () => new Response(null, {
+      status: 400
+    });
+    handleFetchError = (e) => new Response(null, {
+      status: e instanceof Error && (e.name === "TimeoutError" || e.constructor.name === "TimeoutError") ? 504 : 500
+    });
+    handleResponseError = (e, outgoing) => {
+      const err = e instanceof Error ? e : new Error("unknown error", { cause: e });
+      if (err.code === "ERR_STREAM_PREMATURE_CLOSE") {
+        console.info("The user aborted a request.");
+      } else {
+        console.error(e);
+        if (!outgoing.headersSent) {
+          outgoing.writeHead(500, { "Content-Type": "text/plain" });
+        }
+        outgoing.end(`Error: ${err.message}`);
+        outgoing.destroy(err);
+      }
+    };
+    flushHeaders = (outgoing) => {
+      if ("flushHeaders" in outgoing && outgoing.writable) {
+        outgoing.flushHeaders();
+      }
+    };
+    responseViaCache = async (res, outgoing) => {
+      let [status, body, header] = res[cacheKey];
+      let hasContentLength = false;
+      if (!header) {
+        header = { "content-type": "text/plain; charset=UTF-8" };
+      } else if (header instanceof Headers) {
+        hasContentLength = header.has("content-length");
+        header = buildOutgoingHttpHeaders(header);
+      } else if (Array.isArray(header)) {
+        const headerObj = new Headers(header);
+        hasContentLength = headerObj.has("content-length");
+        header = buildOutgoingHttpHeaders(headerObj);
+      } else {
+        for (const key in header) {
+          if (key.length === 14 && key.toLowerCase() === "content-length") {
+            hasContentLength = true;
+            break;
           }
         }
-      };
-    }
-    function extractRowArray(row, output, columnCount, moduleName) {
-      if (row.length !== columnCount) {
-        throw new TypeError(`Virtual table module "${moduleName}" yielded a row with an incorrect number of columns`);
       }
-      const offset = output.length - columnCount;
-      for (let i = 0; i < columnCount; ++i) {
-        output[i + offset] = row[i];
-      }
-    }
-    function extractRowObject(row, output, columnMap, moduleName) {
-      let count = 0;
-      for (const key of Object.keys(row)) {
-        const index = columnMap.get(key);
-        if (index === void 0) {
-          throw new TypeError(`Virtual table module "${moduleName}" yielded a row with an undeclared column "${key}"`);
+      if (!hasContentLength) {
+        if (typeof body === "string") {
+          header["Content-Length"] = Buffer.byteLength(body);
+        } else if (body instanceof Uint8Array) {
+          header["Content-Length"] = body.byteLength;
+        } else if (body instanceof Blob) {
+          header["Content-Length"] = body.size;
         }
-        output[index] = row[key];
-        count += 1;
       }
-      if (count !== columnMap.size) {
-        throw new TypeError(`Virtual table module "${moduleName}" yielded a row with missing columns`);
-      }
-    }
-    function inferParameters({ length }) {
-      if (!Number.isInteger(length) || length < 0) {
-        throw new TypeError("Expected function.length to be a positive integer");
-      }
-      const params = [];
-      for (let i = 0; i < length; ++i) {
-        params.push(`$${i + 1}`);
-      }
-      return params;
-    }
-    var { hasOwnProperty } = Object.prototype;
-    var { apply } = Function.prototype;
-    var GeneratorFunctionPrototype = Object.getPrototypeOf(function* () {
-    });
-    var identifier = (str) => `"${str.replace(/"/g, '""')}"`;
-    var defer = (x) => () => x;
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/inspect.js
-var require_inspect = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/inspect.js"(exports, module) {
-    "use strict";
-    var DatabaseInspection = function Database3() {
-    };
-    module.exports = function inspect(depth, opts) {
-      return Object.assign(new DatabaseInspection(), this);
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/database.js
-var require_database = __commonJS({
-  "node_modules/better-sqlite3/lib/database.js"(exports, module) {
-    "use strict";
-    var fs = __require("fs");
-    var path = __require("path");
-    var util = require_util();
-    var SqliteError = require_sqlite_error();
-    var DEFAULT_ADDON;
-    function Database3(filenameGiven, options) {
-      if (new.target == null) {
-        return new Database3(filenameGiven, options);
-      }
-      let buffer;
-      if (Buffer.isBuffer(filenameGiven)) {
-        buffer = filenameGiven;
-        filenameGiven = ":memory:";
-      }
-      if (filenameGiven == null) filenameGiven = "";
-      if (options == null) options = {};
-      if (typeof filenameGiven !== "string") throw new TypeError("Expected first argument to be a string");
-      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
-      if ("readOnly" in options) throw new TypeError('Misspelled option "readOnly" should be "readonly"');
-      if ("memory" in options) throw new TypeError('Option "memory" was removed in v7.0.0 (use ":memory:" filename instead)');
-      const filename = filenameGiven.trim();
-      const anonymous = filename === "" || filename === ":memory:";
-      const readonly2 = util.getBooleanOption(options, "readonly");
-      const fileMustExist = util.getBooleanOption(options, "fileMustExist");
-      const timeout = "timeout" in options ? options.timeout : 5e3;
-      const verbose = "verbose" in options ? options.verbose : null;
-      const nativeBinding = "nativeBinding" in options ? options.nativeBinding : null;
-      if (readonly2 && anonymous && !buffer) throw new TypeError("In-memory/temporary databases cannot be readonly");
-      if (!Number.isInteger(timeout) || timeout < 0) throw new TypeError('Expected the "timeout" option to be a positive integer');
-      if (timeout > 2147483647) throw new RangeError('Option "timeout" cannot be greater than 2147483647');
-      if (verbose != null && typeof verbose !== "function") throw new TypeError('Expected the "verbose" option to be a function');
-      if (nativeBinding != null && typeof nativeBinding !== "string" && typeof nativeBinding !== "object") throw new TypeError('Expected the "nativeBinding" option to be a string or addon object');
-      let addon;
-      if (nativeBinding == null) {
-        addon = DEFAULT_ADDON || (DEFAULT_ADDON = require_bindings()("better_sqlite3.node"));
-      } else if (typeof nativeBinding === "string") {
-        const requireFunc = typeof __non_webpack_require__ === "function" ? __non_webpack_require__ : __require;
-        addon = requireFunc(path.resolve(nativeBinding).replace(/(\.node)?$/, ".node"));
+      outgoing.writeHead(status, header);
+      if (typeof body === "string" || body instanceof Uint8Array) {
+        outgoing.end(body);
+      } else if (body instanceof Blob) {
+        outgoing.end(new Uint8Array(await body.arrayBuffer()));
       } else {
-        addon = nativeBinding;
+        flushHeaders(outgoing);
+        await writeFromReadableStream(body, outgoing)?.catch(
+          (e) => handleResponseError(e, outgoing)
+        );
       }
-      if (!addon.isInitialized) {
-        addon.setErrorConstructor(SqliteError);
-        addon.isInitialized = true;
+      ;
+      outgoing[outgoingEnded]?.();
+    };
+    isPromise2 = (res) => typeof res.then === "function";
+    responseViaResponseObject = async (res, outgoing, options = {}) => {
+      if (isPromise2(res)) {
+        if (options.errorHandler) {
+          try {
+            res = await res;
+          } catch (err) {
+            const errRes = await options.errorHandler(err);
+            if (!errRes) {
+              return;
+            }
+            res = errRes;
+          }
+        } else {
+          res = await res.catch(handleFetchError);
+        }
       }
-      if (!anonymous && !filename.startsWith("file:") && !fs.existsSync(path.dirname(filename))) {
-        throw new TypeError("Cannot open database because the directory does not exist");
+      if (cacheKey in res) {
+        return responseViaCache(res, outgoing);
       }
-      Object.defineProperties(this, {
-        [util.cppdb]: { value: new addon.Database(filename, filenameGiven, anonymous, readonly2, fileMustExist, timeout, verbose || null, buffer || null) },
-        ...wrappers.getters
+      const resHeaderRecord = buildOutgoingHttpHeaders(res.headers);
+      if (res.body) {
+        const reader = res.body.getReader();
+        const values = [];
+        let done = false;
+        let currentReadPromise = void 0;
+        if (resHeaderRecord["transfer-encoding"] !== "chunked") {
+          let maxReadCount = 2;
+          for (let i = 0; i < maxReadCount; i++) {
+            currentReadPromise ||= reader.read();
+            const chunk = await readWithoutBlocking(currentReadPromise).catch((e) => {
+              console.error(e);
+              done = true;
+            });
+            if (!chunk) {
+              if (i === 1) {
+                await new Promise((resolve) => setTimeout(resolve));
+                maxReadCount = 3;
+                continue;
+              }
+              break;
+            }
+            currentReadPromise = void 0;
+            if (chunk.value) {
+              values.push(chunk.value);
+            }
+            if (chunk.done) {
+              done = true;
+              break;
+            }
+          }
+          if (done && !("content-length" in resHeaderRecord)) {
+            resHeaderRecord["content-length"] = values.reduce((acc, value) => acc + value.length, 0);
+          }
+        }
+        outgoing.writeHead(res.status, resHeaderRecord);
+        values.forEach((value) => {
+          ;
+          outgoing.write(value);
+        });
+        if (done) {
+          outgoing.end();
+        } else {
+          if (values.length === 0) {
+            flushHeaders(outgoing);
+          }
+          await writeFromReadableStreamDefaultReader(reader, outgoing, currentReadPromise);
+        }
+      } else if (resHeaderRecord[X_ALREADY_SENT]) {
+      } else {
+        outgoing.writeHead(res.status, resHeaderRecord);
+        outgoing.end();
+      }
+      ;
+      outgoing[outgoingEnded]?.();
+    };
+    getRequestListener = (fetchCallback, options = {}) => {
+      const autoCleanupIncoming = options.autoCleanupIncoming ?? true;
+      if (options.overrideGlobalObjects !== false && global.Request !== Request2) {
+        Object.defineProperty(global, "Request", {
+          value: Request2
+        });
+        Object.defineProperty(global, "Response", {
+          value: Response2
+        });
+      }
+      return async (incoming, outgoing) => {
+        let res, req;
+        try {
+          req = newRequest(incoming, options.hostname);
+          let incomingEnded = !autoCleanupIncoming || incoming.method === "GET" || incoming.method === "HEAD";
+          if (!incomingEnded) {
+            ;
+            incoming[wrapBodyStream] = true;
+            incoming.on("end", () => {
+              incomingEnded = true;
+            });
+            if (incoming instanceof Http2ServerRequest2) {
+              ;
+              outgoing[outgoingEnded] = () => {
+                if (!incomingEnded) {
+                  setTimeout(() => {
+                    if (!incomingEnded) {
+                      setTimeout(() => {
+                        drainIncoming(incoming);
+                      });
+                    }
+                  });
+                }
+              };
+            }
+            outgoing.on("finish", () => {
+              if (!incomingEnded) {
+                drainIncoming(incoming);
+              }
+            });
+          }
+          outgoing.on("close", () => {
+            const abortController = req[abortControllerKey];
+            if (abortController) {
+              if (incoming.errored) {
+                req[abortControllerKey].abort(incoming.errored.toString());
+              } else if (!outgoing.writableFinished) {
+                req[abortControllerKey].abort("Client connection prematurely closed.");
+              }
+            }
+            if (!incomingEnded) {
+              setTimeout(() => {
+                if (!incomingEnded) {
+                  setTimeout(() => {
+                    drainIncoming(incoming);
+                  });
+                }
+              });
+            }
+          });
+          res = fetchCallback(req, { incoming, outgoing });
+          if (cacheKey in res) {
+            return responseViaCache(res, outgoing);
+          }
+        } catch (e) {
+          if (!res) {
+            if (options.errorHandler) {
+              res = await options.errorHandler(req ? e : toRequestError(e));
+              if (!res) {
+                return;
+              }
+            } else if (!req) {
+              res = handleRequestError();
+            } else {
+              res = handleFetchError(e);
+            }
+          } else {
+            return handleResponseError(e, outgoing);
+          }
+        }
+        try {
+          return await responseViaResponseObject(res, outgoing, options);
+        } catch (e) {
+          return handleResponseError(e, outgoing);
+        }
+      };
+    };
+    createAdaptorServer = (options) => {
+      const fetchCallback = options.fetch;
+      const requestListener = getRequestListener(fetchCallback, {
+        hostname: options.hostname,
+        overrideGlobalObjects: options.overrideGlobalObjects,
+        autoCleanupIncoming: options.autoCleanupIncoming
       });
-    }
-    var wrappers = require_wrappers();
-    Database3.prototype.prepare = wrappers.prepare;
-    Database3.prototype.transaction = require_transaction();
-    Database3.prototype.pragma = require_pragma();
-    Database3.prototype.backup = require_backup();
-    Database3.prototype.serialize = require_serialize();
-    Database3.prototype.function = require_function();
-    Database3.prototype.aggregate = require_aggregate();
-    Database3.prototype.table = require_table();
-    Database3.prototype.loadExtension = wrappers.loadExtension;
-    Database3.prototype.exec = wrappers.exec;
-    Database3.prototype.close = wrappers.close;
-    Database3.prototype.defaultSafeIntegers = wrappers.defaultSafeIntegers;
-    Database3.prototype.unsafeMode = wrappers.unsafeMode;
-    Database3.prototype[util.inspect] = require_inspect();
-    module.exports = Database3;
+      const createServer = options.createServer || createServerHTTP;
+      const server = createServer(options.serverOptions || {}, requestListener);
+      return server;
+    };
+    serve = (options, listeningListener) => {
+      const server = createAdaptorServer(options);
+      server.listen(options?.port ?? 3e3, options.hostname, () => {
+        const serverInfo = server.address();
+        listeningListener && listeningListener(serverInfo);
+      });
+      return server;
+    };
   }
 });
 
-// node_modules/better-sqlite3/lib/index.js
-var require_lib = __commonJS({
-  "node_modules/better-sqlite3/lib/index.js"(exports, module) {
-    "use strict";
-    module.exports = require_database();
-    module.exports.SqliteError = require_sqlite_error();
-  }
-});
+// api/boot.ts
+init_env();
 
 // node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
@@ -1208,211 +4287,8 @@ var handleParsingNestedValues = (form, key, value) => {
   });
 };
 
-// node_modules/hono/dist/utils/url.js
-var splitPath = (path) => {
-  const paths = path.split("/");
-  if (paths[0] === "") {
-    paths.shift();
-  }
-  return paths;
-};
-var splitRoutingPath = (routePath) => {
-  const { groups, path } = extractGroupsFromPath(routePath);
-  const paths = splitPath(path);
-  return replaceGroupMarks(paths, groups);
-};
-var extractGroupsFromPath = (path) => {
-  const groups = [];
-  path = path.replace(/\{[^}]+\}/g, (match2, index) => {
-    const mark = `@${index}`;
-    groups.push([mark, match2]);
-    return mark;
-  });
-  return { groups, path };
-};
-var replaceGroupMarks = (paths, groups) => {
-  for (let i = groups.length - 1; i >= 0; i--) {
-    const [mark] = groups[i];
-    for (let j = paths.length - 1; j >= 0; j--) {
-      if (paths[j].includes(mark)) {
-        paths[j] = paths[j].replace(mark, groups[i][1]);
-        break;
-      }
-    }
-  }
-  return paths;
-};
-var patternCache = {};
-var getPattern = (label, next) => {
-  if (label === "*") {
-    return "*";
-  }
-  const match2 = label.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);
-  if (match2) {
-    const cacheKey = `${label}#${next}`;
-    if (!patternCache[cacheKey]) {
-      if (match2[2]) {
-        patternCache[cacheKey] = next && next[0] !== ":" && next[0] !== "*" ? [cacheKey, match2[1], new RegExp(`^${match2[2]}(?=/${next})`)] : [label, match2[1], new RegExp(`^${match2[2]}$`)];
-      } else {
-        patternCache[cacheKey] = [label, match2[1], true];
-      }
-    }
-    return patternCache[cacheKey];
-  }
-  return null;
-};
-var tryDecode = (str, decoder) => {
-  try {
-    return decoder(str);
-  } catch {
-    return str.replace(/(?:%[0-9A-Fa-f]{2})+/g, (match2) => {
-      try {
-        return decoder(match2);
-      } catch {
-        return match2;
-      }
-    });
-  }
-};
-var tryDecodeURI = (str) => tryDecode(str, decodeURI);
-var getPath = (request) => {
-  const url2 = request.url;
-  const start = url2.indexOf("/", url2.indexOf(":") + 4);
-  let i = start;
-  for (; i < url2.length; i++) {
-    const charCode = url2.charCodeAt(i);
-    if (charCode === 37) {
-      const queryIndex = url2.indexOf("?", i);
-      const hashIndex = url2.indexOf("#", i);
-      const end = queryIndex === -1 ? hashIndex === -1 ? void 0 : hashIndex : hashIndex === -1 ? queryIndex : Math.min(queryIndex, hashIndex);
-      const path = url2.slice(start, end);
-      return tryDecodeURI(path.includes("%25") ? path.replace(/%25/g, "%2525") : path);
-    } else if (charCode === 63 || charCode === 35) {
-      break;
-    }
-  }
-  return url2.slice(start, i);
-};
-var getPathNoStrict = (request) => {
-  const result = getPath(request);
-  return result.length > 1 && result.at(-1) === "/" ? result.slice(0, -1) : result;
-};
-var mergePath = (base, sub, ...rest) => {
-  if (rest.length) {
-    sub = mergePath(sub, ...rest);
-  }
-  return `${base?.[0] === "/" ? "" : "/"}${base}${sub === "/" ? "" : `${base?.at(-1) === "/" ? "" : "/"}${sub?.[0] === "/" ? sub.slice(1) : sub}`}`;
-};
-var checkOptionalParameter = (path) => {
-  if (path.charCodeAt(path.length - 1) !== 63 || !path.includes(":")) {
-    return null;
-  }
-  const segments = path.split("/");
-  const results = [];
-  let basePath = "";
-  segments.forEach((segment) => {
-    if (segment !== "" && !/\:/.test(segment)) {
-      basePath += "/" + segment;
-    } else if (/\:/.test(segment)) {
-      if (/\?/.test(segment)) {
-        if (results.length === 0 && basePath === "") {
-          results.push("/");
-        } else {
-          results.push(basePath);
-        }
-        const optionalSegment = segment.replace("?", "");
-        basePath += "/" + optionalSegment;
-        results.push(basePath);
-      } else {
-        basePath += "/" + segment;
-      }
-    }
-  });
-  return results.filter((v, i, a) => a.indexOf(v) === i);
-};
-var _decodeURI = (value) => {
-  if (!/[%+]/.test(value)) {
-    return value;
-  }
-  if (value.indexOf("+") !== -1) {
-    value = value.replace(/\+/g, " ");
-  }
-  return value.indexOf("%") !== -1 ? tryDecode(value, decodeURIComponent_) : value;
-};
-var _getQueryParam = (url2, key, multiple) => {
-  let encoded;
-  if (!multiple && key && !/[%+]/.test(key)) {
-    let keyIndex2 = url2.indexOf("?", 8);
-    if (keyIndex2 === -1) {
-      return void 0;
-    }
-    if (!url2.startsWith(key, keyIndex2 + 1)) {
-      keyIndex2 = url2.indexOf(`&${key}`, keyIndex2 + 1);
-    }
-    while (keyIndex2 !== -1) {
-      const trailingKeyCode = url2.charCodeAt(keyIndex2 + key.length + 1);
-      if (trailingKeyCode === 61) {
-        const valueIndex = keyIndex2 + key.length + 2;
-        const endIndex = url2.indexOf("&", valueIndex);
-        return _decodeURI(url2.slice(valueIndex, endIndex === -1 ? void 0 : endIndex));
-      } else if (trailingKeyCode == 38 || isNaN(trailingKeyCode)) {
-        return "";
-      }
-      keyIndex2 = url2.indexOf(`&${key}`, keyIndex2 + 1);
-    }
-    encoded = /[%+]/.test(url2);
-    if (!encoded) {
-      return void 0;
-    }
-  }
-  const results = {};
-  encoded ??= /[%+]/.test(url2);
-  let keyIndex = url2.indexOf("?", 8);
-  while (keyIndex !== -1) {
-    const nextKeyIndex = url2.indexOf("&", keyIndex + 1);
-    let valueIndex = url2.indexOf("=", keyIndex);
-    if (valueIndex > nextKeyIndex && nextKeyIndex !== -1) {
-      valueIndex = -1;
-    }
-    let name = url2.slice(
-      keyIndex + 1,
-      valueIndex === -1 ? nextKeyIndex === -1 ? void 0 : nextKeyIndex : valueIndex
-    );
-    if (encoded) {
-      name = _decodeURI(name);
-    }
-    keyIndex = nextKeyIndex;
-    if (name === "") {
-      continue;
-    }
-    let value;
-    if (valueIndex === -1) {
-      value = "";
-    } else {
-      value = url2.slice(valueIndex + 1, nextKeyIndex === -1 ? void 0 : nextKeyIndex);
-      if (encoded) {
-        value = _decodeURI(value);
-      }
-    }
-    if (multiple) {
-      if (!(results[name] && Array.isArray(results[name]))) {
-        results[name] = [];
-      }
-      ;
-      results[name].push(value);
-    } else {
-      results[name] ??= value;
-    }
-  }
-  return key ? results[key] : results;
-};
-var getQueryParam = _getQueryParam;
-var getQueryParams = (url2, key) => {
-  return _getQueryParam(url2, key, true);
-};
-var decodeURIComponent_ = decodeURIComponent;
-
 // node_modules/hono/dist/request.js
+init_url();
 var tryDecodeURIComponent = (str) => tryDecode(str, decodeURIComponent_);
 var HonoRequest = class {
   /**
@@ -1525,7 +4401,7 @@ var HonoRequest = class {
    * ```
    */
   json() {
-    return this.#cachedBody("text").then((text2) => JSON.parse(text2));
+    return this.#cachedBody("text").then((text) => JSON.parse(text));
   }
   /**
    * `.text()` can parse Request body of type `text/plain`
@@ -1863,8 +4739,8 @@ var Context = class {
         if (k === "set-cookie") {
           const cookies = this.#res.headers.getSetCookie();
           _res.headers.delete("set-cookie");
-          for (const cookie2 of cookies) {
-            _res.headers.append("set-cookie", cookie2);
+          for (const cookie3 of cookies) {
+            _res.headers.append("set-cookie", cookie3);
           }
         } else {
           _res.headers.set(k, v);
@@ -2071,9 +4947,9 @@ var Context = class {
    * })
    * ```
    */
-  text = (text2, arg, headers) => {
-    return !this.#preparedHeaders && !this.#status && !arg && !headers && !this.finalized ? new Response(text2) : this.#newResponse(
-      text2,
+  text = (text, arg, headers) => {
+    return !this.#preparedHeaders && !this.#status && !arg && !headers && !this.finalized ? new Response(text) : this.#newResponse(
+      text,
       arg,
       setDefaultContentType(TEXT_PLAIN, headers)
     );
@@ -2156,6 +5032,7 @@ var UnsupportedPathError = class extends Error {
 var COMPOSED_HANDLER = "__COMPOSED_HANDLER";
 
 // node_modules/hono/dist/hono-base.js
+init_url();
 var notFoundHandler = (c) => {
   return c.text("404 Not Found", 404);
 };
@@ -2202,25 +5079,25 @@ var Hono = class _Hono {
         return this;
       };
     });
-    this.on = (method, path, ...handlers) => {
+    this.on = (method, path, ...handlers2) => {
       for (const p of [path].flat()) {
         this.#path = p;
         for (const m of [method].flat()) {
-          handlers.map((handler) => {
+          handlers2.map((handler) => {
             this.#addRoute(m.toUpperCase(), this.#path, handler);
           });
         }
       }
       return this;
     };
-    this.use = (arg1, ...handlers) => {
+    this.use = (arg1, ...handlers2) => {
       if (typeof arg1 === "string") {
         this.#path = arg1;
       } else {
         this.#path = "*";
-        handlers.unshift(arg1);
+        handlers2.unshift(arg1);
       }
-      handlers.forEach((handler) => {
+      handlers2.forEach((handler) => {
         this.#addRoute(METHOD_NAME_ALL, this.#path, handler);
       });
       return this;
@@ -2260,14 +5137,14 @@ var Hono = class _Hono {
    * app.route("/api", app2) // GET /api/user
    * ```
    */
-  route(path, app) {
+  route(path, app2) {
     const subApp = this.basePath(path);
-    app.routes.map((r) => {
+    app2.routes.map((r) => {
       let handler;
-      if (app.errorHandler === errorHandler) {
+      if (app2.errorHandler === errorHandler) {
         handler = r.handler;
       } else {
-        handler = async (c, next) => (await compose([], app.errorHandler)(c, () => r.handler(c, next))).res;
+        handler = async (c, next) => (await compose([], app2.errorHandler)(c, () => r.handler(c, next))).res;
         handler[COMPOSED_HANDLER] = r.handler;
       }
       subApp.#addRoute(r.method, r.path, handler, r.basePath);
@@ -2426,16 +5303,16 @@ var Hono = class _Hono {
     }
     throw err;
   }
-  #dispatch(request, executionCtx, env, method) {
+  #dispatch(request, executionCtx, env2, method) {
     if (method === "HEAD") {
-      return (async () => new Response(null, await this.#dispatch(request, executionCtx, env, "GET")))();
+      return (async () => new Response(null, await this.#dispatch(request, executionCtx, env2, "GET")))();
     }
-    const path = this.getPath(request, { env });
+    const path = this.getPath(request, { env: env2 });
     const matchResult = this.router.match(method, path);
     const c = new Context(request, {
       path,
       matchResult,
-      env,
+      env: env2,
       executionCtx,
       notFoundHandler: this.#notFoundHandler
     });
@@ -2530,6 +5407,9 @@ var Hono = class _Hono {
     });
   };
 };
+
+// node_modules/hono/dist/router/reg-exp-router/router.js
+init_url();
 
 // node_modules/hono/dist/router/reg-exp-router/matcher.js
 var emptyParam = [];
@@ -2743,9 +5623,9 @@ function buildMatcherFromPreprocessedRoutes(routes) {
   );
   const staticMap = /* @__PURE__ */ Object.create(null);
   for (let i = 0, j = -1, len = routesWithStaticPathFlag.length; i < len; i++) {
-    const [pathErrorCheckOnly, path, handlers] = routesWithStaticPathFlag[i];
+    const [pathErrorCheckOnly, path, handlers2] = routesWithStaticPathFlag[i];
     if (pathErrorCheckOnly) {
-      staticMap[path] = [handlers.map(([h]) => [h, /* @__PURE__ */ Object.create(null)]), emptyParam];
+      staticMap[path] = [handlers2.map(([h]) => [h, /* @__PURE__ */ Object.create(null)]), emptyParam];
     } else {
       j++;
     }
@@ -2758,7 +5638,7 @@ function buildMatcherFromPreprocessedRoutes(routes) {
     if (pathErrorCheckOnly) {
       continue;
     }
-    handlerData[j] = handlers.map(([h, paramCount]) => {
+    handlerData[j] = handlers2.map(([h, paramCount]) => {
       const paramIndexMap = /* @__PURE__ */ Object.create(null);
       paramCount -= 1;
       for (; paramCount >= 0; paramCount--) {
@@ -2950,7 +5830,11 @@ var SmartRouter = class {
   }
 };
 
+// node_modules/hono/dist/router/trie-router/router.js
+init_url();
+
 // node_modules/hono/dist/router/trie-router/node.js
+init_url();
 var emptyParams = /* @__PURE__ */ Object.create(null);
 var hasChildren = (children) => {
   for (const _ in children) {
@@ -3234,6 +6118,9 @@ var _baseMimes = {
 };
 var baseMimes = _baseMimes;
 
+// node_modules/hono/dist/middleware/serve-static/index.js
+init_url();
+
 // node_modules/hono/dist/middleware/serve-static/path.js
 var defaultJoin = (...paths) => {
   let result = paths.filter((p) => p !== "").join("/");
@@ -3371,34 +6258,6 @@ var bodyLimit = (options) => {
   };
 };
 
-// api/auth-router.ts
-var cookie = __toESM(require_dist(), 1);
-
-// contracts/constants.ts
-var Session = {
-  cookieName: "kimi_sid",
-  maxAgeMs: 365 * 24 * 60 * 60 * 1e3
-};
-var ErrorMessages = {
-  unauthenticated: "Authentication required",
-  insufficientRole: "Insufficient permissions"
-};
-
-// api/lib/cookies.ts
-function isLocalhost(headers) {
-  const host = headers.get("host") || "";
-  return host.startsWith("localhost:") || host.startsWith("127.0.0.1:");
-}
-function getSessionCookieOptions(headers) {
-  const localhost = isLocalhost(headers);
-  return {
-    httpOnly: true,
-    path: "/",
-    sameSite: localhost ? "Lax" : "None",
-    secure: !localhost
-  };
-}
-
 // node_modules/@trpc/server/dist/codes-DagpWZLc.mjs
 function mergeWithoutOverrides(obj1, ...objs) {
   const newObj = Object.assign(emptyObject(), obj1);
@@ -3416,6 +6275,30 @@ function isFunction(fn) {
 }
 function emptyObject() {
   return /* @__PURE__ */ Object.create(null);
+}
+var asyncIteratorsSupported = typeof Symbol === "function" && !!Symbol.asyncIterator;
+function isAsyncIterable(value) {
+  return asyncIteratorsSupported && isObject(value) && Symbol.asyncIterator in value;
+}
+var run = (fn) => fn();
+function identity(it) {
+  return it;
+}
+function abortSignalsAnyPonyfill(signals) {
+  if (typeof AbortSignal.any === "function") return AbortSignal.any(signals);
+  const ac = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      trigger();
+      break;
+    }
+    signal.addEventListener("abort", trigger, { once: true });
+  }
+  return ac.signal;
+  function trigger() {
+    ac.abort();
+    for (const signal of signals) signal.removeEventListener("abort", trigger);
+  }
 }
 var TRPC_ERROR_CODES_BY_KEY = {
   PARSE_ERROR: -32700,
@@ -3440,6 +6323,25 @@ var TRPC_ERROR_CODES_BY_KEY = {
   TOO_MANY_REQUESTS: -32029,
   CLIENT_CLOSED_REQUEST: -32099
 };
+var TRPC_ERROR_CODES_BY_NUMBER = {
+  [-32700]: "PARSE_ERROR",
+  [-32600]: "BAD_REQUEST",
+  [-32603]: "INTERNAL_SERVER_ERROR",
+  [-32001]: "UNAUTHORIZED",
+  [-32002]: "PAYMENT_REQUIRED",
+  [-32003]: "FORBIDDEN",
+  [-32004]: "NOT_FOUND",
+  [-32005]: "METHOD_NOT_SUPPORTED",
+  [-32008]: "TIMEOUT",
+  [-32009]: "CONFLICT",
+  [-32012]: "PRECONDITION_FAILED",
+  [-32013]: "PAYLOAD_TOO_LARGE",
+  [-32015]: "UNSUPPORTED_MEDIA_TYPE",
+  [-32022]: "UNPROCESSABLE_CONTENT",
+  [-32028]: "PRECONDITION_REQUIRED",
+  [-32029]: "TOO_MANY_REQUESTS",
+  [-32099]: "CLIENT_CLOSED_REQUEST"
+};
 var retryableRpcCodes = [
   TRPC_ERROR_CODES_BY_KEY.BAD_GATEWAY,
   TRPC_ERROR_CODES_BY_KEY.SERVICE_UNAVAILABLE,
@@ -3457,12 +6359,12 @@ var __hasOwnProp2 = Object.prototype.hasOwnProperty;
 var __commonJS2 = (cb, mod) => function() {
   return mod || (0, cb[__getOwnPropNames2(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
-var __copyProps2 = (to, from, except2, desc2) => {
+var __copyProps2 = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames2(from), i = 0, n = keys.length, key; i < n; i++) {
     key = keys[i];
-    if (!__hasOwnProp2.call(to, key) && key !== except2) __defProp2(to, key, {
+    if (!__hasOwnProp2.call(to, key) && key !== except) __defProp2(to, key, {
       get: ((k) => from[k]).bind(null, key),
-      enumerable: !(desc2 = __getOwnPropDesc2(from, key)) || desc2.enumerable
+      enumerable: !(desc = __getOwnPropDesc2(from, key)) || desc.enumerable
     });
   }
   return to;
@@ -3476,13 +6378,13 @@ var noop = () => {
 var freezeIfAvailable = (obj) => {
   if (Object.freeze) Object.freeze(obj);
 };
-function createInnerProxy(callback, path, memo) {
+function createInnerProxy(callback, path, memo2) {
   var _memo$cacheKey;
-  const cacheKey = path.join(".");
-  (_memo$cacheKey = memo[cacheKey]) !== null && _memo$cacheKey !== void 0 || (memo[cacheKey] = new Proxy(noop, {
+  const cacheKey2 = path.join(".");
+  (_memo$cacheKey = memo2[cacheKey2]) !== null && _memo$cacheKey !== void 0 || (memo2[cacheKey2] = new Proxy(noop, {
     get(_obj, key) {
       if (typeof key !== "string" || key === "then") return void 0;
-      return createInnerProxy(callback, [...path, key], memo);
+      return createInnerProxy(callback, [...path, key], memo2);
     },
     apply(_1, _2, args) {
       const lastOfPath = path[path.length - 1];
@@ -3507,9 +6409,54 @@ function createInnerProxy(callback, path, memo) {
       return callback(opts);
     }
   }));
-  return memo[cacheKey];
+  return memo2[cacheKey2];
 }
 var createRecursiveProxy = (callback) => createInnerProxy(callback, [], emptyObject());
+var JSONRPC2_TO_HTTP_CODE = {
+  PARSE_ERROR: 400,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  PAYMENT_REQUIRED: 402,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  METHOD_NOT_SUPPORTED: 405,
+  TIMEOUT: 408,
+  CONFLICT: 409,
+  PRECONDITION_FAILED: 412,
+  PAYLOAD_TOO_LARGE: 413,
+  UNSUPPORTED_MEDIA_TYPE: 415,
+  UNPROCESSABLE_CONTENT: 422,
+  PRECONDITION_REQUIRED: 428,
+  TOO_MANY_REQUESTS: 429,
+  CLIENT_CLOSED_REQUEST: 499,
+  INTERNAL_SERVER_ERROR: 500,
+  NOT_IMPLEMENTED: 501,
+  BAD_GATEWAY: 502,
+  SERVICE_UNAVAILABLE: 503,
+  GATEWAY_TIMEOUT: 504
+};
+function getStatusCodeFromKey(code) {
+  var _JSONRPC2_TO_HTTP_COD;
+  return (_JSONRPC2_TO_HTTP_COD = JSONRPC2_TO_HTTP_CODE[code]) !== null && _JSONRPC2_TO_HTTP_COD !== void 0 ? _JSONRPC2_TO_HTTP_COD : 500;
+}
+function getHTTPStatusCode(json2) {
+  const arr = Array.isArray(json2) ? json2 : [json2];
+  const httpStatuses = new Set(arr.map((res) => {
+    if ("error" in res && isObject(res.error.data)) {
+      var _res$error$data;
+      if (typeof ((_res$error$data = res.error.data) === null || _res$error$data === void 0 ? void 0 : _res$error$data["httpStatus"]) === "number") return res.error.data["httpStatus"];
+      const code = TRPC_ERROR_CODES_BY_NUMBER[res.error.code];
+      return getStatusCodeFromKey(code);
+    }
+    return 200;
+  }));
+  if (httpStatuses.size !== 1) return 207;
+  const httpStatus = httpStatuses.values().next().value;
+  return httpStatus;
+}
+function getHTTPStatusCodeFromError(error51) {
+  return getStatusCodeFromKey(error51.code);
+}
 var require_typeof = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/typeof.js"(exports, module) {
   function _typeof$2(o) {
     "@babel/helpers - typeof";
@@ -3582,6 +6529,21 @@ var require_objectSpread2 = __commonJS2({ "../../node_modules/.pnpm/@oxc-project
   module.exports = _objectSpread2, module.exports.__esModule = true, module.exports["default"] = module.exports;
 } });
 var import_objectSpread2 = __toESM2(require_objectSpread2(), 1);
+function getErrorShape(opts) {
+  const { path, error: error51, config: config2 } = opts;
+  const { code } = opts.error;
+  const shape = {
+    message: error51.message,
+    code: TRPC_ERROR_CODES_BY_KEY[code],
+    data: {
+      code,
+      httpStatus: getHTTPStatusCodeFromError(error51)
+    }
+  };
+  if (config2.isDev && typeof opts.error.stack === "string") shape.data.stack = opts.error.stack;
+  if (typeof path === "string") shape.data.path = path;
+  return config2.errorFormatter((0, import_objectSpread2.default)((0, import_objectSpread2.default)({}, opts), {}, { shape }));
+}
 
 // node_modules/@trpc/server/dist/tracked-DWInO6EQ.mjs
 var defaultFormatter = ({ shape }) => {
@@ -3620,8 +6582,8 @@ var TRPCError = class extends Error {
   constructor(opts) {
     var _ref, _opts$message, _this$cause;
     const cause = getCauseFromUnknown(opts.cause);
-    const message = (_ref = (_opts$message = opts.message) !== null && _opts$message !== void 0 ? _opts$message : cause === null || cause === void 0 ? void 0 : cause.message) !== null && _ref !== void 0 ? _ref : opts.code;
-    super(message, { cause });
+    const message2 = (_ref = (_opts$message = opts.message) !== null && _opts$message !== void 0 ? _opts$message : cause === null || cause === void 0 ? void 0 : cause.message) !== null && _ref !== void 0 ? _ref : opts.code;
+    super(message2, { cause });
     (0, import_defineProperty.default)(this, "cause", void 0);
     (0, import_defineProperty.default)(this, "code", void 0);
     this.code = opts.code;
@@ -3647,6 +6609,14 @@ var defaultTransformer = {
     deserialize: (obj) => obj
   }
 };
+function transformTRPCResponseItem(config2, item) {
+  if ("error" in item) return (0, import_objectSpread2$1.default)((0, import_objectSpread2$1.default)({}, item), {}, { error: config2.transformer.output.serialize(item.error) });
+  if ("data" in item.result) return (0, import_objectSpread2$1.default)((0, import_objectSpread2$1.default)({}, item), {}, { result: (0, import_objectSpread2$1.default)((0, import_objectSpread2$1.default)({}, item.result), {}, { data: config2.transformer.output.serialize(item.result.data) }) });
+  return item;
+}
+function transformTRPCResponse(config2, itemOrItems) {
+  return Array.isArray(itemOrItems) ? itemOrItems.map((item) => transformTRPCResponseItem(config2, item)) : transformTRPCResponseItem(config2, itemOrItems);
+}
 var import_objectSpread22 = __toESM2(require_objectSpread2(), 1);
 var lazyMarker = "lazyMarker";
 function once(fn) {
@@ -3829,6 +6799,1804 @@ function mergeRouters(...routerList) {
   })(record2);
   return router;
 }
+var trackedSymbol = /* @__PURE__ */ Symbol();
+function isTrackedEnvelope(value) {
+  return Array.isArray(value) && value[2] === trackedSymbol;
+}
+
+// node_modules/@trpc/server/dist/observable-UMO3vUa_.mjs
+function isObservable(x) {
+  return typeof x === "object" && x !== null && "subscribe" in x;
+}
+function observableToReadableStream(observable$1, signal) {
+  let unsub = null;
+  const onAbort = () => {
+    unsub === null || unsub === void 0 || unsub.unsubscribe();
+    unsub = null;
+    signal.removeEventListener("abort", onAbort);
+  };
+  return new ReadableStream({
+    start(controller) {
+      unsub = observable$1.subscribe({
+        next(data) {
+          controller.enqueue({
+            ok: true,
+            value: data
+          });
+        },
+        error(error51) {
+          controller.enqueue({
+            ok: false,
+            error: error51
+          });
+          controller.close();
+        },
+        complete() {
+          controller.close();
+        }
+      });
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
+    },
+    cancel() {
+      onAbort();
+    }
+  });
+}
+function observableToAsyncIterable(observable$1, signal) {
+  const stream = observableToReadableStream(observable$1, signal);
+  const reader = stream.getReader();
+  const iterator = {
+    async next() {
+      const value = await reader.read();
+      if (value.done) return {
+        value: void 0,
+        done: true
+      };
+      const { value: result } = value;
+      if (!result.ok) throw result.error;
+      return {
+        value: result.value,
+        done: false
+      };
+    },
+    async return() {
+      await reader.cancel();
+      return {
+        value: void 0,
+        done: true
+      };
+    }
+  };
+  return { [Symbol.asyncIterator]() {
+    return iterator;
+  } };
+}
+
+// node_modules/@trpc/server/dist/resolveResponse-CdASWfAV.mjs
+function parseConnectionParamsFromUnknown(parsed) {
+  try {
+    if (parsed === null) return null;
+    if (!isObject(parsed)) throw new Error("Expected object");
+    const nonStringValues = Object.entries(parsed).filter(([_key, value]) => typeof value !== "string");
+    if (nonStringValues.length > 0) throw new Error(`Expected connectionParams to be string values. Got ${nonStringValues.map(([key, value]) => `${key}: ${typeof value}`).join(", ")}`);
+    return parsed;
+  } catch (cause) {
+    throw new TRPCError({
+      code: "PARSE_ERROR",
+      message: "Invalid connection params shape",
+      cause
+    });
+  }
+}
+function parseConnectionParamsFromString(str) {
+  let parsed;
+  try {
+    parsed = JSON.parse(str);
+  } catch (cause) {
+    throw new TRPCError({
+      code: "PARSE_ERROR",
+      message: "Not JSON-parsable query params",
+      cause
+    });
+  }
+  return parseConnectionParamsFromUnknown(parsed);
+}
+var import_objectSpread2$12 = __toESM2(require_objectSpread2(), 1);
+function getAcceptHeader(headers) {
+  var _ref, _headers$get;
+  return (_ref = headers.get("trpc-accept")) !== null && _ref !== void 0 ? _ref : ((_headers$get = headers.get("accept")) === null || _headers$get === void 0 ? void 0 : _headers$get.split(",").some((t2) => t2.trim() === "application/jsonl")) ? "application/jsonl" : null;
+}
+function memo(fn) {
+  let promise2 = null;
+  const sym = /* @__PURE__ */ Symbol.for("@trpc/server/http/memo");
+  let value = sym;
+  return {
+    read: async () => {
+      var _promise2;
+      if (value !== sym) return value;
+      (_promise2 = promise2) !== null && _promise2 !== void 0 || (promise2 = fn().catch((cause) => {
+        if (cause instanceof TRPCError) throw cause;
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: cause instanceof Error ? cause.message : "Invalid input",
+          cause
+        });
+      }));
+      value = await promise2;
+      promise2 = null;
+      return value;
+    },
+    result: () => {
+      return value !== sym ? value : void 0;
+    }
+  };
+}
+var jsonContentTypeHandler = {
+  isMatch(req) {
+    var _req$headers$get;
+    return !!((_req$headers$get = req.headers.get("content-type")) === null || _req$headers$get === void 0 ? void 0 : _req$headers$get.startsWith("application/json"));
+  },
+  async parse(opts) {
+    var _types$values$next$va;
+    const { req } = opts;
+    const isBatchCall = opts.searchParams.get("batch") === "1";
+    const maxBatchSize = opts.maxBatchSize;
+    const paths = isBatchCall ? opts.path.split(",") : [opts.path];
+    if (isBatchCall && typeof maxBatchSize === "number" && paths.length > maxBatchSize) throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Batch call exceeds maximum size`
+    });
+    const getInputs = memo(async () => {
+      let inputs = void 0;
+      if (req.method === "GET") {
+        const queryInput = opts.searchParams.get("input");
+        if (queryInput) inputs = JSON.parse(queryInput);
+      } else inputs = await req.json();
+      if (inputs === void 0) return emptyObject();
+      if (!isBatchCall) {
+        const result = emptyObject();
+        result[0] = opts.router._def._config.transformer.input.deserialize(inputs);
+        return result;
+      }
+      if (!isObject(inputs)) throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: '"input" needs to be an object when doing a batch call'
+      });
+      const acc = emptyObject();
+      for (const index of paths.keys()) {
+        const input = inputs[index];
+        if (input !== void 0) acc[index] = opts.router._def._config.transformer.input.deserialize(input);
+      }
+      return acc;
+    });
+    const calls = await Promise.all(paths.map(async (path, index) => {
+      const procedure = await getProcedureAtPath(opts.router, path);
+      return {
+        batchIndex: index,
+        path,
+        procedure,
+        getRawInput: async () => {
+          const inputs = await getInputs.read();
+          let input = inputs[index];
+          if ((procedure === null || procedure === void 0 ? void 0 : procedure._def.type) === "subscription") {
+            var _ref2, _opts$headers$get;
+            const lastEventId = (_ref2 = (_opts$headers$get = opts.headers.get("last-event-id")) !== null && _opts$headers$get !== void 0 ? _opts$headers$get : opts.searchParams.get("lastEventId")) !== null && _ref2 !== void 0 ? _ref2 : opts.searchParams.get("Last-Event-Id");
+            if (lastEventId) if (isObject(input)) input = (0, import_objectSpread2$12.default)((0, import_objectSpread2$12.default)({}, input), {}, { lastEventId });
+            else {
+              var _input;
+              (_input = input) !== null && _input !== void 0 || (input = { lastEventId });
+            }
+          }
+          return input;
+        },
+        result: () => {
+          var _getInputs$result;
+          return (_getInputs$result = getInputs.result()) === null || _getInputs$result === void 0 ? void 0 : _getInputs$result[index];
+        }
+      };
+    }));
+    const types = new Set(calls.map((call) => {
+      var _call$procedure;
+      return (_call$procedure = call.procedure) === null || _call$procedure === void 0 ? void 0 : _call$procedure._def.type;
+    }).filter(Boolean));
+    if (types.size > 1) throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Cannot mix procedure types in call: ${Array.from(types).join(", ")}`
+    });
+    const type = (_types$values$next$va = types.values().next().value) !== null && _types$values$next$va !== void 0 ? _types$values$next$va : "unknown";
+    const connectionParamsStr = opts.searchParams.get("connectionParams");
+    const info = {
+      isBatchCall,
+      accept: getAcceptHeader(req.headers),
+      calls,
+      type,
+      connectionParams: connectionParamsStr === null ? null : parseConnectionParamsFromString(connectionParamsStr),
+      signal: req.signal,
+      url: opts.url
+    };
+    return info;
+  }
+};
+var formDataContentTypeHandler = {
+  isMatch(req) {
+    var _req$headers$get2;
+    return !!((_req$headers$get2 = req.headers.get("content-type")) === null || _req$headers$get2 === void 0 ? void 0 : _req$headers$get2.startsWith("multipart/form-data"));
+  },
+  async parse(opts) {
+    const { req } = opts;
+    if (req.method !== "POST") throw new TRPCError({
+      code: "METHOD_NOT_SUPPORTED",
+      message: "Only POST requests are supported for multipart/form-data requests"
+    });
+    const getInputs = memo(async () => {
+      const fd = await req.formData();
+      return fd;
+    });
+    const procedure = await getProcedureAtPath(opts.router, opts.path);
+    return {
+      accept: null,
+      calls: [{
+        batchIndex: 0,
+        path: opts.path,
+        getRawInput: getInputs.read,
+        result: getInputs.result,
+        procedure
+      }],
+      isBatchCall: false,
+      type: "mutation",
+      connectionParams: null,
+      signal: req.signal,
+      url: opts.url
+    };
+  }
+};
+var octetStreamContentTypeHandler = {
+  isMatch(req) {
+    var _req$headers$get3;
+    return !!((_req$headers$get3 = req.headers.get("content-type")) === null || _req$headers$get3 === void 0 ? void 0 : _req$headers$get3.startsWith("application/octet-stream"));
+  },
+  async parse(opts) {
+    const { req } = opts;
+    if (req.method !== "POST") throw new TRPCError({
+      code: "METHOD_NOT_SUPPORTED",
+      message: "Only POST requests are supported for application/octet-stream requests"
+    });
+    const getInputs = memo(async () => {
+      return req.body;
+    });
+    return {
+      calls: [{
+        batchIndex: 0,
+        path: opts.path,
+        getRawInput: getInputs.read,
+        result: getInputs.result,
+        procedure: await getProcedureAtPath(opts.router, opts.path)
+      }],
+      isBatchCall: false,
+      accept: null,
+      type: "mutation",
+      connectionParams: null,
+      signal: req.signal,
+      url: opts.url
+    };
+  }
+};
+var handlers = [
+  jsonContentTypeHandler,
+  formDataContentTypeHandler,
+  octetStreamContentTypeHandler
+];
+function getContentTypeHandler(req) {
+  const handler = handlers.find((handler$1) => handler$1.isMatch(req));
+  if (handler) return handler;
+  if (!handler && req.method === "GET") return jsonContentTypeHandler;
+  throw new TRPCError({
+    code: "UNSUPPORTED_MEDIA_TYPE",
+    message: req.headers.has("content-type") ? `Unsupported content-type "${req.headers.get("content-type")}` : "Missing content-type header"
+  });
+}
+async function getRequestInfo(opts) {
+  const handler = getContentTypeHandler(opts.req);
+  return await handler.parse(opts);
+}
+function isAbortError(error51) {
+  return isObject(error51) && error51["name"] === "AbortError";
+}
+function throwAbortError(message2 = "AbortError") {
+  throw new DOMException(message2, "AbortError");
+}
+function isObject$1(o) {
+  return Object.prototype.toString.call(o) === "[object Object]";
+}
+function isPlainObject(o) {
+  var ctor, prot;
+  if (isObject$1(o) === false) return false;
+  ctor = o.constructor;
+  if (ctor === void 0) return true;
+  prot = ctor.prototype;
+  if (isObject$1(prot) === false) return false;
+  if (prot.hasOwnProperty("isPrototypeOf") === false) return false;
+  return true;
+}
+var import_defineProperty2 = __toESM2(require_defineProperty(), 1);
+var _Symbol$toStringTag;
+var subscribableCache = /* @__PURE__ */ new WeakMap();
+var NOOP = () => {
+};
+_Symbol$toStringTag = Symbol.toStringTag;
+var Unpromise = class Unpromise2 {
+  constructor(arg) {
+    (0, import_defineProperty2.default)(this, "promise", void 0);
+    (0, import_defineProperty2.default)(this, "subscribers", []);
+    (0, import_defineProperty2.default)(this, "settlement", null);
+    (0, import_defineProperty2.default)(this, _Symbol$toStringTag, "Unpromise");
+    if (typeof arg === "function") this.promise = new Promise(arg);
+    else this.promise = arg;
+    const thenReturn = this.promise.then((value) => {
+      const { subscribers } = this;
+      this.subscribers = null;
+      this.settlement = {
+        status: "fulfilled",
+        value
+      };
+      subscribers === null || subscribers === void 0 || subscribers.forEach(({ resolve }) => {
+        resolve(value);
+      });
+    });
+    if ("catch" in thenReturn) thenReturn.catch((reason) => {
+      const { subscribers } = this;
+      this.subscribers = null;
+      this.settlement = {
+        status: "rejected",
+        reason
+      };
+      subscribers === null || subscribers === void 0 || subscribers.forEach(({ reject }) => {
+        reject(reason);
+      });
+    });
+  }
+  /** Create a promise that mitigates uncontrolled subscription to a long-lived
+  * Promise via .then() and .catch() - otherwise a source of memory leaks.
+  *
+  * The returned promise has an `unsubscribe()` method which can be called when
+  * the Promise is no longer being tracked by application logic, and which
+  * ensures that there is no reference chain from the original promise to the
+  * new one, and therefore no memory leak.
+  *
+  * If original promise has not yet settled, this adds a new unique promise
+  * that listens to then/catch events, along with an `unsubscribe()` method to
+  * detach it.
+  *
+  * If original promise has settled, then creates a new Promise.resolve() or
+  * Promise.reject() and provided unsubscribe is a noop.
+  *
+  * If you call `unsubscribe()` before the returned Promise has settled, it
+  * will never settle.
+  */
+  subscribe() {
+    let promise2;
+    let unsubscribe;
+    const { settlement } = this;
+    if (settlement === null) {
+      if (this.subscribers === null) throw new Error("Unpromise settled but still has subscribers");
+      const subscriber = withResolvers();
+      this.subscribers = listWithMember(this.subscribers, subscriber);
+      promise2 = subscriber.promise;
+      unsubscribe = () => {
+        if (this.subscribers !== null) this.subscribers = listWithoutMember(this.subscribers, subscriber);
+      };
+    } else {
+      const { status } = settlement;
+      if (status === "fulfilled") promise2 = Promise.resolve(settlement.value);
+      else promise2 = Promise.reject(settlement.reason);
+      unsubscribe = NOOP;
+    }
+    return Object.assign(promise2, { unsubscribe });
+  }
+  /** STANDARD PROMISE METHODS (but returning a SubscribedPromise) */
+  then(onfulfilled, onrejected) {
+    const subscribed = this.subscribe();
+    const { unsubscribe } = subscribed;
+    return Object.assign(subscribed.then(onfulfilled, onrejected), { unsubscribe });
+  }
+  catch(onrejected) {
+    const subscribed = this.subscribe();
+    const { unsubscribe } = subscribed;
+    return Object.assign(subscribed.catch(onrejected), { unsubscribe });
+  }
+  finally(onfinally) {
+    const subscribed = this.subscribe();
+    const { unsubscribe } = subscribed;
+    return Object.assign(subscribed.finally(onfinally), { unsubscribe });
+  }
+  /** Unpromise STATIC METHODS */
+  /** Create or Retrieve the proxy Unpromise (a re-used Unpromise for the VM lifetime
+  * of the provided Promise reference) */
+  static proxy(promise2) {
+    const cached2 = Unpromise2.getSubscribablePromise(promise2);
+    return typeof cached2 !== "undefined" ? cached2 : Unpromise2.createSubscribablePromise(promise2);
+  }
+  /** Create and store an Unpromise keyed by an original Promise. */
+  static createSubscribablePromise(promise2) {
+    const created = new Unpromise2(promise2);
+    subscribableCache.set(promise2, created);
+    subscribableCache.set(created, created);
+    return created;
+  }
+  /** Retrieve a previously-created Unpromise keyed by an original Promise. */
+  static getSubscribablePromise(promise2) {
+    return subscribableCache.get(promise2);
+  }
+  /** Promise STATIC METHODS */
+  /** Lookup the Unpromise for this promise, and derive a SubscribedPromise from
+  * it (that can be later unsubscribed to eliminate Memory leaks) */
+  static resolve(value) {
+    const promise2 = typeof value === "object" && value !== null && "then" in value && typeof value.then === "function" ? value : Promise.resolve(value);
+    return Unpromise2.proxy(promise2).subscribe();
+  }
+  static async any(values) {
+    const valuesArray = Array.isArray(values) ? values : [...values];
+    const subscribedPromises = valuesArray.map(Unpromise2.resolve);
+    try {
+      return await Promise.any(subscribedPromises);
+    } finally {
+      subscribedPromises.forEach(({ unsubscribe }) => {
+        unsubscribe();
+      });
+    }
+  }
+  static async race(values) {
+    const valuesArray = Array.isArray(values) ? values : [...values];
+    const subscribedPromises = valuesArray.map(Unpromise2.resolve);
+    try {
+      return await Promise.race(subscribedPromises);
+    } finally {
+      subscribedPromises.forEach(({ unsubscribe }) => {
+        unsubscribe();
+      });
+    }
+  }
+  /** Create a race of SubscribedPromises that will fulfil to a single winning
+  * Promise (in a 1-Tuple). Eliminates memory leaks from long-lived promises
+  * accumulating .then() and .catch() subscribers. Allows simple logic to
+  * consume the result, like...
+  * ```ts
+  * const [ winner ] = await Unpromise.race([ promiseA, promiseB ]);
+  * if(winner === promiseB){
+  *   const result = await promiseB;
+  *   // do the thing
+  * }
+  * ```
+  * */
+  static async raceReferences(promises) {
+    const selfPromises = promises.map(resolveSelfTuple);
+    try {
+      return await Promise.race(selfPromises);
+    } finally {
+      for (const promise2 of selfPromises) promise2.unsubscribe();
+    }
+  }
+};
+function resolveSelfTuple(promise2) {
+  return Unpromise.proxy(promise2).then(() => [promise2]);
+}
+function withResolvers() {
+  let resolve;
+  let reject;
+  const promise2 = new Promise((_resolve, _reject) => {
+    resolve = _resolve;
+    reject = _reject;
+  });
+  return {
+    promise: promise2,
+    resolve,
+    reject
+  };
+}
+function listWithMember(arr, member) {
+  return [...arr, member];
+}
+function listWithoutIndex(arr, index) {
+  return [...arr.slice(0, index), ...arr.slice(index + 1)];
+}
+function listWithoutMember(arr, member) {
+  const index = arr.indexOf(member);
+  if (index !== -1) return listWithoutIndex(arr, index);
+  return arr;
+}
+var _Symbol;
+var _Symbol$dispose;
+var _Symbol2;
+var _Symbol2$asyncDispose;
+(_Symbol$dispose = (_Symbol = Symbol).dispose) !== null && _Symbol$dispose !== void 0 || (_Symbol.dispose = /* @__PURE__ */ Symbol());
+(_Symbol2$asyncDispose = (_Symbol2 = Symbol).asyncDispose) !== null && _Symbol2$asyncDispose !== void 0 || (_Symbol2.asyncDispose = /* @__PURE__ */ Symbol());
+function makeResource(thing, dispose) {
+  const it = thing;
+  const existing = it[Symbol.dispose];
+  it[Symbol.dispose] = () => {
+    dispose();
+    existing === null || existing === void 0 || existing();
+  };
+  return it;
+}
+function makeAsyncResource(thing, dispose) {
+  const it = thing;
+  const existing = it[Symbol.asyncDispose];
+  it[Symbol.asyncDispose] = async () => {
+    await dispose();
+    await (existing === null || existing === void 0 ? void 0 : existing());
+  };
+  return it;
+}
+var disposablePromiseTimerResult = /* @__PURE__ */ Symbol();
+function timerResource(ms) {
+  let timer = null;
+  return makeResource({ start() {
+    if (timer) throw new Error("Timer already started");
+    const promise2 = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(disposablePromiseTimerResult), ms);
+    });
+    return promise2;
+  } }, () => {
+    if (timer) clearTimeout(timer);
+  });
+}
+var require_usingCtx = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/usingCtx.js"(exports, module) {
+  function _usingCtx() {
+    var r = "function" == typeof SuppressedError ? SuppressedError : function(r$1, e$1) {
+      var n$1 = Error();
+      return n$1.name = "SuppressedError", n$1.error = r$1, n$1.suppressed = e$1, n$1;
+    }, e = {}, n = [];
+    function using(r$1, e$1) {
+      if (null != e$1) {
+        if (Object(e$1) !== e$1) throw new TypeError("using declarations can only be used with objects, functions, null, or undefined.");
+        if (r$1) var o = e$1[Symbol.asyncDispose || Symbol["for"]("Symbol.asyncDispose")];
+        if (void 0 === o && (o = e$1[Symbol.dispose || Symbol["for"]("Symbol.dispose")], r$1)) var t2 = o;
+        if ("function" != typeof o) throw new TypeError("Object is not disposable.");
+        t2 && (o = function o$1() {
+          try {
+            t2.call(e$1);
+          } catch (r$2) {
+            return Promise.reject(r$2);
+          }
+        }), n.push({
+          v: e$1,
+          d: o,
+          a: r$1
+        });
+      } else r$1 && n.push({
+        d: e$1,
+        a: r$1
+      });
+      return e$1;
+    }
+    return {
+      e,
+      u: using.bind(null, false),
+      a: using.bind(null, true),
+      d: function d() {
+        var o, t2 = this.e, s = 0;
+        function next() {
+          for (; o = n.pop(); ) try {
+            if (!o.a && 1 === s) return s = 0, n.push(o), Promise.resolve().then(next);
+            if (o.d) {
+              var r$1 = o.d.call(o.v);
+              if (o.a) return s |= 2, Promise.resolve(r$1).then(next, err);
+            } else s |= 1;
+          } catch (r$2) {
+            return err(r$2);
+          }
+          if (1 === s) return t2 !== e ? Promise.reject(t2) : Promise.resolve();
+          if (t2 !== e) throw t2;
+        }
+        function err(n$1) {
+          return t2 = t2 !== e ? new r(n$1, t2) : n$1, next();
+        }
+        return next();
+      }
+    };
+  }
+  module.exports = _usingCtx, module.exports.__esModule = true, module.exports["default"] = module.exports;
+} });
+var require_OverloadYield = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/OverloadYield.js"(exports, module) {
+  function _OverloadYield(e, d) {
+    this.v = e, this.k = d;
+  }
+  module.exports = _OverloadYield, module.exports.__esModule = true, module.exports["default"] = module.exports;
+} });
+var require_awaitAsyncGenerator = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/awaitAsyncGenerator.js"(exports, module) {
+  var OverloadYield$2 = require_OverloadYield();
+  function _awaitAsyncGenerator$5(e) {
+    return new OverloadYield$2(e, 0);
+  }
+  module.exports = _awaitAsyncGenerator$5, module.exports.__esModule = true, module.exports["default"] = module.exports;
+} });
+var require_wrapAsyncGenerator = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/wrapAsyncGenerator.js"(exports, module) {
+  var OverloadYield$1 = require_OverloadYield();
+  function _wrapAsyncGenerator$6(e) {
+    return function() {
+      return new AsyncGenerator(e.apply(this, arguments));
+    };
+  }
+  function AsyncGenerator(e) {
+    var r, t2;
+    function resume(r$1, t$1) {
+      try {
+        var n = e[r$1](t$1), o = n.value, u = o instanceof OverloadYield$1;
+        Promise.resolve(u ? o.v : o).then(function(t$2) {
+          if (u) {
+            var i = "return" === r$1 ? "return" : "next";
+            if (!o.k || t$2.done) return resume(i, t$2);
+            t$2 = e[i](t$2).value;
+          }
+          settle(n.done ? "return" : "normal", t$2);
+        }, function(e$1) {
+          resume("throw", e$1);
+        });
+      } catch (e$1) {
+        settle("throw", e$1);
+      }
+    }
+    function settle(e$1, n) {
+      switch (e$1) {
+        case "return":
+          r.resolve({
+            value: n,
+            done: true
+          });
+          break;
+        case "throw":
+          r.reject(n);
+          break;
+        default:
+          r.resolve({
+            value: n,
+            done: false
+          });
+      }
+      (r = r.next) ? resume(r.key, r.arg) : t2 = null;
+    }
+    this._invoke = function(e$1, n) {
+      return new Promise(function(o, u) {
+        var i = {
+          key: e$1,
+          arg: n,
+          resolve: o,
+          reject: u,
+          next: null
+        };
+        t2 ? t2 = t2.next = i : (r = t2 = i, resume(e$1, n));
+      });
+    }, "function" != typeof e["return"] && (this["return"] = void 0);
+  }
+  AsyncGenerator.prototype["function" == typeof Symbol && Symbol.asyncIterator || "@@asyncIterator"] = function() {
+    return this;
+  }, AsyncGenerator.prototype.next = function(e) {
+    return this._invoke("next", e);
+  }, AsyncGenerator.prototype["throw"] = function(e) {
+    return this._invoke("throw", e);
+  }, AsyncGenerator.prototype["return"] = function(e) {
+    return this._invoke("return", e);
+  };
+  module.exports = _wrapAsyncGenerator$6, module.exports.__esModule = true, module.exports["default"] = module.exports;
+} });
+var import_usingCtx$4 = __toESM2(require_usingCtx(), 1);
+var import_awaitAsyncGenerator$4 = __toESM2(require_awaitAsyncGenerator(), 1);
+var import_wrapAsyncGenerator$5 = __toESM2(require_wrapAsyncGenerator(), 1);
+function iteratorResource(iterable) {
+  const iterator = iterable[Symbol.asyncIterator]();
+  if (iterator[Symbol.asyncDispose]) return iterator;
+  return makeAsyncResource(iterator, async () => {
+    var _iterator$return;
+    await ((_iterator$return = iterator.return) === null || _iterator$return === void 0 ? void 0 : _iterator$return.call(iterator));
+  });
+}
+function takeWithGrace(_x, _x2) {
+  return _takeWithGrace.apply(this, arguments);
+}
+function _takeWithGrace() {
+  _takeWithGrace = (0, import_wrapAsyncGenerator$5.default)(function* (iterable, opts) {
+    try {
+      var _usingCtx$1 = (0, import_usingCtx$4.default)();
+      const iterator = _usingCtx$1.a(iteratorResource(iterable));
+      let result;
+      const timer = _usingCtx$1.u(timerResource(opts.gracePeriodMs));
+      let count = opts.count;
+      let timerPromise = new Promise(() => {
+      });
+      while (true) {
+        result = yield (0, import_awaitAsyncGenerator$4.default)(Unpromise.race([iterator.next(), timerPromise]));
+        if (result === disposablePromiseTimerResult) throwAbortError();
+        if (result.done) return result.value;
+        yield result.value;
+        if (--count === 0) timerPromise = timer.start();
+        result = null;
+      }
+    } catch (_) {
+      _usingCtx$1.e = _;
+    } finally {
+      yield (0, import_awaitAsyncGenerator$4.default)(_usingCtx$1.d());
+    }
+  });
+  return _takeWithGrace.apply(this, arguments);
+}
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise2 = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return {
+    promise: promise2,
+    resolve,
+    reject
+  };
+}
+var import_usingCtx$3 = __toESM2(require_usingCtx(), 1);
+var import_awaitAsyncGenerator$3 = __toESM2(require_awaitAsyncGenerator(), 1);
+var import_wrapAsyncGenerator$4 = __toESM2(require_wrapAsyncGenerator(), 1);
+function createManagedIterator(iterable, onResult) {
+  const iterator = iterable[Symbol.asyncIterator]();
+  let state = "idle";
+  function cleanup() {
+    state = "done";
+    onResult = () => {
+    };
+  }
+  function pull() {
+    if (state !== "idle") return;
+    state = "pending";
+    const next = iterator.next();
+    next.then((result) => {
+      if (result.done) {
+        state = "done";
+        onResult({
+          status: "return",
+          value: result.value
+        });
+        cleanup();
+        return;
+      }
+      state = "idle";
+      onResult({
+        status: "yield",
+        value: result.value
+      });
+    }).catch((cause) => {
+      onResult({
+        status: "error",
+        error: cause
+      });
+      cleanup();
+    });
+  }
+  return {
+    pull,
+    destroy: async () => {
+      var _iterator$return;
+      cleanup();
+      await ((_iterator$return = iterator.return) === null || _iterator$return === void 0 ? void 0 : _iterator$return.call(iterator));
+    }
+  };
+}
+function mergeAsyncIterables() {
+  let state = "idle";
+  let flushSignal = createDeferred();
+  const iterables = [];
+  const iterators = /* @__PURE__ */ new Set();
+  const buffer = [];
+  function initIterable(iterable) {
+    if (state !== "pending") return;
+    const iterator = createManagedIterator(iterable, (result) => {
+      if (state !== "pending") return;
+      switch (result.status) {
+        case "yield":
+          buffer.push([iterator, result]);
+          break;
+        case "return":
+          iterators.delete(iterator);
+          break;
+        case "error":
+          buffer.push([iterator, result]);
+          iterators.delete(iterator);
+          break;
+      }
+      flushSignal.resolve();
+    });
+    iterators.add(iterator);
+    iterator.pull();
+  }
+  return {
+    add(iterable) {
+      switch (state) {
+        case "idle":
+          iterables.push(iterable);
+          break;
+        case "pending":
+          initIterable(iterable);
+          break;
+        case "done":
+          break;
+      }
+    },
+    [Symbol.asyncIterator]() {
+      return (0, import_wrapAsyncGenerator$4.default)(function* () {
+        try {
+          var _usingCtx$1 = (0, import_usingCtx$3.default)();
+          if (state !== "idle") throw new Error("Cannot iterate twice");
+          state = "pending";
+          const _finally = _usingCtx$1.a(makeAsyncResource({}, async () => {
+            state = "done";
+            const errors = [];
+            await Promise.all(Array.from(iterators.values()).map(async (it) => {
+              try {
+                await it.destroy();
+              } catch (cause) {
+                errors.push(cause);
+              }
+            }));
+            buffer.length = 0;
+            iterators.clear();
+            flushSignal.resolve();
+            if (errors.length > 0) throw new AggregateError(errors);
+          }));
+          while (iterables.length > 0) initIterable(iterables.shift());
+          while (iterators.size > 0) {
+            yield (0, import_awaitAsyncGenerator$3.default)(flushSignal.promise);
+            while (buffer.length > 0) {
+              const [iterator, result] = buffer.shift();
+              switch (result.status) {
+                case "yield":
+                  yield result.value;
+                  iterator.pull();
+                  break;
+                case "error":
+                  throw result.error;
+              }
+            }
+            flushSignal = createDeferred();
+          }
+        } catch (_) {
+          _usingCtx$1.e = _;
+        } finally {
+          yield (0, import_awaitAsyncGenerator$3.default)(_usingCtx$1.d());
+        }
+      })();
+    }
+  };
+}
+function readableStreamFrom(iterable) {
+  const iterator = iterable[Symbol.asyncIterator]();
+  return new ReadableStream({
+    async cancel() {
+      var _iterator$return;
+      await ((_iterator$return = iterator.return) === null || _iterator$return === void 0 ? void 0 : _iterator$return.call(iterator));
+    },
+    async pull(controller) {
+      const result = await iterator.next();
+      if (result.done) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(result.value);
+    }
+  });
+}
+var import_usingCtx$2 = __toESM2(require_usingCtx(), 1);
+var import_awaitAsyncGenerator$2 = __toESM2(require_awaitAsyncGenerator(), 1);
+var import_wrapAsyncGenerator$3 = __toESM2(require_wrapAsyncGenerator(), 1);
+var PING_SYM = /* @__PURE__ */ Symbol("ping");
+function withPing(_x, _x2) {
+  return _withPing.apply(this, arguments);
+}
+function _withPing() {
+  _withPing = (0, import_wrapAsyncGenerator$3.default)(function* (iterable, pingIntervalMs) {
+    try {
+      var _usingCtx$1 = (0, import_usingCtx$2.default)();
+      const iterator = _usingCtx$1.a(iteratorResource(iterable));
+      let result;
+      let nextPromise = iterator.next();
+      while (true) try {
+        var _usingCtx3 = (0, import_usingCtx$2.default)();
+        const pingPromise = _usingCtx3.u(timerResource(pingIntervalMs));
+        result = yield (0, import_awaitAsyncGenerator$2.default)(Unpromise.race([nextPromise, pingPromise.start()]));
+        if (result === disposablePromiseTimerResult) {
+          yield PING_SYM;
+          continue;
+        }
+        if (result.done) return result.value;
+        nextPromise = iterator.next();
+        yield result.value;
+        result = null;
+      } catch (_) {
+        _usingCtx3.e = _;
+      } finally {
+        _usingCtx3.d();
+      }
+    } catch (_) {
+      _usingCtx$1.e = _;
+    } finally {
+      yield (0, import_awaitAsyncGenerator$2.default)(_usingCtx$1.d());
+    }
+  });
+  return _withPing.apply(this, arguments);
+}
+var require_asyncIterator = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/asyncIterator.js"(exports, module) {
+  function _asyncIterator$2(r) {
+    var n, t2, o, e = 2;
+    for ("undefined" != typeof Symbol && (t2 = Symbol.asyncIterator, o = Symbol.iterator); e--; ) {
+      if (t2 && null != (n = r[t2])) return n.call(r);
+      if (o && null != (n = r[o])) return new AsyncFromSyncIterator(n.call(r));
+      t2 = "@@asyncIterator", o = "@@iterator";
+    }
+    throw new TypeError("Object is not async iterable");
+  }
+  function AsyncFromSyncIterator(r) {
+    function AsyncFromSyncIteratorContinuation(r$1) {
+      if (Object(r$1) !== r$1) return Promise.reject(new TypeError(r$1 + " is not an object."));
+      var n = r$1.done;
+      return Promise.resolve(r$1.value).then(function(r$2) {
+        return {
+          value: r$2,
+          done: n
+        };
+      });
+    }
+    return AsyncFromSyncIterator = function AsyncFromSyncIterator$1(r$1) {
+      this.s = r$1, this.n = r$1.next;
+    }, AsyncFromSyncIterator.prototype = {
+      s: null,
+      n: null,
+      next: function next() {
+        return AsyncFromSyncIteratorContinuation(this.n.apply(this.s, arguments));
+      },
+      "return": function _return(r$1) {
+        var n = this.s["return"];
+        return void 0 === n ? Promise.resolve({
+          value: r$1,
+          done: true
+        }) : AsyncFromSyncIteratorContinuation(n.apply(this.s, arguments));
+      },
+      "throw": function _throw(r$1) {
+        var n = this.s["return"];
+        return void 0 === n ? Promise.reject(r$1) : AsyncFromSyncIteratorContinuation(n.apply(this.s, arguments));
+      }
+    }, new AsyncFromSyncIterator(r);
+  }
+  module.exports = _asyncIterator$2, module.exports.__esModule = true, module.exports["default"] = module.exports;
+} });
+var import_awaitAsyncGenerator$1 = __toESM2(require_awaitAsyncGenerator(), 1);
+var import_wrapAsyncGenerator$2 = __toESM2(require_wrapAsyncGenerator(), 1);
+var import_usingCtx$1 = __toESM2(require_usingCtx(), 1);
+var import_asyncIterator$1 = __toESM2(require_asyncIterator(), 1);
+var CHUNK_VALUE_TYPE_PROMISE = 0;
+var CHUNK_VALUE_TYPE_ASYNC_ITERABLE = 1;
+var PROMISE_STATUS_FULFILLED = 0;
+var PROMISE_STATUS_REJECTED = 1;
+var ASYNC_ITERABLE_STATUS_RETURN = 0;
+var ASYNC_ITERABLE_STATUS_YIELD = 1;
+var ASYNC_ITERABLE_STATUS_ERROR = 2;
+function isPromise(value) {
+  return (isObject(value) || isFunction(value)) && typeof (value === null || value === void 0 ? void 0 : value["then"]) === "function" && typeof (value === null || value === void 0 ? void 0 : value["catch"]) === "function";
+}
+var MaxDepthError = class extends Error {
+  constructor(path) {
+    super("Max depth reached at path: " + path.join("."));
+    this.path = path;
+  }
+};
+function createBatchStreamProducer(_x3) {
+  return _createBatchStreamProducer.apply(this, arguments);
+}
+function _createBatchStreamProducer() {
+  _createBatchStreamProducer = (0, import_wrapAsyncGenerator$2.default)(function* (opts) {
+    const { data } = opts;
+    let counter = 0;
+    const placeholder = 0;
+    const mergedIterables = mergeAsyncIterables();
+    function registerAsync(callback) {
+      const idx = counter++;
+      const iterable$1 = callback(idx);
+      mergedIterables.add(iterable$1);
+      return idx;
+    }
+    function encodePromise(promise2, path) {
+      return registerAsync(/* @__PURE__ */ (function() {
+        var _ref = (0, import_wrapAsyncGenerator$2.default)(function* (idx) {
+          const error51 = checkMaxDepth(path);
+          if (error51) {
+            promise2.catch((cause) => {
+              var _opts$onError;
+              (_opts$onError = opts.onError) === null || _opts$onError === void 0 || _opts$onError.call(opts, {
+                error: cause,
+                path
+              });
+            });
+            promise2 = Promise.reject(error51);
+          }
+          try {
+            const next = yield (0, import_awaitAsyncGenerator$1.default)(promise2);
+            yield [
+              idx,
+              PROMISE_STATUS_FULFILLED,
+              encode5(next, path)
+            ];
+          } catch (cause) {
+            var _opts$onError2, _opts$formatError;
+            (_opts$onError2 = opts.onError) === null || _opts$onError2 === void 0 || _opts$onError2.call(opts, {
+              error: cause,
+              path
+            });
+            yield [
+              idx,
+              PROMISE_STATUS_REJECTED,
+              (_opts$formatError = opts.formatError) === null || _opts$formatError === void 0 ? void 0 : _opts$formatError.call(opts, {
+                error: cause,
+                path
+              })
+            ];
+          }
+        });
+        return function(_x) {
+          return _ref.apply(this, arguments);
+        };
+      })());
+    }
+    function encodeAsyncIterable(iterable$1, path) {
+      return registerAsync(/* @__PURE__ */ (function() {
+        var _ref2 = (0, import_wrapAsyncGenerator$2.default)(function* (idx) {
+          try {
+            var _usingCtx$1 = (0, import_usingCtx$1.default)();
+            const error51 = checkMaxDepth(path);
+            if (error51) throw error51;
+            const iterator = _usingCtx$1.a(iteratorResource(iterable$1));
+            try {
+              while (true) {
+                const next = yield (0, import_awaitAsyncGenerator$1.default)(iterator.next());
+                if (next.done) {
+                  yield [
+                    idx,
+                    ASYNC_ITERABLE_STATUS_RETURN,
+                    encode5(next.value, path)
+                  ];
+                  break;
+                }
+                yield [
+                  idx,
+                  ASYNC_ITERABLE_STATUS_YIELD,
+                  encode5(next.value, path)
+                ];
+              }
+            } catch (cause) {
+              var _opts$onError3, _opts$formatError2;
+              (_opts$onError3 = opts.onError) === null || _opts$onError3 === void 0 || _opts$onError3.call(opts, {
+                error: cause,
+                path
+              });
+              yield [
+                idx,
+                ASYNC_ITERABLE_STATUS_ERROR,
+                (_opts$formatError2 = opts.formatError) === null || _opts$formatError2 === void 0 ? void 0 : _opts$formatError2.call(opts, {
+                  error: cause,
+                  path
+                })
+              ];
+            }
+          } catch (_) {
+            _usingCtx$1.e = _;
+          } finally {
+            yield (0, import_awaitAsyncGenerator$1.default)(_usingCtx$1.d());
+          }
+        });
+        return function(_x2) {
+          return _ref2.apply(this, arguments);
+        };
+      })());
+    }
+    function checkMaxDepth(path) {
+      if (opts.maxDepth && path.length > opts.maxDepth) return new MaxDepthError(path);
+      return null;
+    }
+    function encodeAsync3(value, path) {
+      if (isPromise(value)) return [CHUNK_VALUE_TYPE_PROMISE, encodePromise(value, path)];
+      if (isAsyncIterable(value)) {
+        if (opts.maxDepth && path.length >= opts.maxDepth) throw new Error("Max depth reached");
+        return [CHUNK_VALUE_TYPE_ASYNC_ITERABLE, encodeAsyncIterable(value, path)];
+      }
+      return null;
+    }
+    function encode5(value, path) {
+      if (value === void 0) return [[]];
+      const reg = encodeAsync3(value, path);
+      if (reg) return [[placeholder], [null, ...reg]];
+      if (!isPlainObject(value)) return [[value]];
+      const newObj = emptyObject();
+      const asyncValues = [];
+      for (const [key, item] of Object.entries(value)) {
+        const transformed = encodeAsync3(item, [...path, key]);
+        if (!transformed) {
+          newObj[key] = item;
+          continue;
+        }
+        newObj[key] = placeholder;
+        asyncValues.push([key, ...transformed]);
+      }
+      return [[newObj], ...asyncValues];
+    }
+    const newHead = emptyObject();
+    for (const [key, item] of Object.entries(data)) newHead[key] = encode5(item, [key]);
+    yield newHead;
+    let iterable = mergedIterables;
+    if (opts.pingMs) iterable = withPing(mergedIterables, opts.pingMs);
+    var _iteratorAbruptCompletion = false;
+    var _didIteratorError = false;
+    var _iteratorError;
+    try {
+      for (var _iterator = (0, import_asyncIterator$1.default)(iterable), _step; _iteratorAbruptCompletion = !(_step = yield (0, import_awaitAsyncGenerator$1.default)(_iterator.next())).done; _iteratorAbruptCompletion = false) {
+        const value = _step.value;
+        yield value;
+      }
+    } catch (err) {
+      _didIteratorError = true;
+      _iteratorError = err;
+    } finally {
+      try {
+        if (_iteratorAbruptCompletion && _iterator.return != null) yield (0, import_awaitAsyncGenerator$1.default)(_iterator.return());
+      } finally {
+        if (_didIteratorError) throw _iteratorError;
+      }
+    }
+  });
+  return _createBatchStreamProducer.apply(this, arguments);
+}
+function jsonlStreamProducer(opts) {
+  let stream = readableStreamFrom(createBatchStreamProducer(opts));
+  const { serialize: serialize4 } = opts;
+  if (serialize4) stream = stream.pipeThrough(new TransformStream({ transform(chunk, controller) {
+    if (chunk === PING_SYM) controller.enqueue(PING_SYM);
+    else controller.enqueue(serialize4(chunk));
+  } }));
+  return stream.pipeThrough(new TransformStream({ transform(chunk, controller) {
+    if (chunk === PING_SYM) controller.enqueue(" ");
+    else controller.enqueue(JSON.stringify(chunk) + "\n");
+  } })).pipeThrough(new TextEncoderStream());
+}
+var require_asyncGeneratorDelegate = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/asyncGeneratorDelegate.js"(exports, module) {
+  var OverloadYield = require_OverloadYield();
+  function _asyncGeneratorDelegate$1(t2) {
+    var e = {}, n = false;
+    function pump(e$1, r) {
+      return n = true, r = new Promise(function(n$1) {
+        n$1(t2[e$1](r));
+      }), {
+        done: false,
+        value: new OverloadYield(r, 1)
+      };
+    }
+    return e["undefined" != typeof Symbol && Symbol.iterator || "@@iterator"] = function() {
+      return this;
+    }, e.next = function(t$1) {
+      return n ? (n = false, t$1) : pump("next", t$1);
+    }, "function" == typeof t2["throw"] && (e["throw"] = function(t$1) {
+      if (n) throw n = false, t$1;
+      return pump("throw", t$1);
+    }), "function" == typeof t2["return"] && (e["return"] = function(t$1) {
+      return n ? (n = false, t$1) : pump("return", t$1);
+    }), e;
+  }
+  module.exports = _asyncGeneratorDelegate$1, module.exports.__esModule = true, module.exports["default"] = module.exports;
+} });
+var import_asyncIterator = __toESM2(require_asyncIterator(), 1);
+var import_awaitAsyncGenerator = __toESM2(require_awaitAsyncGenerator(), 1);
+var import_wrapAsyncGenerator$1 = __toESM2(require_wrapAsyncGenerator(), 1);
+var import_asyncGeneratorDelegate = __toESM2(require_asyncGeneratorDelegate(), 1);
+var import_usingCtx = __toESM2(require_usingCtx(), 1);
+var PING_EVENT = "ping";
+var SERIALIZED_ERROR_EVENT = "serialized-error";
+var CONNECTED_EVENT = "connected";
+var RETURN_EVENT = "return";
+function sseStreamProducer(opts) {
+  var _opts$ping$enabled, _opts$ping, _opts$ping$intervalMs, _opts$ping2, _opts$client;
+  const { serialize: serialize4 = identity } = opts;
+  const ping = {
+    enabled: (_opts$ping$enabled = (_opts$ping = opts.ping) === null || _opts$ping === void 0 ? void 0 : _opts$ping.enabled) !== null && _opts$ping$enabled !== void 0 ? _opts$ping$enabled : false,
+    intervalMs: (_opts$ping$intervalMs = (_opts$ping2 = opts.ping) === null || _opts$ping2 === void 0 ? void 0 : _opts$ping2.intervalMs) !== null && _opts$ping$intervalMs !== void 0 ? _opts$ping$intervalMs : 1e3
+  };
+  const client = (_opts$client = opts.client) !== null && _opts$client !== void 0 ? _opts$client : {};
+  if (ping.enabled && client.reconnectAfterInactivityMs && ping.intervalMs > client.reconnectAfterInactivityMs) throw new Error(`Ping interval must be less than client reconnect interval to prevent unnecessary reconnection - ping.intervalMs: ${ping.intervalMs} client.reconnectAfterInactivityMs: ${client.reconnectAfterInactivityMs}`);
+  function generator() {
+    return _generator.apply(this, arguments);
+  }
+  function _generator() {
+    _generator = (0, import_wrapAsyncGenerator$1.default)(function* () {
+      yield {
+        event: CONNECTED_EVENT,
+        data: JSON.stringify(client)
+      };
+      let iterable = opts.data;
+      if (opts.emitAndEndImmediately) iterable = takeWithGrace(iterable, {
+        count: 1,
+        gracePeriodMs: 1
+      });
+      if (ping.enabled && ping.intervalMs !== Infinity && ping.intervalMs > 0) iterable = withPing(iterable, ping.intervalMs);
+      let value;
+      let chunk;
+      var _iteratorAbruptCompletion = false;
+      var _didIteratorError = false;
+      var _iteratorError;
+      try {
+        for (var _iterator = (0, import_asyncIterator.default)(iterable), _step; _iteratorAbruptCompletion = !(_step = yield (0, import_awaitAsyncGenerator.default)(_iterator.next())).done; _iteratorAbruptCompletion = false) {
+          value = _step.value;
+          {
+            if (value === PING_SYM) {
+              yield {
+                event: PING_EVENT,
+                data: ""
+              };
+              continue;
+            }
+            chunk = isTrackedEnvelope(value) ? {
+              id: value[0],
+              data: value[1]
+            } : { data: value };
+            chunk.data = JSON.stringify(serialize4(chunk.data));
+            yield chunk;
+            value = null;
+            chunk = null;
+          }
+        }
+      } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+      } finally {
+        try {
+          if (_iteratorAbruptCompletion && _iterator.return != null) yield (0, import_awaitAsyncGenerator.default)(_iterator.return());
+        } finally {
+          if (_didIteratorError) throw _iteratorError;
+        }
+      }
+    });
+    return _generator.apply(this, arguments);
+  }
+  function generatorWithErrorHandling() {
+    return _generatorWithErrorHandling.apply(this, arguments);
+  }
+  function _generatorWithErrorHandling() {
+    _generatorWithErrorHandling = (0, import_wrapAsyncGenerator$1.default)(function* () {
+      try {
+        yield* (0, import_asyncGeneratorDelegate.default)((0, import_asyncIterator.default)(generator()));
+        yield {
+          event: RETURN_EVENT,
+          data: ""
+        };
+      } catch (cause) {
+        var _opts$formatError, _opts$formatError2;
+        if (isAbortError(cause)) return;
+        const error51 = getTRPCErrorFromUnknown(cause);
+        const data = (_opts$formatError = (_opts$formatError2 = opts.formatError) === null || _opts$formatError2 === void 0 ? void 0 : _opts$formatError2.call(opts, { error: error51 })) !== null && _opts$formatError !== void 0 ? _opts$formatError : null;
+        yield {
+          event: SERIALIZED_ERROR_EVENT,
+          data: JSON.stringify(serialize4(data))
+        };
+      }
+    });
+    return _generatorWithErrorHandling.apply(this, arguments);
+  }
+  const stream = readableStreamFrom(generatorWithErrorHandling());
+  return stream.pipeThrough(new TransformStream({ transform(chunk, controller) {
+    if ("event" in chunk) controller.enqueue(`event: ${chunk.event}
+`);
+    if ("data" in chunk) controller.enqueue(`data: ${chunk.data}
+`);
+    if ("id" in chunk) controller.enqueue(`id: ${chunk.id}
+`);
+    if ("comment" in chunk) controller.enqueue(`: ${chunk.comment}
+`);
+    controller.enqueue("\n\n");
+  } })).pipeThrough(new TextEncoderStream());
+}
+var sseHeaders = {
+  "Content-Type": "text/event-stream",
+  "Cache-Control": "no-cache, no-transform",
+  "X-Accel-Buffering": "no",
+  Connection: "keep-alive"
+};
+var import_wrapAsyncGenerator = __toESM2(require_wrapAsyncGenerator(), 1);
+var import_objectSpread23 = __toESM2(require_objectSpread2(), 1);
+function errorToAsyncIterable(err) {
+  return run((0, import_wrapAsyncGenerator.default)(function* () {
+    throw err;
+  }));
+}
+function combinedAbortController(signal) {
+  const controller = new AbortController();
+  const combinedSignal = abortSignalsAnyPonyfill([signal, controller.signal]);
+  return {
+    signal: combinedSignal,
+    controller
+  };
+}
+var TYPE_ACCEPTED_METHOD_MAP = {
+  mutation: ["POST"],
+  query: ["GET"],
+  subscription: ["GET"]
+};
+var TYPE_ACCEPTED_METHOD_MAP_WITH_METHOD_OVERRIDE = {
+  mutation: ["POST"],
+  query: ["GET", "POST"],
+  subscription: ["GET", "POST"]
+};
+function initResponse(initOpts) {
+  var _responseMeta, _info$calls$find$proc, _info$calls$find;
+  const { ctx, info, responseMeta, untransformedJSON, errors = [], headers } = initOpts;
+  let status = untransformedJSON ? getHTTPStatusCode(untransformedJSON) : 200;
+  const eagerGeneration = !untransformedJSON;
+  const data = eagerGeneration ? [] : Array.isArray(untransformedJSON) ? untransformedJSON : [untransformedJSON];
+  const meta3 = (_responseMeta = responseMeta === null || responseMeta === void 0 ? void 0 : responseMeta({
+    ctx,
+    info,
+    paths: info === null || info === void 0 ? void 0 : info.calls.map((call) => call.path),
+    data,
+    errors,
+    eagerGeneration,
+    type: (_info$calls$find$proc = info === null || info === void 0 || (_info$calls$find = info.calls.find((call) => {
+      var _call$procedure;
+      return (_call$procedure = call.procedure) === null || _call$procedure === void 0 ? void 0 : _call$procedure._def.type;
+    })) === null || _info$calls$find === void 0 || (_info$calls$find = _info$calls$find.procedure) === null || _info$calls$find === void 0 ? void 0 : _info$calls$find._def.type) !== null && _info$calls$find$proc !== void 0 ? _info$calls$find$proc : "unknown"
+  })) !== null && _responseMeta !== void 0 ? _responseMeta : {};
+  if (meta3.headers) {
+    if (meta3.headers instanceof Headers) for (const [key, value] of meta3.headers.entries()) headers.append(key, value);
+    else
+      for (const [key, value] of Object.entries(meta3.headers)) if (Array.isArray(value)) for (const v of value) headers.append(key, v);
+      else if (typeof value === "string") headers.set(key, value);
+  }
+  if (meta3.status) status = meta3.status;
+  return { status };
+}
+function caughtErrorToData(cause, errorOpts) {
+  const { router, req, onError } = errorOpts.opts;
+  const error51 = getTRPCErrorFromUnknown(cause);
+  onError === null || onError === void 0 || onError({
+    error: error51,
+    path: errorOpts.path,
+    input: errorOpts.input,
+    ctx: errorOpts.ctx,
+    type: errorOpts.type,
+    req
+  });
+  const untransformedJSON = { error: getErrorShape({
+    config: router._def._config,
+    error: error51,
+    type: errorOpts.type,
+    path: errorOpts.path,
+    input: errorOpts.input,
+    ctx: errorOpts.ctx
+  }) };
+  const transformedJSON = transformTRPCResponse(router._def._config, untransformedJSON);
+  const body = JSON.stringify(transformedJSON);
+  return {
+    error: error51,
+    untransformedJSON,
+    body
+  };
+}
+function isDataStream(v) {
+  if (!isObject(v)) return false;
+  if (isAsyncIterable(v)) return true;
+  return Object.values(v).some(isPromise) || Object.values(v).some(isAsyncIterable);
+}
+async function resolveResponse(opts) {
+  var _ref, _opts$allowBatching, _opts$batching, _opts$allowMethodOver, _config$sse$enabled, _config$sse;
+  const { router, req } = opts;
+  const headers = new Headers([["vary", "trpc-accept, accept"]]);
+  const config2 = router._def._config;
+  const url2 = new URL(req.url);
+  if (req.method === "HEAD") return new Response(null, { status: 204 });
+  const allowBatching = (_ref = (_opts$allowBatching = opts.allowBatching) !== null && _opts$allowBatching !== void 0 ? _opts$allowBatching : (_opts$batching = opts.batching) === null || _opts$batching === void 0 ? void 0 : _opts$batching.enabled) !== null && _ref !== void 0 ? _ref : true;
+  const allowMethodOverride = ((_opts$allowMethodOver = opts.allowMethodOverride) !== null && _opts$allowMethodOver !== void 0 ? _opts$allowMethodOver : false) && req.method === "POST";
+  const infoTuple = await run(async () => {
+    try {
+      return [void 0, await getRequestInfo({
+        req,
+        path: decodeURIComponent(opts.path),
+        router,
+        searchParams: url2.searchParams,
+        headers: opts.req.headers,
+        url: url2,
+        maxBatchSize: opts.maxBatchSize
+      })];
+    } catch (cause) {
+      return [getTRPCErrorFromUnknown(cause), void 0];
+    }
+  });
+  const ctxManager = run(() => {
+    let result = void 0;
+    return {
+      valueOrUndefined: () => {
+        if (!result) return void 0;
+        return result[1];
+      },
+      value: () => {
+        const [err, ctx] = result;
+        if (err) throw err;
+        return ctx;
+      },
+      create: async (info) => {
+        if (result) throw new Error("This should only be called once - report a bug in tRPC");
+        try {
+          const ctx = await opts.createContext({ info });
+          result = [void 0, ctx];
+        } catch (cause) {
+          result = [getTRPCErrorFromUnknown(cause), void 0];
+        }
+      }
+    };
+  });
+  const methodMapper = allowMethodOverride ? TYPE_ACCEPTED_METHOD_MAP_WITH_METHOD_OVERRIDE : TYPE_ACCEPTED_METHOD_MAP;
+  const isStreamCall = getAcceptHeader(req.headers) === "application/jsonl";
+  const experimentalSSE = (_config$sse$enabled = (_config$sse = config2.sse) === null || _config$sse === void 0 ? void 0 : _config$sse.enabled) !== null && _config$sse$enabled !== void 0 ? _config$sse$enabled : true;
+  try {
+    const [infoError, info] = infoTuple;
+    if (infoError) throw infoError;
+    if (info.isBatchCall && !allowBatching) throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Batching is not enabled on the server`
+    });
+    if (isStreamCall && !info.isBatchCall) throw new TRPCError({
+      message: `Streaming requests must be batched (you can do a batch of 1)`,
+      code: "BAD_REQUEST"
+    });
+    await ctxManager.create(info);
+    const rpcCalls = info.calls.map(async (call) => {
+      const proc = call.procedure;
+      const combinedAbort = combinedAbortController(opts.req.signal);
+      try {
+        if (opts.error) throw opts.error;
+        if (!proc) throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `No procedure found on path "${call.path}"`
+        });
+        if (!methodMapper[proc._def.type].includes(req.method)) throw new TRPCError({
+          code: "METHOD_NOT_SUPPORTED",
+          message: `Unsupported ${req.method}-request to ${proc._def.type} procedure at path "${call.path}"`
+        });
+        if (proc._def.type === "subscription") {
+          var _config$sse2;
+          if (info.isBatchCall) throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Cannot batch subscription calls`
+          });
+          if ((_config$sse2 = config2.sse) === null || _config$sse2 === void 0 ? void 0 : _config$sse2.maxDurationMs) {
+            let cleanup = function() {
+              clearTimeout(timer);
+              combinedAbort.signal.removeEventListener("abort", cleanup);
+              combinedAbort.controller.abort();
+            };
+            const timer = setTimeout(cleanup, config2.sse.maxDurationMs);
+            combinedAbort.signal.addEventListener("abort", cleanup);
+          }
+        }
+        const data = await proc({
+          path: call.path,
+          getRawInput: call.getRawInput,
+          ctx: ctxManager.value(),
+          type: proc._def.type,
+          signal: combinedAbort.signal,
+          batchIndex: call.batchIndex
+        });
+        return [void 0, {
+          data,
+          signal: proc._def.type === "subscription" ? combinedAbort.signal : void 0
+        }];
+      } catch (cause) {
+        var _opts$onError, _call$procedure$_def$, _call$procedure2;
+        const error51 = getTRPCErrorFromUnknown(cause);
+        const input = call.result();
+        (_opts$onError = opts.onError) === null || _opts$onError === void 0 || _opts$onError.call(opts, {
+          error: error51,
+          path: call.path,
+          input,
+          ctx: ctxManager.valueOrUndefined(),
+          type: (_call$procedure$_def$ = (_call$procedure2 = call.procedure) === null || _call$procedure2 === void 0 ? void 0 : _call$procedure2._def.type) !== null && _call$procedure$_def$ !== void 0 ? _call$procedure$_def$ : "unknown",
+          req: opts.req
+        });
+        return [error51, void 0];
+      }
+    });
+    if (!info.isBatchCall) {
+      const [call] = info.calls;
+      const [error51, result] = await rpcCalls[0];
+      switch (info.type) {
+        case "unknown":
+        case "mutation":
+        case "query": {
+          headers.set("content-type", "application/json");
+          if (isDataStream(result === null || result === void 0 ? void 0 : result.data)) throw new TRPCError({
+            code: "UNSUPPORTED_MEDIA_TYPE",
+            message: "Cannot use stream-like response in non-streaming request - use httpBatchStreamLink"
+          });
+          const res = error51 ? { error: getErrorShape({
+            config: config2,
+            ctx: ctxManager.valueOrUndefined(),
+            error: error51,
+            input: call.result(),
+            path: call.path,
+            type: info.type
+          }) } : { result: { data: result.data } };
+          const headResponse$1 = initResponse({
+            ctx: ctxManager.valueOrUndefined(),
+            info,
+            responseMeta: opts.responseMeta,
+            errors: error51 ? [error51] : [],
+            headers,
+            untransformedJSON: [res]
+          });
+          return new Response(JSON.stringify(transformTRPCResponse(config2, res)), {
+            status: headResponse$1.status,
+            headers
+          });
+        }
+        case "subscription": {
+          const iterable = run(() => {
+            if (error51) return errorToAsyncIterable(error51);
+            if (!experimentalSSE) return errorToAsyncIterable(new TRPCError({
+              code: "METHOD_NOT_SUPPORTED",
+              message: 'Missing experimental flag "sseSubscriptions"'
+            }));
+            if (!isObservable(result.data) && !isAsyncIterable(result.data)) return errorToAsyncIterable(new TRPCError({
+              message: `Subscription ${call.path} did not return an observable or a AsyncGenerator`,
+              code: "INTERNAL_SERVER_ERROR"
+            }));
+            const dataAsIterable = isObservable(result.data) ? observableToAsyncIterable(result.data, opts.req.signal) : result.data;
+            return dataAsIterable;
+          });
+          const stream = sseStreamProducer((0, import_objectSpread23.default)((0, import_objectSpread23.default)({}, config2.sse), {}, {
+            data: iterable,
+            serialize: (v) => config2.transformer.output.serialize(v),
+            formatError(errorOpts) {
+              var _call$procedure$_def$2, _call$procedure3, _opts$onError2;
+              const error$1 = getTRPCErrorFromUnknown(errorOpts.error);
+              const input = call === null || call === void 0 ? void 0 : call.result();
+              const path = call === null || call === void 0 ? void 0 : call.path;
+              const type = (_call$procedure$_def$2 = call === null || call === void 0 || (_call$procedure3 = call.procedure) === null || _call$procedure3 === void 0 ? void 0 : _call$procedure3._def.type) !== null && _call$procedure$_def$2 !== void 0 ? _call$procedure$_def$2 : "unknown";
+              (_opts$onError2 = opts.onError) === null || _opts$onError2 === void 0 || _opts$onError2.call(opts, {
+                error: error$1,
+                path,
+                input,
+                ctx: ctxManager.valueOrUndefined(),
+                req: opts.req,
+                type
+              });
+              const shape = getErrorShape({
+                config: config2,
+                ctx: ctxManager.valueOrUndefined(),
+                error: error$1,
+                input,
+                path,
+                type
+              });
+              return shape;
+            }
+          }));
+          for (const [key, value] of Object.entries(sseHeaders)) headers.set(key, value);
+          const headResponse$1 = initResponse({
+            ctx: ctxManager.valueOrUndefined(),
+            info,
+            responseMeta: opts.responseMeta,
+            errors: [],
+            headers,
+            untransformedJSON: null
+          });
+          const abortSignal = result === null || result === void 0 ? void 0 : result.signal;
+          let responseBody = stream;
+          if (abortSignal) {
+            const reader = stream.getReader();
+            const onAbort = () => void reader.cancel();
+            if (abortSignal.aborted) onAbort();
+            else abortSignal.addEventListener("abort", onAbort, { once: true });
+            responseBody = new ReadableStream({
+              async pull(controller) {
+                const chunk = await reader.read();
+                if (chunk.done) {
+                  abortSignal.removeEventListener("abort", onAbort);
+                  controller.close();
+                } else controller.enqueue(chunk.value);
+              },
+              cancel() {
+                abortSignal.removeEventListener("abort", onAbort);
+                return reader.cancel();
+              }
+            });
+          }
+          return new Response(responseBody, {
+            headers,
+            status: headResponse$1.status
+          });
+        }
+      }
+    }
+    if (info.accept === "application/jsonl") {
+      headers.set("content-type", "application/json");
+      headers.set("transfer-encoding", "chunked");
+      const headResponse$1 = initResponse({
+        ctx: ctxManager.valueOrUndefined(),
+        info,
+        responseMeta: opts.responseMeta,
+        errors: [],
+        headers,
+        untransformedJSON: null
+      });
+      const stream = jsonlStreamProducer((0, import_objectSpread23.default)((0, import_objectSpread23.default)({}, config2.jsonl), {}, {
+        maxDepth: Infinity,
+        data: rpcCalls.map(async (res, index) => {
+          const [error51, result] = await res;
+          const call = info.calls[index];
+          if (error51) {
+            var _procedure$_def$type, _procedure;
+            return { error: getErrorShape({
+              config: config2,
+              ctx: ctxManager.valueOrUndefined(),
+              error: error51,
+              input: call.result(),
+              path: call.path,
+              type: (_procedure$_def$type = (_procedure = call.procedure) === null || _procedure === void 0 ? void 0 : _procedure._def.type) !== null && _procedure$_def$type !== void 0 ? _procedure$_def$type : "unknown"
+            }) };
+          }
+          const iterable = isObservable(result.data) ? observableToAsyncIterable(result.data, opts.req.signal) : Promise.resolve(result.data);
+          return { result: Promise.resolve({ data: iterable }) };
+        }),
+        serialize: (data) => config2.transformer.output.serialize(data),
+        onError: (cause) => {
+          var _opts$onError3, _info$type;
+          (_opts$onError3 = opts.onError) === null || _opts$onError3 === void 0 || _opts$onError3.call(opts, {
+            error: getTRPCErrorFromUnknown(cause.error),
+            path: void 0,
+            input: void 0,
+            ctx: ctxManager.valueOrUndefined(),
+            req: opts.req,
+            type: (_info$type = info === null || info === void 0 ? void 0 : info.type) !== null && _info$type !== void 0 ? _info$type : "unknown"
+          });
+        },
+        formatError(errorOpts) {
+          var _call$procedure$_def$3, _call$procedure4;
+          const call = info === null || info === void 0 ? void 0 : info.calls[errorOpts.path[0]];
+          const error51 = getTRPCErrorFromUnknown(errorOpts.error);
+          const input = call === null || call === void 0 ? void 0 : call.result();
+          const path = call === null || call === void 0 ? void 0 : call.path;
+          const type = (_call$procedure$_def$3 = call === null || call === void 0 || (_call$procedure4 = call.procedure) === null || _call$procedure4 === void 0 ? void 0 : _call$procedure4._def.type) !== null && _call$procedure$_def$3 !== void 0 ? _call$procedure$_def$3 : "unknown";
+          const shape = getErrorShape({
+            config: config2,
+            ctx: ctxManager.valueOrUndefined(),
+            error: error51,
+            input,
+            path,
+            type
+          });
+          return shape;
+        }
+      }));
+      return new Response(stream, {
+        headers,
+        status: headResponse$1.status
+      });
+    }
+    headers.set("content-type", "application/json");
+    const results = (await Promise.all(rpcCalls)).map((res) => {
+      const [error51, result] = res;
+      if (error51) return res;
+      if (isDataStream(result.data)) return [new TRPCError({
+        code: "UNSUPPORTED_MEDIA_TYPE",
+        message: "Cannot use stream-like response in non-streaming request - use httpBatchStreamLink"
+      }), void 0];
+      return res;
+    });
+    const resultAsRPCResponse = results.map(([error51, result], index) => {
+      const call = info.calls[index];
+      if (error51) {
+        var _call$procedure$_def$4, _call$procedure5;
+        return { error: getErrorShape({
+          config: config2,
+          ctx: ctxManager.valueOrUndefined(),
+          error: error51,
+          input: call.result(),
+          path: call.path,
+          type: (_call$procedure$_def$4 = (_call$procedure5 = call.procedure) === null || _call$procedure5 === void 0 ? void 0 : _call$procedure5._def.type) !== null && _call$procedure$_def$4 !== void 0 ? _call$procedure$_def$4 : "unknown"
+        }) };
+      }
+      return { result: { data: result.data } };
+    });
+    const errors = results.map(([error51]) => error51).filter(Boolean);
+    const headResponse = initResponse({
+      ctx: ctxManager.valueOrUndefined(),
+      info,
+      responseMeta: opts.responseMeta,
+      untransformedJSON: resultAsRPCResponse,
+      errors,
+      headers
+    });
+    return new Response(JSON.stringify(transformTRPCResponse(config2, resultAsRPCResponse)), {
+      status: headResponse.status,
+      headers
+    });
+  } catch (cause) {
+    var _info$type2;
+    const [_infoError, info] = infoTuple;
+    const ctx = ctxManager.valueOrUndefined();
+    const { error: error51, untransformedJSON, body } = caughtErrorToData(cause, {
+      opts,
+      ctx: ctxManager.valueOrUndefined(),
+      type: (_info$type2 = info === null || info === void 0 ? void 0 : info.type) !== null && _info$type2 !== void 0 ? _info$type2 : "unknown"
+    });
+    const headResponse = initResponse({
+      ctx,
+      info,
+      responseMeta: opts.responseMeta,
+      untransformedJSON,
+      errors: [error51],
+      headers
+    });
+    return new Response(body, {
+      status: headResponse.status,
+      headers
+    });
+  }
+}
+
+// node_modules/@trpc/server/dist/adapters/fetch/index.mjs
+var import_objectSpread24 = __toESM2(require_objectSpread2(), 1);
+var trimSlashes = (path) => {
+  path = path.startsWith("/") ? path.slice(1) : path;
+  path = path.endsWith("/") ? path.slice(0, -1) : path;
+  return path;
+};
+async function fetchRequestHandler(opts) {
+  const resHeaders = new Headers();
+  const createContext2 = async (innerOpts) => {
+    var _opts$createContext;
+    return (_opts$createContext = opts.createContext) === null || _opts$createContext === void 0 ? void 0 : _opts$createContext.call(opts, (0, import_objectSpread24.default)({
+      req: opts.req,
+      resHeaders
+    }, innerOpts));
+  };
+  const url2 = new URL(opts.req.url);
+  const pathname = trimSlashes(url2.pathname);
+  const endpoint = trimSlashes(opts.endpoint);
+  const path = trimSlashes(pathname.slice(endpoint.length));
+  return await resolveResponse((0, import_objectSpread24.default)((0, import_objectSpread24.default)({}, opts), {}, {
+    req: opts.req,
+    createContext: createContext2,
+    path,
+    error: null,
+    onError(o) {
+      var _opts$onError;
+      opts === null || opts === void 0 || (_opts$onError = opts.onError) === null || _opts$onError === void 0 || _opts$onError.call(opts, (0, import_objectSpread24.default)((0, import_objectSpread24.default)({}, o), {}, { req: opts.req }));
+    },
+    responseMeta(data) {
+      var _opts$responseMeta;
+      const meta3 = (_opts$responseMeta = opts.responseMeta) === null || _opts$responseMeta === void 0 ? void 0 : _opts$responseMeta.call(opts, data);
+      if (meta3 === null || meta3 === void 0 ? void 0 : meta3.headers) {
+        if (meta3.headers instanceof Headers) for (const [key, value] of meta3.headers.entries()) resHeaders.append(key, value);
+        else
+          for (const [key, value] of Object.entries(meta3.headers)) if (Array.isArray(value)) for (const v of value) resHeaders.append(key, v);
+          else if (typeof value === "string") resHeaders.set(key, value);
+      }
+      return {
+        headers: resHeaders,
+        status: meta3 === null || meta3 === void 0 ? void 0 : meta3.status
+      };
+    }
+  }));
+}
+
+// api/auth-router.ts
+var cookie = __toESM(require_dist(), 1);
+init_constants();
+init_cookies();
+
+// api/middleware.ts
+init_constants();
 
 // node_modules/@trpc/server/dist/initTRPC-BRf4imah.mjs
 var import_objectSpread2$2 = __toESM2(require_objectSpread2(), 1);
@@ -3848,12 +8616,12 @@ function createMiddlewareFactory() {
   }
   return createMiddleware;
 }
-function createInputMiddleware(parse4) {
+function createInputMiddleware(parse6) {
   const inputMiddleware = async function inputValidatorMiddleware(opts) {
     let parsedInput;
     const rawInput = await opts.getRawInput();
     try {
-      parsedInput = await parse4(rawInput);
+      parsedInput = await parse6(rawInput);
     } catch (cause) {
       throw new TRPCError({
         code: "BAD_REQUEST",
@@ -3866,12 +8634,12 @@ function createInputMiddleware(parse4) {
   inputMiddleware._type = "input";
   return inputMiddleware;
 }
-function createOutputMiddleware(parse4) {
+function createOutputMiddleware(parse6) {
   const outputMiddleware = async function outputValidatorMiddleware({ next }) {
     const result = await next();
     if (!result.ok) return result;
     try {
-      const data = await parse4(result.data);
+      const data = await parse6(result.data);
       return (0, import_objectSpread2$2.default)((0, import_objectSpread2$2.default)({}, result), {}, { data });
     } catch (cause) {
       throw new TRPCError({
@@ -3884,7 +8652,7 @@ function createOutputMiddleware(parse4) {
   outputMiddleware._type = "output";
   return outputMiddleware;
 }
-var import_defineProperty2 = __toESM2(require_defineProperty(), 1);
+var import_defineProperty3 = __toESM2(require_defineProperty(), 1);
 var StandardSchemaV1Error = class extends Error {
   /**
   * Creates a schema error with useful information.
@@ -3894,7 +8662,7 @@ var StandardSchemaV1Error = class extends Error {
   constructor(issues) {
     var _issues$;
     super((_issues$ = issues[0]) === null || _issues$ === void 0 ? void 0 : _issues$.message);
-    (0, import_defineProperty2.default)(this, "issues", void 0);
+    (0, import_defineProperty3.default)(this, "issues", void 0);
     this.name = "SchemaError";
     this.issues = issues;
   }
@@ -3945,7 +8713,7 @@ var require_objectWithoutProperties = __commonJS2({ "../../node_modules/.pnpm/@o
   module.exports = _objectWithoutProperties$1, module.exports.__esModule = true, module.exports["default"] = module.exports;
 } });
 var import_objectWithoutProperties = __toESM2(require_objectWithoutProperties(), 1);
-var import_objectSpread2$12 = __toESM2(require_objectSpread2(), 1);
+var import_objectSpread2$13 = __toESM2(require_objectSpread2(), 1);
 var _excluded = [
   "middlewares",
   "inputs",
@@ -3953,14 +8721,14 @@ var _excluded = [
 ];
 function createNewBuilder(def1, def2) {
   const { middlewares = [], inputs, meta: meta3 } = def2, rest = (0, import_objectWithoutProperties.default)(def2, _excluded);
-  return createBuilder((0, import_objectSpread2$12.default)((0, import_objectSpread2$12.default)({}, mergeWithoutOverrides(def1, rest)), {}, {
+  return createBuilder((0, import_objectSpread2$13.default)((0, import_objectSpread2$13.default)({}, mergeWithoutOverrides(def1, rest)), {}, {
     inputs: [...def1.inputs, ...inputs !== null && inputs !== void 0 ? inputs : []],
     middlewares: [...def1.middlewares, ...middlewares],
-    meta: def1.meta && meta3 ? (0, import_objectSpread2$12.default)((0, import_objectSpread2$12.default)({}, def1.meta), meta3) : meta3 !== null && meta3 !== void 0 ? meta3 : def1.meta
+    meta: def1.meta && meta3 ? (0, import_objectSpread2$13.default)((0, import_objectSpread2$13.default)({}, def1.meta), meta3) : meta3 !== null && meta3 !== void 0 ? meta3 : def1.meta
   }));
 }
 function createBuilder(initDef = {}) {
-  const _def = (0, import_objectSpread2$12.default)({
+  const _def = (0, import_objectSpread2$13.default)({
     procedure: true,
     inputs: [],
     middlewares: []
@@ -3995,13 +8763,13 @@ function createBuilder(initDef = {}) {
       return createNewBuilder(_def, builder$1._def);
     },
     query(resolver) {
-      return createResolver((0, import_objectSpread2$12.default)((0, import_objectSpread2$12.default)({}, _def), {}, { type: "query" }), resolver);
+      return createResolver((0, import_objectSpread2$13.default)((0, import_objectSpread2$13.default)({}, _def), {}, { type: "query" }), resolver);
     },
     mutation(resolver) {
-      return createResolver((0, import_objectSpread2$12.default)((0, import_objectSpread2$12.default)({}, _def), {}, { type: "mutation" }), resolver);
+      return createResolver((0, import_objectSpread2$13.default)((0, import_objectSpread2$13.default)({}, _def), {}, { type: "mutation" }), resolver);
     },
     subscription(resolver) {
-      return createResolver((0, import_objectSpread2$12.default)((0, import_objectSpread2$12.default)({}, _def), {}, { type: "subscription" }), resolver);
+      return createResolver((0, import_objectSpread2$13.default)((0, import_objectSpread2$13.default)({}, _def), {}, { type: "subscription" }), resolver);
     },
     experimental_caller(caller) {
       return createNewBuilder(_def, { caller });
@@ -4022,7 +8790,7 @@ function createResolver(_defIn, resolver) {
       };
     }]
   });
-  const _def = (0, import_objectSpread2$12.default)((0, import_objectSpread2$12.default)({}, finalBuilder._def), {}, {
+  const _def = (0, import_objectSpread2$13.default)((0, import_objectSpread2$13.default)({}, finalBuilder._def), {}, {
     type: _defIn.type,
     experimental_caller: Boolean(finalBuilder._def.caller),
     meta: finalBuilder._def.meta,
@@ -4048,14 +8816,14 @@ If you want to call this function on the server, see https://trpc.io/docs/v11/se
 async function callRecursive(index, _def, opts) {
   try {
     const middleware = _def.middlewares[index];
-    const result = await middleware((0, import_objectSpread2$12.default)((0, import_objectSpread2$12.default)({}, opts), {}, {
+    const result = await middleware((0, import_objectSpread2$13.default)((0, import_objectSpread2$13.default)({}, opts), {}, {
       meta: _def.meta,
       input: opts.input,
       next(_nextOpts) {
         var _nextOpts$getRawInput;
         const nextOpts = _nextOpts;
-        return callRecursive(index + 1, _def, (0, import_objectSpread2$12.default)((0, import_objectSpread2$12.default)({}, opts), {}, {
-          ctx: (nextOpts === null || nextOpts === void 0 ? void 0 : nextOpts.ctx) ? (0, import_objectSpread2$12.default)((0, import_objectSpread2$12.default)({}, opts.ctx), nextOpts.ctx) : opts.ctx,
+        return callRecursive(index + 1, _def, (0, import_objectSpread2$13.default)((0, import_objectSpread2$13.default)({}, opts), {}, {
+          ctx: (nextOpts === null || nextOpts === void 0 ? void 0 : nextOpts.ctx) ? (0, import_objectSpread2$13.default)((0, import_objectSpread2$13.default)({}, opts.ctx), nextOpts.ctx) : opts.ctx,
           input: nextOpts && "input" in nextOpts ? nextOpts.input : opts.input,
           getRawInput: (_nextOpts$getRawInput = nextOpts === null || nextOpts === void 0 ? void 0 : nextOpts.getRawInput) !== null && _nextOpts$getRawInput !== void 0 ? _nextOpts$getRawInput : opts.getRawInput
         }));
@@ -4090,7 +8858,7 @@ var _globalThis$process;
 var _globalThis$process2;
 var _globalThis$process3;
 var isServerDefault = typeof window === "undefined" || "Deno" in window || ((_globalThis$process = globalThis.process) === null || _globalThis$process === void 0 || (_globalThis$process = _globalThis$process.env) === null || _globalThis$process === void 0 ? void 0 : _globalThis$process["NODE_ENV"]) === "test" || !!((_globalThis$process2 = globalThis.process) === null || _globalThis$process2 === void 0 || (_globalThis$process2 = _globalThis$process2.env) === null || _globalThis$process2 === void 0 ? void 0 : _globalThis$process2["JEST_WORKER_ID"]) || !!((_globalThis$process3 = globalThis.process) === null || _globalThis$process3 === void 0 || (_globalThis$process3 = _globalThis$process3.env) === null || _globalThis$process3 === void 0 ? void 0 : _globalThis$process3["VITEST_WORKER_ID"]);
-var import_objectSpread23 = __toESM2(require_objectSpread2(), 1);
+var import_objectSpread25 = __toESM2(require_objectSpread2(), 1);
 var TRPCBuilder = class TRPCBuilder2 {
   /**
   * Add a context shape as a generic to the root object
@@ -4112,7 +8880,7 @@ var TRPCBuilder = class TRPCBuilder2 {
   */
   create(opts) {
     var _opts$transformer, _opts$isDev, _globalThis$process$1, _opts$allowOutsideOfS, _opts$errorFormatter, _opts$isServer;
-    const config2 = (0, import_objectSpread23.default)((0, import_objectSpread23.default)({}, opts), {}, {
+    const config2 = (0, import_objectSpread25.default)((0, import_objectSpread25.default)({}, opts), {}, {
       transformer: getDataTransformer((_opts$transformer = opts === null || opts === void 0 ? void 0 : opts.transformer) !== null && _opts$transformer !== void 0 ? _opts$transformer : defaultTransformer),
       isDev: (_opts$isDev = opts === null || opts === void 0 ? void 0 : opts.isDev) !== null && _opts$isDev !== void 0 ? _opts$isDev : ((_globalThis$process$1 = globalThis.process) === null || _globalThis$process$1 === void 0 ? void 0 : _globalThis$process$1.env["NODE_ENV"]) !== "production",
       allowOutsideOfServer: (_opts$allowOutsideOfS = opts === null || opts === void 0 ? void 0 : opts.allowOutsideOfServer) !== null && _opts$allowOutsideOfS !== void 0 ? _opts$allowOutsideOfS : false,
@@ -4233,8 +9001,8 @@ function find(record2, predicate) {
   }
   return void 0;
 }
-function forEach(record2, run) {
-  Object.entries(record2).forEach(([key, value]) => run(value, key));
+function forEach(record2, run2) {
+  Object.entries(record2).forEach(([key, value]) => run2(value, key));
 }
 function includes(arr, value) {
   return arr.indexOf(value) !== -1;
@@ -4269,7 +9037,7 @@ var CustomTransformerRegistry = class {
 var getType = (payload) => Object.prototype.toString.call(payload).slice(8, -1);
 var isUndefined = (payload) => typeof payload === "undefined";
 var isNull = (payload) => payload === null;
-var isPlainObject = (payload) => {
+var isPlainObject2 = (payload) => {
   if (typeof payload !== "object" || payload === null)
     return false;
   if (payload === Object.prototype)
@@ -4278,7 +9046,7 @@ var isPlainObject = (payload) => {
     return true;
   return Object.getPrototypeOf(payload) === Object.prototype;
 };
-var isEmptyObject = (payload) => isPlainObject(payload) && Object.keys(payload).length === 0;
+var isEmptyObject = (payload) => isPlainObject2(payload) && Object.keys(payload).length === 0;
 var isArray = (payload) => Array.isArray(payload);
 var isString = (payload) => typeof payload === "string";
 var isNumber = (payload) => typeof payload === "number" && !isNaN(payload);
@@ -4591,7 +9359,7 @@ var setDeep = (object2, path, mapper) => {
     if (isArray(parent)) {
       const index = +key;
       parent = parent[index];
-    } else if (isPlainObject(parent)) {
+    } else if (isPlainObject2(parent)) {
       parent = parent[key];
     } else if (isSet(parent)) {
       const row = +key;
@@ -4617,7 +9385,7 @@ var setDeep = (object2, path, mapper) => {
   const lastKey = path[path.length - 1];
   if (isArray(parent)) {
     parent[+lastKey] = mapper(parent[+lastKey]);
-  } else if (isPlainObject(parent)) {
+  } else if (isPlainObject2(parent)) {
     parent[lastKey] = mapper(parent[lastKey]);
   }
   if (isSet(parent)) {
@@ -4651,14 +9419,14 @@ var setDeep = (object2, path, mapper) => {
 };
 
 // node_modules/superjson/dist/plainer.js
-var enableLegacyPaths = (version3) => version3 < 1;
-function traverse(tree, walker2, version3, origin = []) {
+var enableLegacyPaths = (version2) => version2 < 1;
+function traverse(tree, walker2, version2, origin = []) {
   if (!tree) {
     return;
   }
-  const legacyPaths = enableLegacyPaths(version3);
+  const legacyPaths = enableLegacyPaths(version2);
   if (!isArray(tree)) {
-    forEach(tree, (subtree, key) => traverse(subtree, walker2, version3, [
+    forEach(tree, (subtree, key) => traverse(subtree, walker2, version2, [
       ...origin,
       ...parsePath(key, legacyPaths)
     ]));
@@ -4667,7 +9435,7 @@ function traverse(tree, walker2, version3, origin = []) {
   const [nodeValue, children] = tree;
   if (children) {
     forEach(children, (child, key) => {
-      traverse(child, walker2, version3, [
+      traverse(child, walker2, version2, [
         ...origin,
         ...parsePath(key, legacyPaths)
       ]);
@@ -4675,14 +9443,14 @@ function traverse(tree, walker2, version3, origin = []) {
   }
   walker2(nodeValue, origin);
 }
-function applyValueAnnotations(plain, annotations, version3, superJson) {
+function applyValueAnnotations(plain, annotations, version2, superJson) {
   traverse(annotations, (type, path) => {
     plain = setDeep(plain, path, (v) => untransformValue(v, type, superJson));
-  }, version3);
+  }, version2);
   return plain;
 }
-function applyReferentialEqualityAnnotations(plain, annotations, version3) {
-  const legacyPaths = enableLegacyPaths(version3);
+function applyReferentialEqualityAnnotations(plain, annotations, version2) {
+  const legacyPaths = enableLegacyPaths(version2);
   function apply(identicalPaths, path) {
     const object2 = getDeep(plain, parsePath(path, legacyPaths));
     identicalPaths.map((path2) => parsePath(path2, legacyPaths)).forEach((identicalObjectPath) => {
@@ -4702,7 +9470,7 @@ function applyReferentialEqualityAnnotations(plain, annotations, version3) {
   }
   return plain;
 }
-var isDeep = (object2, superJson) => isPlainObject(object2) || isArray(object2) || isMap(object2) || isSet(object2) || isError(object2) || isInstanceOfRegisteredClass(object2, superJson);
+var isDeep = (object2, superJson) => isPlainObject2(object2) || isArray(object2) || isMap(object2) || isSet(object2) || isError(object2) || isInstanceOfRegisteredClass(object2, superJson);
 function addIdentity(object2, path, identities) {
   const existingSet = identities.get(object2);
   if (existingSet) {
@@ -4779,7 +9547,7 @@ var walker = (object2, identities, superJson, dedupe, path = [], objectsInThisPa
     transformedValue[index] = recursiveResult.transformedValue;
     if (isArray(recursiveResult.annotations)) {
       innerAnnotations[escapeKey(index)] = recursiveResult.annotations;
-    } else if (isPlainObject(recursiveResult.annotations)) {
+    } else if (isPlainObject2(recursiveResult.annotations)) {
       forEach(recursiveResult.annotations, (tree, key) => {
         innerAnnotations[escapeKey(index) + "." + key] = tree;
       });
@@ -4809,7 +9577,7 @@ function isArray2(payload) {
 }
 
 // node_modules/is-what/dist/isPlainObject.js
-function isPlainObject2(payload) {
+function isPlainObject3(payload) {
   if (getType2(payload) !== "Object")
     return false;
   const prototype = Object.getPrototypeOf(payload);
@@ -4834,7 +9602,7 @@ function copy(target, options = {}) {
   if (isArray2(target)) {
     return target.map((item) => copy(item, options));
   }
-  if (!isPlainObject2(target)) {
+  if (!isPlainObject3(target)) {
     return target;
   }
   const props = Object.getOwnPropertyNames(target);
@@ -5625,7 +10393,7 @@ __export(util_exports, {
   getSizableOrigin: () => getSizableOrigin,
   hexToUint8Array: () => hexToUint8Array,
   isObject: () => isObject2,
-  isPlainObject: () => isPlainObject3,
+  isPlainObject: () => isPlainObject4,
   issue: () => issue,
   joinValues: () => joinValues,
   jsonStringifyReplacer: () => jsonStringifyReplacer,
@@ -5645,7 +10413,7 @@ __export(util_exports, {
   promiseAllObject: () => promiseAllObject,
   propertyKeyTypes: () => propertyKeyTypes,
   randomString: () => randomString,
-  required: () => required,
+  required: () => required2,
   safeExtend: () => safeExtend,
   shallowClone: () => shallowClone,
   slugify: () => slugify,
@@ -5805,7 +10573,7 @@ var allowsEval = /* @__PURE__ */ cached(() => {
     return false;
   }
 });
-function isPlainObject3(o) {
+function isPlainObject4(o) {
   if (isObject2(o) === false)
     return false;
   const ctor = o.constructor;
@@ -5822,7 +10590,7 @@ function isPlainObject3(o) {
   return true;
 }
 function shallowClone(o) {
-  if (isPlainObject3(o))
+  if (isPlainObject4(o))
     return { ...o };
   if (Array.isArray(o))
     return [...o];
@@ -6026,7 +10794,7 @@ function omit(schema, mask) {
   return clone(schema, def);
 }
 function extend(schema, shape) {
-  if (!isPlainObject3(shape)) {
+  if (!isPlainObject4(shape)) {
     throw new Error("Invalid input to extend: expected a plain object");
   }
   const checks = schema._zod.def.checks;
@@ -6049,7 +10817,7 @@ function extend(schema, shape) {
   return clone(schema, def);
 }
 function safeExtend(schema, shape) {
-  if (!isPlainObject3(shape)) {
+  if (!isPlainObject4(shape)) {
     throw new Error("Invalid input to safeExtend: expected a plain object");
   }
   const def = mergeDefs(schema._zod.def, {
@@ -6116,7 +10884,7 @@ function partial(Class2, schema, mask) {
   });
   return clone(schema, def);
 }
-function required(Class2, schema, mask) {
+function required2(Class2, schema, mask) {
   const def = mergeDefs(schema._zod.def, {
     get shape() {
       const oldShape = schema._zod.def.shape;
@@ -6175,14 +10943,14 @@ function prefixIssues(path, issues) {
     return iss;
   });
 }
-function unwrapMessage(message) {
-  return typeof message === "string" ? message : message?.message;
+function unwrapMessage(message2) {
+  return typeof message2 === "string" ? message2 : message2?.message;
 }
 function finalizeIssue(iss, ctx, config2) {
-  const message = iss.message ? iss.message : unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config2.customError?.(iss)) ?? unwrapMessage(config2.localeError?.(iss)) ?? "Invalid input";
+  const message2 = iss.message ? iss.message : unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config2.customError?.(iss)) ?? unwrapMessage(config2.localeError?.(iss)) ?? "Invalid input";
   const { inst: _inst, continue: _continue, input: _input, ...rest } = iss;
   rest.path ?? (rest.path = []);
-  rest.message = message;
+  rest.message = message2;
   if (ctx?.reportInput) {
     rest.input = _input;
   }
@@ -6583,10 +11351,10 @@ var nanoid = /^[a-zA-Z0-9_-]{21}$/;
 var duration = /^P(?:(\d+W)|(?!.*W)(?=\d|T\d)(\d+Y)?(\d+M)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+([.,]\d+)?S)?)?)$/;
 var extendedDuration = /^[-+]?P(?!$)(?:(?:[-+]?\d+Y)|(?:[-+]?\d+[.,]\d+Y$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:(?:[-+]?\d+W)|(?:[-+]?\d+[.,]\d+W$))?(?:(?:[-+]?\d+D)|(?:[-+]?\d+[.,]\d+D$))?(?:T(?=[\d+-])(?:(?:[-+]?\d+H)|(?:[-+]?\d+[.,]\d+H$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:[-+]?\d+(?:[.,]\d+)?S)?)??$/;
 var guid = /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/;
-var uuid = (version3) => {
-  if (!version3)
+var uuid = (version2) => {
+  if (!version2)
     return /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/;
-  return new RegExp(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-${version3}[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`);
+  return new RegExp(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-${version2}[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`);
 };
 var uuid4 = /* @__PURE__ */ uuid(4);
 var uuid6 = /* @__PURE__ */ uuid(6);
@@ -8000,8 +12768,8 @@ function handleCatchall(proms, input, payload, ctx, def, inst) {
 }
 var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
   $ZodType.init(inst, def);
-  const desc2 = Object.getOwnPropertyDescriptor(def, "shape");
-  if (!desc2?.get) {
+  const desc = Object.getOwnPropertyDescriptor(def, "shape");
+  if (!desc?.get) {
     const sh = def.shape;
     Object.defineProperty(def, "shape", {
       get: () => {
@@ -8027,13 +12795,13 @@ var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
     }
     return propValues;
   });
-  const isObject3 = isObject2;
+  const isObject4 = isObject2;
   const catchall = def.catchall;
   let value;
   inst._zod.parse = (payload, ctx) => {
     value ?? (value = _normalized.value);
     const input = payload.value;
-    if (!isObject3(input)) {
+    if (!isObject4(input)) {
       payload.issues.push({
         expected: "object",
         code: "invalid_type",
@@ -8160,7 +12928,7 @@ var $ZodObjectJIT = /* @__PURE__ */ $constructor("$ZodObjectJIT", (inst, def) =>
     return (payload, ctx) => fn(shape, payload, ctx);
   };
   let fastpass;
-  const isObject3 = isObject2;
+  const isObject4 = isObject2;
   const jit = !globalConfig.jitless;
   const allowsEval2 = allowsEval;
   const fastEnabled = jit && allowsEval2.value;
@@ -8169,7 +12937,7 @@ var $ZodObjectJIT = /* @__PURE__ */ $constructor("$ZodObjectJIT", (inst, def) =>
   inst._zod.parse = (payload, ctx) => {
     value ?? (value = _normalized.value);
     const input = payload.value;
-    if (!isObject3(input)) {
+    if (!isObject4(input)) {
       payload.issues.push({
         expected: "object",
         code: "invalid_type",
@@ -8396,7 +13164,7 @@ function mergeValues(a, b) {
   if (a instanceof Date && b instanceof Date && +a === +b) {
     return { valid: true, data: a };
   }
-  if (isPlainObject3(a) && isPlainObject3(b)) {
+  if (isPlainObject4(a) && isPlainObject4(b)) {
     const bKeys = Object.keys(b);
     const sharedKeys = Object.keys(a).filter((key) => bKeys.indexOf(key) !== -1);
     const newObj = { ...a, ...b };
@@ -8582,7 +13350,7 @@ var $ZodRecord = /* @__PURE__ */ $constructor("$ZodRecord", (inst, def) => {
   $ZodType.init(inst, def);
   inst._zod.parse = (payload, ctx) => {
     const input = payload.value;
-    if (!isPlainObject3(input)) {
+    if (!isPlainObject4(input)) {
       payload.issues.push({
         expected: "record",
         code: "invalid_type",
@@ -12627,8 +17395,8 @@ function ko_default() {
 }
 
 // node_modules/zod/v4/locales/lt.js
-var capitalizeFirstCharacter = (text2) => {
-  return text2.charAt(0).toUpperCase() + text2.slice(1);
+var capitalizeFirstCharacter = (text) => {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 };
 function getUnitTypeFromNumber(number4) {
   const abs = Math.abs(number4);
@@ -19462,10 +24230,10 @@ function fromJSONSchema(schema, params) {
   } catch {
     throw new Error("fromJSONSchema input is not valid JSON (possibly cyclic); use $defs/$ref for recursive schemas");
   }
-  const version3 = detectVersion(normalized, params?.defaultTarget);
+  const version2 = detectVersion(normalized, params?.defaultTarget);
   const defs = normalized.$defs || normalized.definitions || {};
   const ctx = {
-    version: version3,
+    version: version2,
     defs,
     refs: /* @__PURE__ */ new Map(),
     processing: /* @__PURE__ */ new Set(),
@@ -19503,5499 +24271,8 @@ function date4(params) {
 // node_modules/zod/v4/classic/external.js
 config(en_default());
 
-// node_modules/drizzle-orm/better-sqlite3/driver.js
-var import_better_sqlite3 = __toESM(require_lib(), 1);
-
-// node_modules/drizzle-orm/entity.js
-var entityKind = /* @__PURE__ */ Symbol.for("drizzle:entityKind");
-function is(value, type) {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  if (value instanceof type) {
-    return true;
-  }
-  if (!Object.prototype.hasOwnProperty.call(type, entityKind)) {
-    throw new Error(
-      `Class "${type.name ?? "<unknown>"}" doesn't look like a Drizzle entity. If this is incorrect and the class is provided by Drizzle, please report this as a bug.`
-    );
-  }
-  let cls = Object.getPrototypeOf(value).constructor;
-  if (cls) {
-    while (cls) {
-      if (entityKind in cls && cls[entityKind] === type[entityKind]) {
-        return true;
-      }
-      cls = Object.getPrototypeOf(cls);
-    }
-  }
-  return false;
-}
-
-// node_modules/drizzle-orm/logger.js
-var ConsoleLogWriter = class {
-  static [entityKind] = "ConsoleLogWriter";
-  write(message) {
-    console.log(message);
-  }
-};
-var DefaultLogger = class {
-  static [entityKind] = "DefaultLogger";
-  writer;
-  constructor(config2) {
-    this.writer = config2?.writer ?? new ConsoleLogWriter();
-  }
-  logQuery(query, params) {
-    const stringifiedParams = params.map((p) => {
-      try {
-        return JSON.stringify(p);
-      } catch {
-        return String(p);
-      }
-    });
-    const paramsStr = stringifiedParams.length ? ` -- params: [${stringifiedParams.join(", ")}]` : "";
-    this.writer.write(`Query: ${query}${paramsStr}`);
-  }
-};
-var NoopLogger = class {
-  static [entityKind] = "NoopLogger";
-  logQuery() {
-  }
-};
-
-// node_modules/drizzle-orm/table.utils.js
-var TableName = /* @__PURE__ */ Symbol.for("drizzle:Name");
-
-// node_modules/drizzle-orm/table.js
-var Schema = /* @__PURE__ */ Symbol.for("drizzle:Schema");
-var Columns = /* @__PURE__ */ Symbol.for("drizzle:Columns");
-var ExtraConfigColumns = /* @__PURE__ */ Symbol.for("drizzle:ExtraConfigColumns");
-var OriginalName = /* @__PURE__ */ Symbol.for("drizzle:OriginalName");
-var BaseName = /* @__PURE__ */ Symbol.for("drizzle:BaseName");
-var IsAlias = /* @__PURE__ */ Symbol.for("drizzle:IsAlias");
-var ExtraConfigBuilder = /* @__PURE__ */ Symbol.for("drizzle:ExtraConfigBuilder");
-var IsDrizzleTable = /* @__PURE__ */ Symbol.for("drizzle:IsDrizzleTable");
-var Table = class {
-  static [entityKind] = "Table";
-  /** @internal */
-  static Symbol = {
-    Name: TableName,
-    Schema,
-    OriginalName,
-    Columns,
-    ExtraConfigColumns,
-    BaseName,
-    IsAlias,
-    ExtraConfigBuilder
-  };
-  /**
-   * @internal
-   * Can be changed if the table is aliased.
-   */
-  [TableName];
-  /**
-   * @internal
-   * Used to store the original name of the table, before any aliasing.
-   */
-  [OriginalName];
-  /** @internal */
-  [Schema];
-  /** @internal */
-  [Columns];
-  /** @internal */
-  [ExtraConfigColumns];
-  /**
-   *  @internal
-   * Used to store the table name before the transformation via the `tableCreator` functions.
-   */
-  [BaseName];
-  /** @internal */
-  [IsAlias] = false;
-  /** @internal */
-  [IsDrizzleTable] = true;
-  /** @internal */
-  [ExtraConfigBuilder] = void 0;
-  constructor(name, schema, baseName) {
-    this[TableName] = this[OriginalName] = name;
-    this[Schema] = schema;
-    this[BaseName] = baseName;
-  }
-};
-function getTableName(table) {
-  return table[TableName];
-}
-function getTableUniqueName(table) {
-  return `${table[Schema] ?? "public"}.${table[TableName]}`;
-}
-
-// node_modules/drizzle-orm/column.js
-var Column = class {
-  constructor(table, config2) {
-    this.table = table;
-    this.config = config2;
-    this.name = config2.name;
-    this.keyAsName = config2.keyAsName;
-    this.notNull = config2.notNull;
-    this.default = config2.default;
-    this.defaultFn = config2.defaultFn;
-    this.onUpdateFn = config2.onUpdateFn;
-    this.hasDefault = config2.hasDefault;
-    this.primary = config2.primaryKey;
-    this.isUnique = config2.isUnique;
-    this.uniqueName = config2.uniqueName;
-    this.uniqueType = config2.uniqueType;
-    this.dataType = config2.dataType;
-    this.columnType = config2.columnType;
-    this.generated = config2.generated;
-    this.generatedIdentity = config2.generatedIdentity;
-  }
-  static [entityKind] = "Column";
-  name;
-  keyAsName;
-  primary;
-  notNull;
-  default;
-  defaultFn;
-  onUpdateFn;
-  hasDefault;
-  isUnique;
-  uniqueName;
-  uniqueType;
-  dataType;
-  columnType;
-  enumValues = void 0;
-  generated = void 0;
-  generatedIdentity = void 0;
-  config;
-  mapFromDriverValue(value) {
-    return value;
-  }
-  mapToDriverValue(value) {
-    return value;
-  }
-  // ** @internal */
-  shouldDisableInsert() {
-    return this.config.generated !== void 0 && this.config.generated.type !== "byDefault";
-  }
-};
-
-// node_modules/drizzle-orm/column-builder.js
-var ColumnBuilder = class {
-  static [entityKind] = "ColumnBuilder";
-  config;
-  constructor(name, dataType, columnType) {
-    this.config = {
-      name,
-      keyAsName: name === "",
-      notNull: false,
-      default: void 0,
-      hasDefault: false,
-      primaryKey: false,
-      isUnique: false,
-      uniqueName: void 0,
-      uniqueType: void 0,
-      dataType,
-      columnType,
-      generated: void 0
-    };
-  }
-  /**
-   * Changes the data type of the column. Commonly used with `json` columns. Also, useful for branded types.
-   *
-   * @example
-   * ```ts
-   * const users = pgTable('users', {
-   * 	id: integer('id').$type<UserId>().primaryKey(),
-   * 	details: json('details').$type<UserDetails>().notNull(),
-   * });
-   * ```
-   */
-  $type() {
-    return this;
-  }
-  /**
-   * Adds a `not null` clause to the column definition.
-   *
-   * Affects the `select` model of the table - columns *without* `not null` will be nullable on select.
-   */
-  notNull() {
-    this.config.notNull = true;
-    return this;
-  }
-  /**
-   * Adds a `default <value>` clause to the column definition.
-   *
-   * Affects the `insert` model of the table - columns *with* `default` are optional on insert.
-   *
-   * If you need to set a dynamic default value, use {@link $defaultFn} instead.
-   */
-  default(value) {
-    this.config.default = value;
-    this.config.hasDefault = true;
-    return this;
-  }
-  /**
-   * Adds a dynamic default value to the column.
-   * The function will be called when the row is inserted, and the returned value will be used as the column value.
-   *
-   * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
-   */
-  $defaultFn(fn) {
-    this.config.defaultFn = fn;
-    this.config.hasDefault = true;
-    return this;
-  }
-  /**
-   * Alias for {@link $defaultFn}.
-   */
-  $default = this.$defaultFn;
-  /**
-   * Adds a dynamic update value to the column.
-   * The function will be called when the row is updated, and the returned value will be used as the column value if none is provided.
-   * If no `default` (or `$defaultFn`) value is provided, the function will be called when the row is inserted as well, and the returned value will be used as the column value.
-   *
-   * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
-   */
-  $onUpdateFn(fn) {
-    this.config.onUpdateFn = fn;
-    this.config.hasDefault = true;
-    return this;
-  }
-  /**
-   * Alias for {@link $onUpdateFn}.
-   */
-  $onUpdate = this.$onUpdateFn;
-  /**
-   * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
-   *
-   * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
-   */
-  primaryKey() {
-    this.config.primaryKey = true;
-    this.config.notNull = true;
-    return this;
-  }
-  /** @internal Sets the name of the column to the key within the table definition if a name was not given. */
-  setName(name) {
-    if (this.config.name !== "") return;
-    this.config.name = name;
-  }
-};
-
-// node_modules/drizzle-orm/pg-core/foreign-keys.js
-var ForeignKeyBuilder = class {
-  static [entityKind] = "PgForeignKeyBuilder";
-  /** @internal */
-  reference;
-  /** @internal */
-  _onUpdate = "no action";
-  /** @internal */
-  _onDelete = "no action";
-  constructor(config2, actions) {
-    this.reference = () => {
-      const { name, columns, foreignColumns } = config2();
-      return { name, columns, foreignTable: foreignColumns[0].table, foreignColumns };
-    };
-    if (actions) {
-      this._onUpdate = actions.onUpdate;
-      this._onDelete = actions.onDelete;
-    }
-  }
-  onUpdate(action) {
-    this._onUpdate = action === void 0 ? "no action" : action;
-    return this;
-  }
-  onDelete(action) {
-    this._onDelete = action === void 0 ? "no action" : action;
-    return this;
-  }
-  /** @internal */
-  build(table) {
-    return new ForeignKey(table, this);
-  }
-};
-var ForeignKey = class {
-  constructor(table, builder) {
-    this.table = table;
-    this.reference = builder.reference;
-    this.onUpdate = builder._onUpdate;
-    this.onDelete = builder._onDelete;
-  }
-  static [entityKind] = "PgForeignKey";
-  reference;
-  onUpdate;
-  onDelete;
-  getName() {
-    const { name, columns, foreignColumns } = this.reference();
-    const columnNames = columns.map((column) => column.name);
-    const foreignColumnNames = foreignColumns.map((column) => column.name);
-    const chunks = [
-      this.table[TableName],
-      ...columnNames,
-      foreignColumns[0].table[TableName],
-      ...foreignColumnNames
-    ];
-    return name ?? `${chunks.join("_")}_fk`;
-  }
-};
-
-// node_modules/drizzle-orm/tracing-utils.js
-function iife(fn, ...args) {
-  return fn(...args);
-}
-
-// node_modules/drizzle-orm/pg-core/unique-constraint.js
-function uniqueKeyName(table, columns) {
-  return `${table[TableName]}_${columns.join("_")}_unique`;
-}
-var UniqueConstraintBuilder = class {
-  constructor(columns, name) {
-    this.name = name;
-    this.columns = columns;
-  }
-  static [entityKind] = "PgUniqueConstraintBuilder";
-  /** @internal */
-  columns;
-  /** @internal */
-  nullsNotDistinctConfig = false;
-  nullsNotDistinct() {
-    this.nullsNotDistinctConfig = true;
-    return this;
-  }
-  /** @internal */
-  build(table) {
-    return new UniqueConstraint(table, this.columns, this.nullsNotDistinctConfig, this.name);
-  }
-};
-var UniqueOnConstraintBuilder = class {
-  static [entityKind] = "PgUniqueOnConstraintBuilder";
-  /** @internal */
-  name;
-  constructor(name) {
-    this.name = name;
-  }
-  on(...columns) {
-    return new UniqueConstraintBuilder(columns, this.name);
-  }
-};
-var UniqueConstraint = class {
-  constructor(table, columns, nullsNotDistinct, name) {
-    this.table = table;
-    this.columns = columns;
-    this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
-    this.nullsNotDistinct = nullsNotDistinct;
-  }
-  static [entityKind] = "PgUniqueConstraint";
-  columns;
-  name;
-  nullsNotDistinct = false;
-  getName() {
-    return this.name;
-  }
-};
-
-// node_modules/drizzle-orm/pg-core/utils/array.js
-function parsePgArrayValue(arrayString, startFrom, inQuotes) {
-  for (let i = startFrom; i < arrayString.length; i++) {
-    const char = arrayString[i];
-    if (char === "\\") {
-      i++;
-      continue;
-    }
-    if (char === '"') {
-      return [arrayString.slice(startFrom, i).replace(/\\/g, ""), i + 1];
-    }
-    if (inQuotes) {
-      continue;
-    }
-    if (char === "," || char === "}") {
-      return [arrayString.slice(startFrom, i).replace(/\\/g, ""), i];
-    }
-  }
-  return [arrayString.slice(startFrom).replace(/\\/g, ""), arrayString.length];
-}
-function parsePgNestedArray(arrayString, startFrom = 0) {
-  const result = [];
-  let i = startFrom;
-  let lastCharIsComma = false;
-  while (i < arrayString.length) {
-    const char = arrayString[i];
-    if (char === ",") {
-      if (lastCharIsComma || i === startFrom) {
-        result.push("");
-      }
-      lastCharIsComma = true;
-      i++;
-      continue;
-    }
-    lastCharIsComma = false;
-    if (char === "\\") {
-      i += 2;
-      continue;
-    }
-    if (char === '"') {
-      const [value2, startFrom2] = parsePgArrayValue(arrayString, i + 1, true);
-      result.push(value2);
-      i = startFrom2;
-      continue;
-    }
-    if (char === "}") {
-      return [result, i + 1];
-    }
-    if (char === "{") {
-      const [value2, startFrom2] = parsePgNestedArray(arrayString, i + 1);
-      result.push(value2);
-      i = startFrom2;
-      continue;
-    }
-    const [value, newStartFrom] = parsePgArrayValue(arrayString, i, false);
-    result.push(value);
-    i = newStartFrom;
-  }
-  return [result, i];
-}
-function parsePgArray(arrayString) {
-  const [result] = parsePgNestedArray(arrayString, 1);
-  return result;
-}
-function makePgArray(array2) {
-  return `{${array2.map((item) => {
-    if (Array.isArray(item)) {
-      return makePgArray(item);
-    }
-    if (typeof item === "string") {
-      return `"${item.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-    }
-    return `${item}`;
-  }).join(",")}}`;
-}
-
-// node_modules/drizzle-orm/pg-core/columns/common.js
-var PgColumnBuilder = class extends ColumnBuilder {
-  foreignKeyConfigs = [];
-  static [entityKind] = "PgColumnBuilder";
-  array(size) {
-    return new PgArrayBuilder(this.config.name, this, size);
-  }
-  references(ref, actions = {}) {
-    this.foreignKeyConfigs.push({ ref, actions });
-    return this;
-  }
-  unique(name, config2) {
-    this.config.isUnique = true;
-    this.config.uniqueName = name;
-    this.config.uniqueType = config2?.nulls;
-    return this;
-  }
-  generatedAlwaysAs(as) {
-    this.config.generated = {
-      as,
-      type: "always",
-      mode: "stored"
-    };
-    return this;
-  }
-  /** @internal */
-  buildForeignKeys(column, table) {
-    return this.foreignKeyConfigs.map(({ ref, actions }) => {
-      return iife(
-        (ref2, actions2) => {
-          const builder = new ForeignKeyBuilder(() => {
-            const foreignColumn = ref2();
-            return { columns: [column], foreignColumns: [foreignColumn] };
-          });
-          if (actions2.onUpdate) {
-            builder.onUpdate(actions2.onUpdate);
-          }
-          if (actions2.onDelete) {
-            builder.onDelete(actions2.onDelete);
-          }
-          return builder.build(table);
-        },
-        ref,
-        actions
-      );
-    });
-  }
-  /** @internal */
-  buildExtraConfigColumn(table) {
-    return new ExtraConfigColumn(table, this.config);
-  }
-};
-var PgColumn = class extends Column {
-  constructor(table, config2) {
-    if (!config2.uniqueName) {
-      config2.uniqueName = uniqueKeyName(table, [config2.name]);
-    }
-    super(table, config2);
-    this.table = table;
-  }
-  static [entityKind] = "PgColumn";
-};
-var ExtraConfigColumn = class extends PgColumn {
-  static [entityKind] = "ExtraConfigColumn";
-  getSQLType() {
-    return this.getSQLType();
-  }
-  indexConfig = {
-    order: this.config.order ?? "asc",
-    nulls: this.config.nulls ?? "last",
-    opClass: this.config.opClass
-  };
-  defaultConfig = {
-    order: "asc",
-    nulls: "last",
-    opClass: void 0
-  };
-  asc() {
-    this.indexConfig.order = "asc";
-    return this;
-  }
-  desc() {
-    this.indexConfig.order = "desc";
-    return this;
-  }
-  nullsFirst() {
-    this.indexConfig.nulls = "first";
-    return this;
-  }
-  nullsLast() {
-    this.indexConfig.nulls = "last";
-    return this;
-  }
-  /**
-   * ### PostgreSQL documentation quote
-   *
-   * > An operator class with optional parameters can be specified for each column of an index.
-   * The operator class identifies the operators to be used by the index for that column.
-   * For example, a B-tree index on four-byte integers would use the int4_ops class;
-   * this operator class includes comparison functions for four-byte integers.
-   * In practice the default operator class for the column's data type is usually sufficient.
-   * The main point of having operator classes is that for some data types, there could be more than one meaningful ordering.
-   * For example, we might want to sort a complex-number data type either by absolute value or by real part.
-   * We could do this by defining two operator classes for the data type and then selecting the proper class when creating an index.
-   * More information about operator classes check:
-   *
-   * ### Useful links
-   * https://www.postgresql.org/docs/current/sql-createindex.html
-   *
-   * https://www.postgresql.org/docs/current/indexes-opclass.html
-   *
-   * https://www.postgresql.org/docs/current/xindex.html
-   *
-   * ### Additional types
-   * If you have the `pg_vector` extension installed in your database, you can use the
-   * `vector_l2_ops`, `vector_ip_ops`, `vector_cosine_ops`, `vector_l1_ops`, `bit_hamming_ops`, `bit_jaccard_ops`, `halfvec_l2_ops`, `sparsevec_l2_ops` options, which are predefined types.
-   *
-   * **You can always specify any string you want in the operator class, in case Drizzle doesn't have it natively in its types**
-   *
-   * @param opClass
-   * @returns
-   */
-  op(opClass) {
-    this.indexConfig.opClass = opClass;
-    return this;
-  }
-};
-var IndexedColumn = class {
-  static [entityKind] = "IndexedColumn";
-  constructor(name, keyAsName, type, indexConfig) {
-    this.name = name;
-    this.keyAsName = keyAsName;
-    this.type = type;
-    this.indexConfig = indexConfig;
-  }
-  name;
-  keyAsName;
-  type;
-  indexConfig;
-};
-var PgArrayBuilder = class extends PgColumnBuilder {
-  static [entityKind] = "PgArrayBuilder";
-  constructor(name, baseBuilder, size) {
-    super(name, "array", "PgArray");
-    this.config.baseBuilder = baseBuilder;
-    this.config.size = size;
-  }
-  /** @internal */
-  build(table) {
-    const baseColumn = this.config.baseBuilder.build(table);
-    return new PgArray(
-      table,
-      this.config,
-      baseColumn
-    );
-  }
-};
-var PgArray = class _PgArray extends PgColumn {
-  constructor(table, config2, baseColumn, range) {
-    super(table, config2);
-    this.baseColumn = baseColumn;
-    this.range = range;
-    this.size = config2.size;
-  }
-  size;
-  static [entityKind] = "PgArray";
-  getSQLType() {
-    return `${this.baseColumn.getSQLType()}[${typeof this.size === "number" ? this.size : ""}]`;
-  }
-  mapFromDriverValue(value) {
-    if (typeof value === "string") {
-      value = parsePgArray(value);
-    }
-    return value.map((v) => this.baseColumn.mapFromDriverValue(v));
-  }
-  mapToDriverValue(value, isNestedArray = false) {
-    const a = value.map(
-      (v) => v === null ? null : is(this.baseColumn, _PgArray) ? this.baseColumn.mapToDriverValue(v, true) : this.baseColumn.mapToDriverValue(v)
-    );
-    if (isNestedArray) return a;
-    return makePgArray(a);
-  }
-};
-
-// node_modules/drizzle-orm/pg-core/columns/enum.js
-var PgEnumObjectColumnBuilder = class extends PgColumnBuilder {
-  static [entityKind] = "PgEnumObjectColumnBuilder";
-  constructor(name, enumInstance) {
-    super(name, "string", "PgEnumObjectColumn");
-    this.config.enum = enumInstance;
-  }
-  /** @internal */
-  build(table) {
-    return new PgEnumObjectColumn(
-      table,
-      this.config
-    );
-  }
-};
-var PgEnumObjectColumn = class extends PgColumn {
-  static [entityKind] = "PgEnumObjectColumn";
-  enum;
-  enumValues = this.config.enum.enumValues;
-  constructor(table, config2) {
-    super(table, config2);
-    this.enum = config2.enum;
-  }
-  getSQLType() {
-    return this.enum.enumName;
-  }
-};
-var isPgEnumSym = /* @__PURE__ */ Symbol.for("drizzle:isPgEnum");
-function isPgEnum(obj) {
-  return !!obj && typeof obj === "function" && isPgEnumSym in obj && obj[isPgEnumSym] === true;
-}
-var PgEnumColumnBuilder = class extends PgColumnBuilder {
-  static [entityKind] = "PgEnumColumnBuilder";
-  constructor(name, enumInstance) {
-    super(name, "string", "PgEnumColumn");
-    this.config.enum = enumInstance;
-  }
-  /** @internal */
-  build(table) {
-    return new PgEnumColumn(
-      table,
-      this.config
-    );
-  }
-};
-var PgEnumColumn = class extends PgColumn {
-  static [entityKind] = "PgEnumColumn";
-  enum = this.config.enum;
-  enumValues = this.config.enum.enumValues;
-  constructor(table, config2) {
-    super(table, config2);
-    this.enum = config2.enum;
-  }
-  getSQLType() {
-    return this.enum.enumName;
-  }
-};
-
-// node_modules/drizzle-orm/subquery.js
-var Subquery = class {
-  static [entityKind] = "Subquery";
-  constructor(sql2, fields, alias, isWith = false, usedTables = []) {
-    this._ = {
-      brand: "Subquery",
-      sql: sql2,
-      selectedFields: fields,
-      alias,
-      isWith,
-      usedTables
-    };
-  }
-  // getSQL(): SQL<unknown> {
-  // 	return new SQL([this]);
-  // }
-};
-var WithSubquery = class extends Subquery {
-  static [entityKind] = "WithSubquery";
-};
-
-// node_modules/drizzle-orm/version.js
-var version2 = "0.45.2";
-
-// node_modules/drizzle-orm/tracing.js
-var otel;
-var rawTracer;
-var tracer = {
-  startActiveSpan(name, fn) {
-    if (!otel) {
-      return fn();
-    }
-    if (!rawTracer) {
-      rawTracer = otel.trace.getTracer("drizzle-orm", version2);
-    }
-    return iife(
-      (otel2, rawTracer2) => rawTracer2.startActiveSpan(
-        name,
-        (span) => {
-          try {
-            return fn(span);
-          } catch (e) {
-            span.setStatus({
-              code: otel2.SpanStatusCode.ERROR,
-              message: e instanceof Error ? e.message : "Unknown error"
-              // eslint-disable-line no-instanceof/no-instanceof
-            });
-            throw e;
-          } finally {
-            span.end();
-          }
-        }
-      ),
-      otel,
-      rawTracer
-    );
-  }
-};
-
-// node_modules/drizzle-orm/view-common.js
-var ViewBaseConfig = /* @__PURE__ */ Symbol.for("drizzle:ViewBaseConfig");
-
-// node_modules/drizzle-orm/sql/sql.js
-var FakePrimitiveParam = class {
-  static [entityKind] = "FakePrimitiveParam";
-};
-function isSQLWrapper(value) {
-  return value !== null && value !== void 0 && typeof value.getSQL === "function";
-}
-function mergeQueries(queries) {
-  const result = { sql: "", params: [] };
-  for (const query of queries) {
-    result.sql += query.sql;
-    result.params.push(...query.params);
-    if (query.typings?.length) {
-      if (!result.typings) {
-        result.typings = [];
-      }
-      result.typings.push(...query.typings);
-    }
-  }
-  return result;
-}
-var StringChunk = class {
-  static [entityKind] = "StringChunk";
-  value;
-  constructor(value) {
-    this.value = Array.isArray(value) ? value : [value];
-  }
-  getSQL() {
-    return new SQL([this]);
-  }
-};
-var SQL = class _SQL {
-  constructor(queryChunks) {
-    this.queryChunks = queryChunks;
-    for (const chunk of queryChunks) {
-      if (is(chunk, Table)) {
-        const schemaName = chunk[Table.Symbol.Schema];
-        this.usedTables.push(
-          schemaName === void 0 ? chunk[Table.Symbol.Name] : schemaName + "." + chunk[Table.Symbol.Name]
-        );
-      }
-    }
-  }
-  static [entityKind] = "SQL";
-  /** @internal */
-  decoder = noopDecoder;
-  shouldInlineParams = false;
-  /** @internal */
-  usedTables = [];
-  append(query) {
-    this.queryChunks.push(...query.queryChunks);
-    return this;
-  }
-  toQuery(config2) {
-    return tracer.startActiveSpan("drizzle.buildSQL", (span) => {
-      const query = this.buildQueryFromSourceParams(this.queryChunks, config2);
-      span?.setAttributes({
-        "drizzle.query.text": query.sql,
-        "drizzle.query.params": JSON.stringify(query.params)
-      });
-      return query;
-    });
-  }
-  buildQueryFromSourceParams(chunks, _config) {
-    const config2 = Object.assign({}, _config, {
-      inlineParams: _config.inlineParams || this.shouldInlineParams,
-      paramStartIndex: _config.paramStartIndex || { value: 0 }
-    });
-    const {
-      casing,
-      escapeName,
-      escapeParam,
-      prepareTyping,
-      inlineParams,
-      paramStartIndex
-    } = config2;
-    return mergeQueries(chunks.map((chunk) => {
-      if (is(chunk, StringChunk)) {
-        return { sql: chunk.value.join(""), params: [] };
-      }
-      if (is(chunk, Name)) {
-        return { sql: escapeName(chunk.value), params: [] };
-      }
-      if (chunk === void 0) {
-        return { sql: "", params: [] };
-      }
-      if (Array.isArray(chunk)) {
-        const result = [new StringChunk("(")];
-        for (const [i, p] of chunk.entries()) {
-          result.push(p);
-          if (i < chunk.length - 1) {
-            result.push(new StringChunk(", "));
-          }
-        }
-        result.push(new StringChunk(")"));
-        return this.buildQueryFromSourceParams(result, config2);
-      }
-      if (is(chunk, _SQL)) {
-        return this.buildQueryFromSourceParams(chunk.queryChunks, {
-          ...config2,
-          inlineParams: inlineParams || chunk.shouldInlineParams
-        });
-      }
-      if (is(chunk, Table)) {
-        const schemaName = chunk[Table.Symbol.Schema];
-        const tableName = chunk[Table.Symbol.Name];
-        return {
-          sql: schemaName === void 0 || chunk[IsAlias] ? escapeName(tableName) : escapeName(schemaName) + "." + escapeName(tableName),
-          params: []
-        };
-      }
-      if (is(chunk, Column)) {
-        const columnName = casing.getColumnCasing(chunk);
-        if (_config.invokeSource === "indexes") {
-          return { sql: escapeName(columnName), params: [] };
-        }
-        const schemaName = chunk.table[Table.Symbol.Schema];
-        return {
-          sql: chunk.table[IsAlias] || schemaName === void 0 ? escapeName(chunk.table[Table.Symbol.Name]) + "." + escapeName(columnName) : escapeName(schemaName) + "." + escapeName(chunk.table[Table.Symbol.Name]) + "." + escapeName(columnName),
-          params: []
-        };
-      }
-      if (is(chunk, View)) {
-        const schemaName = chunk[ViewBaseConfig].schema;
-        const viewName = chunk[ViewBaseConfig].name;
-        return {
-          sql: schemaName === void 0 || chunk[ViewBaseConfig].isAlias ? escapeName(viewName) : escapeName(schemaName) + "." + escapeName(viewName),
-          params: []
-        };
-      }
-      if (is(chunk, Param)) {
-        if (is(chunk.value, Placeholder)) {
-          return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ["none"] };
-        }
-        const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
-        if (is(mappedValue, _SQL)) {
-          return this.buildQueryFromSourceParams([mappedValue], config2);
-        }
-        if (inlineParams) {
-          return { sql: this.mapInlineParam(mappedValue, config2), params: [] };
-        }
-        let typings = ["none"];
-        if (prepareTyping) {
-          typings = [prepareTyping(chunk.encoder)];
-        }
-        return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
-      }
-      if (is(chunk, Placeholder)) {
-        return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ["none"] };
-      }
-      if (is(chunk, _SQL.Aliased) && chunk.fieldAlias !== void 0) {
-        return { sql: escapeName(chunk.fieldAlias), params: [] };
-      }
-      if (is(chunk, Subquery)) {
-        if (chunk._.isWith) {
-          return { sql: escapeName(chunk._.alias), params: [] };
-        }
-        return this.buildQueryFromSourceParams([
-          new StringChunk("("),
-          chunk._.sql,
-          new StringChunk(") "),
-          new Name(chunk._.alias)
-        ], config2);
-      }
-      if (isPgEnum(chunk)) {
-        if (chunk.schema) {
-          return { sql: escapeName(chunk.schema) + "." + escapeName(chunk.enumName), params: [] };
-        }
-        return { sql: escapeName(chunk.enumName), params: [] };
-      }
-      if (isSQLWrapper(chunk)) {
-        if (chunk.shouldOmitSQLParens?.()) {
-          return this.buildQueryFromSourceParams([chunk.getSQL()], config2);
-        }
-        return this.buildQueryFromSourceParams([
-          new StringChunk("("),
-          chunk.getSQL(),
-          new StringChunk(")")
-        ], config2);
-      }
-      if (inlineParams) {
-        return { sql: this.mapInlineParam(chunk, config2), params: [] };
-      }
-      return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ["none"] };
-    }));
-  }
-  mapInlineParam(chunk, { escapeString }) {
-    if (chunk === null) {
-      return "null";
-    }
-    if (typeof chunk === "number" || typeof chunk === "boolean") {
-      return chunk.toString();
-    }
-    if (typeof chunk === "string") {
-      return escapeString(chunk);
-    }
-    if (typeof chunk === "object") {
-      const mappedValueAsString = chunk.toString();
-      if (mappedValueAsString === "[object Object]") {
-        return escapeString(JSON.stringify(chunk));
-      }
-      return escapeString(mappedValueAsString);
-    }
-    throw new Error("Unexpected param value: " + chunk);
-  }
-  getSQL() {
-    return this;
-  }
-  as(alias) {
-    if (alias === void 0) {
-      return this;
-    }
-    return new _SQL.Aliased(this, alias);
-  }
-  mapWith(decoder) {
-    this.decoder = typeof decoder === "function" ? { mapFromDriverValue: decoder } : decoder;
-    return this;
-  }
-  inlineParams() {
-    this.shouldInlineParams = true;
-    return this;
-  }
-  /**
-   * This method is used to conditionally include a part of the query.
-   *
-   * @param condition - Condition to check
-   * @returns itself if the condition is `true`, otherwise `undefined`
-   */
-  if(condition) {
-    return condition ? this : void 0;
-  }
-};
-var Name = class {
-  constructor(value) {
-    this.value = value;
-  }
-  static [entityKind] = "Name";
-  brand;
-  getSQL() {
-    return new SQL([this]);
-  }
-};
-function isDriverValueEncoder(value) {
-  return typeof value === "object" && value !== null && "mapToDriverValue" in value && typeof value.mapToDriverValue === "function";
-}
-var noopDecoder = {
-  mapFromDriverValue: (value) => value
-};
-var noopEncoder = {
-  mapToDriverValue: (value) => value
-};
-var noopMapper = {
-  ...noopDecoder,
-  ...noopEncoder
-};
-var Param = class {
-  /**
-   * @param value - Parameter value
-   * @param encoder - Encoder to convert the value to a driver parameter
-   */
-  constructor(value, encoder = noopEncoder) {
-    this.value = value;
-    this.encoder = encoder;
-  }
-  static [entityKind] = "Param";
-  brand;
-  getSQL() {
-    return new SQL([this]);
-  }
-};
-function sql(strings, ...params) {
-  const queryChunks = [];
-  if (params.length > 0 || strings.length > 0 && strings[0] !== "") {
-    queryChunks.push(new StringChunk(strings[0]));
-  }
-  for (const [paramIndex, param2] of params.entries()) {
-    queryChunks.push(param2, new StringChunk(strings[paramIndex + 1]));
-  }
-  return new SQL(queryChunks);
-}
-((sql2) => {
-  function empty() {
-    return new SQL([]);
-  }
-  sql2.empty = empty;
-  function fromList(list) {
-    return new SQL(list);
-  }
-  sql2.fromList = fromList;
-  function raw2(str) {
-    return new SQL([new StringChunk(str)]);
-  }
-  sql2.raw = raw2;
-  function join(chunks, separator) {
-    const result = [];
-    for (const [i, chunk] of chunks.entries()) {
-      if (i > 0 && separator !== void 0) {
-        result.push(separator);
-      }
-      result.push(chunk);
-    }
-    return new SQL(result);
-  }
-  sql2.join = join;
-  function identifier(value) {
-    return new Name(value);
-  }
-  sql2.identifier = identifier;
-  function placeholder2(name2) {
-    return new Placeholder(name2);
-  }
-  sql2.placeholder = placeholder2;
-  function param2(value, encoder) {
-    return new Param(value, encoder);
-  }
-  sql2.param = param2;
-})(sql || (sql = {}));
-((SQL2) => {
-  class Aliased {
-    constructor(sql2, fieldAlias) {
-      this.sql = sql2;
-      this.fieldAlias = fieldAlias;
-    }
-    static [entityKind] = "SQL.Aliased";
-    /** @internal */
-    isSelectionField = false;
-    getSQL() {
-      return this.sql;
-    }
-    /** @internal */
-    clone() {
-      return new Aliased(this.sql, this.fieldAlias);
-    }
-  }
-  SQL2.Aliased = Aliased;
-})(SQL || (SQL = {}));
-var Placeholder = class {
-  constructor(name2) {
-    this.name = name2;
-  }
-  static [entityKind] = "Placeholder";
-  getSQL() {
-    return new SQL([this]);
-  }
-};
-function fillPlaceholders(params, values) {
-  return params.map((p) => {
-    if (is(p, Placeholder)) {
-      if (!(p.name in values)) {
-        throw new Error(`No value for placeholder "${p.name}" was provided`);
-      }
-      return values[p.name];
-    }
-    if (is(p, Param) && is(p.value, Placeholder)) {
-      if (!(p.value.name in values)) {
-        throw new Error(`No value for placeholder "${p.value.name}" was provided`);
-      }
-      return p.encoder.mapToDriverValue(values[p.value.name]);
-    }
-    return p;
-  });
-}
-var IsDrizzleView = /* @__PURE__ */ Symbol.for("drizzle:IsDrizzleView");
-var View = class {
-  static [entityKind] = "View";
-  /** @internal */
-  [ViewBaseConfig];
-  /** @internal */
-  [IsDrizzleView] = true;
-  constructor({ name: name2, schema, selectedFields, query }) {
-    this[ViewBaseConfig] = {
-      name: name2,
-      originalName: name2,
-      schema,
-      selectedFields,
-      query,
-      isExisting: !query,
-      isAlias: false
-    };
-  }
-  getSQL() {
-    return new SQL([this]);
-  }
-};
-Column.prototype.getSQL = function() {
-  return new SQL([this]);
-};
-Table.prototype.getSQL = function() {
-  return new SQL([this]);
-};
-Subquery.prototype.getSQL = function() {
-  return new SQL([this]);
-};
-
-// node_modules/drizzle-orm/utils.js
-function mapResultRow(columns, row, joinsNotNullableMap) {
-  const nullifyMap = {};
-  const result = columns.reduce(
-    (result2, { path, field }, columnIndex) => {
-      let decoder;
-      if (is(field, Column)) {
-        decoder = field;
-      } else if (is(field, SQL)) {
-        decoder = field.decoder;
-      } else if (is(field, Subquery)) {
-        decoder = field._.sql.decoder;
-      } else {
-        decoder = field.sql.decoder;
-      }
-      let node = result2;
-      for (const [pathChunkIndex, pathChunk] of path.entries()) {
-        if (pathChunkIndex < path.length - 1) {
-          if (!(pathChunk in node)) {
-            node[pathChunk] = {};
-          }
-          node = node[pathChunk];
-        } else {
-          const rawValue = row[columnIndex];
-          const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
-          if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
-            const objectName = path[0];
-            if (!(objectName in nullifyMap)) {
-              nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-            } else if (typeof nullifyMap[objectName] === "string" && nullifyMap[objectName] !== getTableName(field.table)) {
-              nullifyMap[objectName] = false;
-            }
-          }
-        }
-      }
-      return result2;
-    },
-    {}
-  );
-  if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-    for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-      if (typeof tableName === "string" && !joinsNotNullableMap[tableName]) {
-        result[objectName] = null;
-      }
-    }
-  }
-  return result;
-}
-function orderSelectedFields(fields, pathPrefix) {
-  return Object.entries(fields).reduce((result, [name, field]) => {
-    if (typeof name !== "string") {
-      return result;
-    }
-    const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-    if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
-      result.push({ path: newPath, field });
-    } else if (is(field, Table)) {
-      result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
-    } else {
-      result.push(...orderSelectedFields(field, newPath));
-    }
-    return result;
-  }, []);
-}
-function haveSameKeys(left, right) {
-  const leftKeys = Object.keys(left);
-  const rightKeys = Object.keys(right);
-  if (leftKeys.length !== rightKeys.length) {
-    return false;
-  }
-  for (const [index, key] of leftKeys.entries()) {
-    if (key !== rightKeys[index]) {
-      return false;
-    }
-  }
-  return true;
-}
-function mapUpdateSet(table, values) {
-  const entries = Object.entries(values).filter(([, value]) => value !== void 0).map(([key, value]) => {
-    if (is(value, SQL) || is(value, Column)) {
-      return [key, value];
-    } else {
-      return [key, new Param(value, table[Table.Symbol.Columns][key])];
-    }
-  });
-  if (entries.length === 0) {
-    throw new Error("No values to set");
-  }
-  return Object.fromEntries(entries);
-}
-function applyMixins(baseClass, extendedClasses) {
-  for (const extendedClass of extendedClasses) {
-    for (const name of Object.getOwnPropertyNames(extendedClass.prototype)) {
-      if (name === "constructor") continue;
-      Object.defineProperty(
-        baseClass.prototype,
-        name,
-        Object.getOwnPropertyDescriptor(extendedClass.prototype, name) || /* @__PURE__ */ Object.create(null)
-      );
-    }
-  }
-}
-function getTableColumns(table) {
-  return table[Table.Symbol.Columns];
-}
-function getTableLikeName(table) {
-  return is(table, Subquery) ? table._.alias : is(table, View) ? table[ViewBaseConfig].name : is(table, SQL) ? void 0 : table[Table.Symbol.IsAlias] ? table[Table.Symbol.Name] : table[Table.Symbol.BaseName];
-}
-function getColumnNameAndConfig(a, b) {
-  return {
-    name: typeof a === "string" && a.length > 0 ? a : "",
-    config: typeof a === "object" ? a : b
-  };
-}
-function isConfig(data) {
-  if (typeof data !== "object" || data === null) return false;
-  if (data.constructor.name !== "Object") return false;
-  if ("logger" in data) {
-    const type = typeof data["logger"];
-    if (type !== "boolean" && (type !== "object" || typeof data["logger"]["logQuery"] !== "function") && type !== "undefined") return false;
-    return true;
-  }
-  if ("schema" in data) {
-    const type = typeof data["schema"];
-    if (type !== "object" && type !== "undefined") return false;
-    return true;
-  }
-  if ("casing" in data) {
-    const type = typeof data["casing"];
-    if (type !== "string" && type !== "undefined") return false;
-    return true;
-  }
-  if ("mode" in data) {
-    if (data["mode"] !== "default" || data["mode"] !== "planetscale" || data["mode"] !== void 0) return false;
-    return true;
-  }
-  if ("connection" in data) {
-    const type = typeof data["connection"];
-    if (type !== "string" && type !== "object" && type !== "undefined") return false;
-    return true;
-  }
-  if ("client" in data) {
-    const type = typeof data["client"];
-    if (type !== "object" && type !== "function" && type !== "undefined") return false;
-    return true;
-  }
-  if (Object.keys(data).length === 0) return true;
-  return false;
-}
-var textDecoder = typeof TextDecoder === "undefined" ? null : new TextDecoder();
-
-// node_modules/drizzle-orm/pg-core/table.js
-var InlineForeignKeys = /* @__PURE__ */ Symbol.for("drizzle:PgInlineForeignKeys");
-var EnableRLS = /* @__PURE__ */ Symbol.for("drizzle:EnableRLS");
-var PgTable = class extends Table {
-  static [entityKind] = "PgTable";
-  /** @internal */
-  static Symbol = Object.assign({}, Table.Symbol, {
-    InlineForeignKeys,
-    EnableRLS
-  });
-  /**@internal */
-  [InlineForeignKeys] = [];
-  /** @internal */
-  [EnableRLS] = false;
-  /** @internal */
-  [Table.Symbol.ExtraConfigBuilder] = void 0;
-  /** @internal */
-  [Table.Symbol.ExtraConfigColumns] = {};
-};
-
-// node_modules/drizzle-orm/pg-core/primary-keys.js
-var PrimaryKeyBuilder = class {
-  static [entityKind] = "PgPrimaryKeyBuilder";
-  /** @internal */
-  columns;
-  /** @internal */
-  name;
-  constructor(columns, name) {
-    this.columns = columns;
-    this.name = name;
-  }
-  /** @internal */
-  build(table) {
-    return new PrimaryKey(table, this.columns, this.name);
-  }
-};
-var PrimaryKey = class {
-  constructor(table, columns, name) {
-    this.table = table;
-    this.columns = columns;
-    this.name = name;
-  }
-  static [entityKind] = "PgPrimaryKey";
-  columns;
-  name;
-  getName() {
-    return this.name ?? `${this.table[PgTable.Symbol.Name]}_${this.columns.map((column) => column.name).join("_")}_pk`;
-  }
-};
-
-// node_modules/drizzle-orm/sql/expressions/conditions.js
-function bindIfParam(value, column) {
-  if (isDriverValueEncoder(column) && !isSQLWrapper(value) && !is(value, Param) && !is(value, Placeholder) && !is(value, Column) && !is(value, Table) && !is(value, View)) {
-    return new Param(value, column);
-  }
-  return value;
-}
-var eq = (left, right) => {
-  return sql`${left} = ${bindIfParam(right, left)}`;
-};
-var ne = (left, right) => {
-  return sql`${left} <> ${bindIfParam(right, left)}`;
-};
-function and(...unfilteredConditions) {
-  const conditions = unfilteredConditions.filter(
-    (c) => c !== void 0
-  );
-  if (conditions.length === 0) {
-    return void 0;
-  }
-  if (conditions.length === 1) {
-    return new SQL(conditions);
-  }
-  return new SQL([
-    new StringChunk("("),
-    sql.join(conditions, new StringChunk(" and ")),
-    new StringChunk(")")
-  ]);
-}
-function or(...unfilteredConditions) {
-  const conditions = unfilteredConditions.filter(
-    (c) => c !== void 0
-  );
-  if (conditions.length === 0) {
-    return void 0;
-  }
-  if (conditions.length === 1) {
-    return new SQL(conditions);
-  }
-  return new SQL([
-    new StringChunk("("),
-    sql.join(conditions, new StringChunk(" or ")),
-    new StringChunk(")")
-  ]);
-}
-function not(condition) {
-  return sql`not ${condition}`;
-}
-var gt = (left, right) => {
-  return sql`${left} > ${bindIfParam(right, left)}`;
-};
-var gte = (left, right) => {
-  return sql`${left} >= ${bindIfParam(right, left)}`;
-};
-var lt = (left, right) => {
-  return sql`${left} < ${bindIfParam(right, left)}`;
-};
-var lte = (left, right) => {
-  return sql`${left} <= ${bindIfParam(right, left)}`;
-};
-function inArray(column, values) {
-  if (Array.isArray(values)) {
-    if (values.length === 0) {
-      return sql`false`;
-    }
-    return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
-  }
-  return sql`${column} in ${bindIfParam(values, column)}`;
-}
-function notInArray(column, values) {
-  if (Array.isArray(values)) {
-    if (values.length === 0) {
-      return sql`true`;
-    }
-    return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
-  }
-  return sql`${column} not in ${bindIfParam(values, column)}`;
-}
-function isNull2(value) {
-  return sql`${value} is null`;
-}
-function isNotNull(value) {
-  return sql`${value} is not null`;
-}
-function exists(subquery) {
-  return sql`exists ${subquery}`;
-}
-function notExists(subquery) {
-  return sql`not exists ${subquery}`;
-}
-function between(column, min, max) {
-  return sql`${column} between ${bindIfParam(min, column)} and ${bindIfParam(
-    max,
-    column
-  )}`;
-}
-function notBetween(column, min, max) {
-  return sql`${column} not between ${bindIfParam(
-    min,
-    column
-  )} and ${bindIfParam(max, column)}`;
-}
-function like(column, value) {
-  return sql`${column} like ${value}`;
-}
-function notLike(column, value) {
-  return sql`${column} not like ${value}`;
-}
-function ilike(column, value) {
-  return sql`${column} ilike ${value}`;
-}
-function notIlike(column, value) {
-  return sql`${column} not ilike ${value}`;
-}
-
-// node_modules/drizzle-orm/sql/expressions/select.js
-function asc(column) {
-  return sql`${column} asc`;
-}
-function desc(column) {
-  return sql`${column} desc`;
-}
-
-// node_modules/drizzle-orm/relations.js
-var Relation = class {
-  constructor(sourceTable, referencedTable, relationName) {
-    this.sourceTable = sourceTable;
-    this.referencedTable = referencedTable;
-    this.relationName = relationName;
-    this.referencedTableName = referencedTable[Table.Symbol.Name];
-  }
-  static [entityKind] = "Relation";
-  referencedTableName;
-  fieldName;
-};
-var Relations = class {
-  constructor(table, config2) {
-    this.table = table;
-    this.config = config2;
-  }
-  static [entityKind] = "Relations";
-};
-var One = class _One extends Relation {
-  constructor(sourceTable, referencedTable, config2, isNullable) {
-    super(sourceTable, referencedTable, config2?.relationName);
-    this.config = config2;
-    this.isNullable = isNullable;
-  }
-  static [entityKind] = "One";
-  withFieldName(fieldName) {
-    const relation = new _One(
-      this.sourceTable,
-      this.referencedTable,
-      this.config,
-      this.isNullable
-    );
-    relation.fieldName = fieldName;
-    return relation;
-  }
-};
-var Many = class _Many extends Relation {
-  constructor(sourceTable, referencedTable, config2) {
-    super(sourceTable, referencedTable, config2?.relationName);
-    this.config = config2;
-  }
-  static [entityKind] = "Many";
-  withFieldName(fieldName) {
-    const relation = new _Many(
-      this.sourceTable,
-      this.referencedTable,
-      this.config
-    );
-    relation.fieldName = fieldName;
-    return relation;
-  }
-};
-function getOperators() {
-  return {
-    and,
-    between,
-    eq,
-    exists,
-    gt,
-    gte,
-    ilike,
-    inArray,
-    isNull: isNull2,
-    isNotNull,
-    like,
-    lt,
-    lte,
-    ne,
-    not,
-    notBetween,
-    notExists,
-    notLike,
-    notIlike,
-    notInArray,
-    or,
-    sql
-  };
-}
-function getOrderByOperators() {
-  return {
-    sql,
-    asc,
-    desc
-  };
-}
-function extractTablesRelationalConfig(schema, configHelpers) {
-  if (Object.keys(schema).length === 1 && "default" in schema && !is(schema["default"], Table)) {
-    schema = schema["default"];
-  }
-  const tableNamesMap = {};
-  const relationsBuffer = {};
-  const tablesConfig = {};
-  for (const [key, value] of Object.entries(schema)) {
-    if (is(value, Table)) {
-      const dbName = getTableUniqueName(value);
-      const bufferedRelations = relationsBuffer[dbName];
-      tableNamesMap[dbName] = key;
-      tablesConfig[key] = {
-        tsName: key,
-        dbName: value[Table.Symbol.Name],
-        schema: value[Table.Symbol.Schema],
-        columns: value[Table.Symbol.Columns],
-        relations: bufferedRelations?.relations ?? {},
-        primaryKey: bufferedRelations?.primaryKey ?? []
-      };
-      for (const column of Object.values(
-        value[Table.Symbol.Columns]
-      )) {
-        if (column.primary) {
-          tablesConfig[key].primaryKey.push(column);
-        }
-      }
-      const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.(value[Table.Symbol.ExtraConfigColumns]);
-      if (extraConfig) {
-        for (const configEntry of Object.values(extraConfig)) {
-          if (is(configEntry, PrimaryKeyBuilder)) {
-            tablesConfig[key].primaryKey.push(...configEntry.columns);
-          }
-        }
-      }
-    } else if (is(value, Relations)) {
-      const dbName = getTableUniqueName(value.table);
-      const tableName = tableNamesMap[dbName];
-      const relations2 = value.config(
-        configHelpers(value.table)
-      );
-      let primaryKey;
-      for (const [relationName, relation] of Object.entries(relations2)) {
-        if (tableName) {
-          const tableConfig = tablesConfig[tableName];
-          tableConfig.relations[relationName] = relation;
-          if (primaryKey) {
-            tableConfig.primaryKey.push(...primaryKey);
-          }
-        } else {
-          if (!(dbName in relationsBuffer)) {
-            relationsBuffer[dbName] = {
-              relations: {},
-              primaryKey
-            };
-          }
-          relationsBuffer[dbName].relations[relationName] = relation;
-        }
-      }
-    }
-  }
-  return { tables: tablesConfig, tableNamesMap };
-}
-function createOne(sourceTable) {
-  return function one(table, config2) {
-    return new One(
-      sourceTable,
-      table,
-      config2,
-      config2?.fields.reduce((res, f) => res && f.notNull, true) ?? false
-    );
-  };
-}
-function createMany(sourceTable) {
-  return function many(referencedTable, config2) {
-    return new Many(sourceTable, referencedTable, config2);
-  };
-}
-function normalizeRelation(schema, tableNamesMap, relation) {
-  if (is(relation, One) && relation.config) {
-    return {
-      fields: relation.config.fields,
-      references: relation.config.references
-    };
-  }
-  const referencedTableTsName = tableNamesMap[getTableUniqueName(relation.referencedTable)];
-  if (!referencedTableTsName) {
-    throw new Error(
-      `Table "${relation.referencedTable[Table.Symbol.Name]}" not found in schema`
-    );
-  }
-  const referencedTableConfig = schema[referencedTableTsName];
-  if (!referencedTableConfig) {
-    throw new Error(`Table "${referencedTableTsName}" not found in schema`);
-  }
-  const sourceTable = relation.sourceTable;
-  const sourceTableTsName = tableNamesMap[getTableUniqueName(sourceTable)];
-  if (!sourceTableTsName) {
-    throw new Error(
-      `Table "${sourceTable[Table.Symbol.Name]}" not found in schema`
-    );
-  }
-  const reverseRelations = [];
-  for (const referencedTableRelation of Object.values(
-    referencedTableConfig.relations
-  )) {
-    if (relation.relationName && relation !== referencedTableRelation && referencedTableRelation.relationName === relation.relationName || !relation.relationName && referencedTableRelation.referencedTable === relation.sourceTable) {
-      reverseRelations.push(referencedTableRelation);
-    }
-  }
-  if (reverseRelations.length > 1) {
-    throw relation.relationName ? new Error(
-      `There are multiple relations with name "${relation.relationName}" in table "${referencedTableTsName}"`
-    ) : new Error(
-      `There are multiple relations between "${referencedTableTsName}" and "${relation.sourceTable[Table.Symbol.Name]}". Please specify relation name`
-    );
-  }
-  if (reverseRelations[0] && is(reverseRelations[0], One) && reverseRelations[0].config) {
-    return {
-      fields: reverseRelations[0].config.references,
-      references: reverseRelations[0].config.fields
-    };
-  }
-  throw new Error(
-    `There is not enough information to infer relation "${sourceTableTsName}.${relation.fieldName}"`
-  );
-}
-function createTableRelationsHelpers(sourceTable) {
-  return {
-    one: createOne(sourceTable),
-    many: createMany(sourceTable)
-  };
-}
-function mapRelationalRow(tablesConfig, tableConfig, row, buildQueryResultSelection, mapColumnValue = (value) => value) {
-  const result = {};
-  for (const [
-    selectionItemIndex,
-    selectionItem
-  ] of buildQueryResultSelection.entries()) {
-    if (selectionItem.isJson) {
-      const relation = tableConfig.relations[selectionItem.tsKey];
-      const rawSubRows = row[selectionItemIndex];
-      const subRows = typeof rawSubRows === "string" ? JSON.parse(rawSubRows) : rawSubRows;
-      result[selectionItem.tsKey] = is(relation, One) ? subRows && mapRelationalRow(
-        tablesConfig,
-        tablesConfig[selectionItem.relationTableTsKey],
-        subRows,
-        selectionItem.selection,
-        mapColumnValue
-      ) : subRows.map(
-        (subRow) => mapRelationalRow(
-          tablesConfig,
-          tablesConfig[selectionItem.relationTableTsKey],
-          subRow,
-          selectionItem.selection,
-          mapColumnValue
-        )
-      );
-    } else {
-      const value = mapColumnValue(row[selectionItemIndex]);
-      const field = selectionItem.field;
-      let decoder;
-      if (is(field, Column)) {
-        decoder = field;
-      } else if (is(field, SQL)) {
-        decoder = field.decoder;
-      } else {
-        decoder = field.sql.decoder;
-      }
-      result[selectionItem.tsKey] = value === null ? null : decoder.mapFromDriverValue(value);
-    }
-  }
-  return result;
-}
-
-// node_modules/drizzle-orm/alias.js
-var ColumnAliasProxyHandler = class {
-  constructor(table) {
-    this.table = table;
-  }
-  static [entityKind] = "ColumnAliasProxyHandler";
-  get(columnObj, prop) {
-    if (prop === "table") {
-      return this.table;
-    }
-    return columnObj[prop];
-  }
-};
-var TableAliasProxyHandler = class {
-  constructor(alias, replaceOriginalName) {
-    this.alias = alias;
-    this.replaceOriginalName = replaceOriginalName;
-  }
-  static [entityKind] = "TableAliasProxyHandler";
-  get(target, prop) {
-    if (prop === Table.Symbol.IsAlias) {
-      return true;
-    }
-    if (prop === Table.Symbol.Name) {
-      return this.alias;
-    }
-    if (this.replaceOriginalName && prop === Table.Symbol.OriginalName) {
-      return this.alias;
-    }
-    if (prop === ViewBaseConfig) {
-      return {
-        ...target[ViewBaseConfig],
-        name: this.alias,
-        isAlias: true
-      };
-    }
-    if (prop === Table.Symbol.Columns) {
-      const columns = target[Table.Symbol.Columns];
-      if (!columns) {
-        return columns;
-      }
-      const proxiedColumns = {};
-      Object.keys(columns).map((key) => {
-        proxiedColumns[key] = new Proxy(
-          columns[key],
-          new ColumnAliasProxyHandler(new Proxy(target, this))
-        );
-      });
-      return proxiedColumns;
-    }
-    const value = target[prop];
-    if (is(value, Column)) {
-      return new Proxy(value, new ColumnAliasProxyHandler(new Proxy(target, this)));
-    }
-    return value;
-  }
-};
-var RelationTableAliasProxyHandler = class {
-  constructor(alias) {
-    this.alias = alias;
-  }
-  static [entityKind] = "RelationTableAliasProxyHandler";
-  get(target, prop) {
-    if (prop === "sourceTable") {
-      return aliasedTable(target.sourceTable, this.alias);
-    }
-    return target[prop];
-  }
-};
-function aliasedTable(table, tableAlias) {
-  return new Proxy(table, new TableAliasProxyHandler(tableAlias, false));
-}
-function aliasedTableColumn(column, tableAlias) {
-  return new Proxy(
-    column,
-    new ColumnAliasProxyHandler(new Proxy(column.table, new TableAliasProxyHandler(tableAlias, false)))
-  );
-}
-function mapColumnsInAliasedSQLToAlias(query, alias) {
-  return new SQL.Aliased(mapColumnsInSQLToAlias(query.sql, alias), query.fieldAlias);
-}
-function mapColumnsInSQLToAlias(query, alias) {
-  return sql.join(query.queryChunks.map((c) => {
-    if (is(c, Column)) {
-      return aliasedTableColumn(c, alias);
-    }
-    if (is(c, SQL)) {
-      return mapColumnsInSQLToAlias(c, alias);
-    }
-    if (is(c, SQL.Aliased)) {
-      return mapColumnsInAliasedSQLToAlias(c, alias);
-    }
-    return c;
-  }));
-}
-
-// node_modules/drizzle-orm/selection-proxy.js
-var SelectionProxyHandler = class _SelectionProxyHandler {
-  static [entityKind] = "SelectionProxyHandler";
-  config;
-  constructor(config2) {
-    this.config = { ...config2 };
-  }
-  get(subquery, prop) {
-    if (prop === "_") {
-      return {
-        ...subquery["_"],
-        selectedFields: new Proxy(
-          subquery._.selectedFields,
-          this
-        )
-      };
-    }
-    if (prop === ViewBaseConfig) {
-      return {
-        ...subquery[ViewBaseConfig],
-        selectedFields: new Proxy(
-          subquery[ViewBaseConfig].selectedFields,
-          this
-        )
-      };
-    }
-    if (typeof prop === "symbol") {
-      return subquery[prop];
-    }
-    const columns = is(subquery, Subquery) ? subquery._.selectedFields : is(subquery, View) ? subquery[ViewBaseConfig].selectedFields : subquery;
-    const value = columns[prop];
-    if (is(value, SQL.Aliased)) {
-      if (this.config.sqlAliasedBehavior === "sql" && !value.isSelectionField) {
-        return value.sql;
-      }
-      const newValue = value.clone();
-      newValue.isSelectionField = true;
-      return newValue;
-    }
-    if (is(value, SQL)) {
-      if (this.config.sqlBehavior === "sql") {
-        return value;
-      }
-      throw new Error(
-        `You tried to reference "${prop}" field from a subquery, which is a raw SQL field, but it doesn't have an alias declared. Please add an alias to the field using ".as('alias')" method.`
-      );
-    }
-    if (is(value, Column)) {
-      if (this.config.alias) {
-        return new Proxy(
-          value,
-          new ColumnAliasProxyHandler(
-            new Proxy(
-              value.table,
-              new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false)
-            )
-          )
-        );
-      }
-      return value;
-    }
-    if (typeof value !== "object" || value === null) {
-      return value;
-    }
-    return new Proxy(value, new _SelectionProxyHandler(this.config));
-  }
-};
-
-// node_modules/drizzle-orm/query-promise.js
-var QueryPromise = class {
-  static [entityKind] = "QueryPromise";
-  [Symbol.toStringTag] = "QueryPromise";
-  catch(onRejected) {
-    return this.then(void 0, onRejected);
-  }
-  finally(onFinally) {
-    return this.then(
-      (value) => {
-        onFinally?.();
-        return value;
-      },
-      (reason) => {
-        onFinally?.();
-        throw reason;
-      }
-    );
-  }
-  then(onFulfilled, onRejected) {
-    return this.execute().then(onFulfilled, onRejected);
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/foreign-keys.js
-var ForeignKeyBuilder2 = class {
-  static [entityKind] = "SQLiteForeignKeyBuilder";
-  /** @internal */
-  reference;
-  /** @internal */
-  _onUpdate;
-  /** @internal */
-  _onDelete;
-  constructor(config2, actions) {
-    this.reference = () => {
-      const { name, columns, foreignColumns } = config2();
-      return { name, columns, foreignTable: foreignColumns[0].table, foreignColumns };
-    };
-    if (actions) {
-      this._onUpdate = actions.onUpdate;
-      this._onDelete = actions.onDelete;
-    }
-  }
-  onUpdate(action) {
-    this._onUpdate = action;
-    return this;
-  }
-  onDelete(action) {
-    this._onDelete = action;
-    return this;
-  }
-  /** @internal */
-  build(table) {
-    return new ForeignKey2(table, this);
-  }
-};
-var ForeignKey2 = class {
-  constructor(table, builder) {
-    this.table = table;
-    this.reference = builder.reference;
-    this.onUpdate = builder._onUpdate;
-    this.onDelete = builder._onDelete;
-  }
-  static [entityKind] = "SQLiteForeignKey";
-  reference;
-  onUpdate;
-  onDelete;
-  getName() {
-    const { name, columns, foreignColumns } = this.reference();
-    const columnNames = columns.map((column) => column.name);
-    const foreignColumnNames = foreignColumns.map((column) => column.name);
-    const chunks = [
-      this.table[TableName],
-      ...columnNames,
-      foreignColumns[0].table[TableName],
-      ...foreignColumnNames
-    ];
-    return name ?? `${chunks.join("_")}_fk`;
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/unique-constraint.js
-function uniqueKeyName2(table, columns) {
-  return `${table[TableName]}_${columns.join("_")}_unique`;
-}
-var UniqueConstraintBuilder2 = class {
-  constructor(columns, name) {
-    this.name = name;
-    this.columns = columns;
-  }
-  static [entityKind] = "SQLiteUniqueConstraintBuilder";
-  /** @internal */
-  columns;
-  /** @internal */
-  build(table) {
-    return new UniqueConstraint2(table, this.columns, this.name);
-  }
-};
-var UniqueOnConstraintBuilder2 = class {
-  static [entityKind] = "SQLiteUniqueOnConstraintBuilder";
-  /** @internal */
-  name;
-  constructor(name) {
-    this.name = name;
-  }
-  on(...columns) {
-    return new UniqueConstraintBuilder2(columns, this.name);
-  }
-};
-var UniqueConstraint2 = class {
-  constructor(table, columns, name) {
-    this.table = table;
-    this.columns = columns;
-    this.name = name ?? uniqueKeyName2(this.table, this.columns.map((column) => column.name));
-  }
-  static [entityKind] = "SQLiteUniqueConstraint";
-  columns;
-  name;
-  getName() {
-    return this.name;
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/columns/common.js
-var SQLiteColumnBuilder = class extends ColumnBuilder {
-  static [entityKind] = "SQLiteColumnBuilder";
-  foreignKeyConfigs = [];
-  references(ref, actions = {}) {
-    this.foreignKeyConfigs.push({ ref, actions });
-    return this;
-  }
-  unique(name) {
-    this.config.isUnique = true;
-    this.config.uniqueName = name;
-    return this;
-  }
-  generatedAlwaysAs(as, config2) {
-    this.config.generated = {
-      as,
-      type: "always",
-      mode: config2?.mode ?? "virtual"
-    };
-    return this;
-  }
-  /** @internal */
-  buildForeignKeys(column, table) {
-    return this.foreignKeyConfigs.map(({ ref, actions }) => {
-      return ((ref2, actions2) => {
-        const builder = new ForeignKeyBuilder2(() => {
-          const foreignColumn = ref2();
-          return { columns: [column], foreignColumns: [foreignColumn] };
-        });
-        if (actions2.onUpdate) {
-          builder.onUpdate(actions2.onUpdate);
-        }
-        if (actions2.onDelete) {
-          builder.onDelete(actions2.onDelete);
-        }
-        return builder.build(table);
-      })(ref, actions);
-    });
-  }
-};
-var SQLiteColumn = class extends Column {
-  constructor(table, config2) {
-    if (!config2.uniqueName) {
-      config2.uniqueName = uniqueKeyName2(table, [config2.name]);
-    }
-    super(table, config2);
-    this.table = table;
-  }
-  static [entityKind] = "SQLiteColumn";
-};
-
-// node_modules/drizzle-orm/sqlite-core/columns/blob.js
-var SQLiteBigIntBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteBigIntBuilder";
-  constructor(name) {
-    super(name, "bigint", "SQLiteBigInt");
-  }
-  /** @internal */
-  build(table) {
-    return new SQLiteBigInt(table, this.config);
-  }
-};
-var SQLiteBigInt = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteBigInt";
-  getSQLType() {
-    return "blob";
-  }
-  mapFromDriverValue(value) {
-    if (typeof Buffer !== "undefined" && Buffer.from) {
-      const buf = Buffer.isBuffer(value) ? value : value instanceof ArrayBuffer ? Buffer.from(value) : value.buffer ? Buffer.from(value.buffer, value.byteOffset, value.byteLength) : Buffer.from(value);
-      return BigInt(buf.toString("utf8"));
-    }
-    return BigInt(textDecoder.decode(value));
-  }
-  mapToDriverValue(value) {
-    return Buffer.from(value.toString());
-  }
-};
-var SQLiteBlobJsonBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteBlobJsonBuilder";
-  constructor(name) {
-    super(name, "json", "SQLiteBlobJson");
-  }
-  /** @internal */
-  build(table) {
-    return new SQLiteBlobJson(
-      table,
-      this.config
-    );
-  }
-};
-var SQLiteBlobJson = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteBlobJson";
-  getSQLType() {
-    return "blob";
-  }
-  mapFromDriverValue(value) {
-    if (typeof Buffer !== "undefined" && Buffer.from) {
-      const buf = Buffer.isBuffer(value) ? value : value instanceof ArrayBuffer ? Buffer.from(value) : value.buffer ? Buffer.from(value.buffer, value.byteOffset, value.byteLength) : Buffer.from(value);
-      return JSON.parse(buf.toString("utf8"));
-    }
-    return JSON.parse(textDecoder.decode(value));
-  }
-  mapToDriverValue(value) {
-    return Buffer.from(JSON.stringify(value));
-  }
-};
-var SQLiteBlobBufferBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteBlobBufferBuilder";
-  constructor(name) {
-    super(name, "buffer", "SQLiteBlobBuffer");
-  }
-  /** @internal */
-  build(table) {
-    return new SQLiteBlobBuffer(table, this.config);
-  }
-};
-var SQLiteBlobBuffer = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteBlobBuffer";
-  mapFromDriverValue(value) {
-    if (Buffer.isBuffer(value)) {
-      return value;
-    }
-    return Buffer.from(value);
-  }
-  getSQLType() {
-    return "blob";
-  }
-};
-function blob(a, b) {
-  const { name, config: config2 } = getColumnNameAndConfig(a, b);
-  if (config2?.mode === "json") {
-    return new SQLiteBlobJsonBuilder(name);
-  }
-  if (config2?.mode === "bigint") {
-    return new SQLiteBigIntBuilder(name);
-  }
-  return new SQLiteBlobBufferBuilder(name);
-}
-
-// node_modules/drizzle-orm/sqlite-core/columns/custom.js
-var SQLiteCustomColumnBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteCustomColumnBuilder";
-  constructor(name, fieldConfig, customTypeParams) {
-    super(name, "custom", "SQLiteCustomColumn");
-    this.config.fieldConfig = fieldConfig;
-    this.config.customTypeParams = customTypeParams;
-  }
-  /** @internal */
-  build(table) {
-    return new SQLiteCustomColumn(
-      table,
-      this.config
-    );
-  }
-};
-var SQLiteCustomColumn = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteCustomColumn";
-  sqlName;
-  mapTo;
-  mapFrom;
-  constructor(table, config2) {
-    super(table, config2);
-    this.sqlName = config2.customTypeParams.dataType(config2.fieldConfig);
-    this.mapTo = config2.customTypeParams.toDriver;
-    this.mapFrom = config2.customTypeParams.fromDriver;
-  }
-  getSQLType() {
-    return this.sqlName;
-  }
-  mapFromDriverValue(value) {
-    return typeof this.mapFrom === "function" ? this.mapFrom(value) : value;
-  }
-  mapToDriverValue(value) {
-    return typeof this.mapTo === "function" ? this.mapTo(value) : value;
-  }
-};
-function customType(customTypeParams) {
-  return (a, b) => {
-    const { name, config: config2 } = getColumnNameAndConfig(a, b);
-    return new SQLiteCustomColumnBuilder(
-      name,
-      config2,
-      customTypeParams
-    );
-  };
-}
-
-// node_modules/drizzle-orm/sqlite-core/columns/integer.js
-var SQLiteBaseIntegerBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteBaseIntegerBuilder";
-  constructor(name, dataType, columnType) {
-    super(name, dataType, columnType);
-    this.config.autoIncrement = false;
-  }
-  primaryKey(config2) {
-    if (config2?.autoIncrement) {
-      this.config.autoIncrement = true;
-    }
-    this.config.hasDefault = true;
-    return super.primaryKey();
-  }
-};
-var SQLiteBaseInteger = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteBaseInteger";
-  autoIncrement = this.config.autoIncrement;
-  getSQLType() {
-    return "integer";
-  }
-};
-var SQLiteIntegerBuilder = class extends SQLiteBaseIntegerBuilder {
-  static [entityKind] = "SQLiteIntegerBuilder";
-  constructor(name) {
-    super(name, "number", "SQLiteInteger");
-  }
-  build(table) {
-    return new SQLiteInteger(
-      table,
-      this.config
-    );
-  }
-};
-var SQLiteInteger = class extends SQLiteBaseInteger {
-  static [entityKind] = "SQLiteInteger";
-};
-var SQLiteTimestampBuilder = class extends SQLiteBaseIntegerBuilder {
-  static [entityKind] = "SQLiteTimestampBuilder";
-  constructor(name, mode) {
-    super(name, "date", "SQLiteTimestamp");
-    this.config.mode = mode;
-  }
-  /**
-   * @deprecated Use `default()` with your own expression instead.
-   *
-   * Adds `DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer))` to the column, which is the current epoch timestamp in milliseconds.
-   */
-  defaultNow() {
-    return this.default(sql`(cast((julianday('now') - 2440587.5)*86400000 as integer))`);
-  }
-  build(table) {
-    return new SQLiteTimestamp(
-      table,
-      this.config
-    );
-  }
-};
-var SQLiteTimestamp = class extends SQLiteBaseInteger {
-  static [entityKind] = "SQLiteTimestamp";
-  mode = this.config.mode;
-  mapFromDriverValue(value) {
-    if (this.config.mode === "timestamp") {
-      return new Date(value * 1e3);
-    }
-    return new Date(value);
-  }
-  mapToDriverValue(value) {
-    const unix = value.getTime();
-    if (this.config.mode === "timestamp") {
-      return Math.floor(unix / 1e3);
-    }
-    return unix;
-  }
-};
-var SQLiteBooleanBuilder = class extends SQLiteBaseIntegerBuilder {
-  static [entityKind] = "SQLiteBooleanBuilder";
-  constructor(name, mode) {
-    super(name, "boolean", "SQLiteBoolean");
-    this.config.mode = mode;
-  }
-  build(table) {
-    return new SQLiteBoolean(
-      table,
-      this.config
-    );
-  }
-};
-var SQLiteBoolean = class extends SQLiteBaseInteger {
-  static [entityKind] = "SQLiteBoolean";
-  mode = this.config.mode;
-  mapFromDriverValue(value) {
-    return Number(value) === 1;
-  }
-  mapToDriverValue(value) {
-    return value ? 1 : 0;
-  }
-};
-function integer2(a, b) {
-  const { name, config: config2 } = getColumnNameAndConfig(a, b);
-  if (config2?.mode === "timestamp" || config2?.mode === "timestamp_ms") {
-    return new SQLiteTimestampBuilder(name, config2.mode);
-  }
-  if (config2?.mode === "boolean") {
-    return new SQLiteBooleanBuilder(name, config2.mode);
-  }
-  return new SQLiteIntegerBuilder(name);
-}
-
-// node_modules/drizzle-orm/sqlite-core/columns/numeric.js
-var SQLiteNumericBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteNumericBuilder";
-  constructor(name) {
-    super(name, "string", "SQLiteNumeric");
-  }
-  /** @internal */
-  build(table) {
-    return new SQLiteNumeric(
-      table,
-      this.config
-    );
-  }
-};
-var SQLiteNumeric = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteNumeric";
-  mapFromDriverValue(value) {
-    if (typeof value === "string") return value;
-    return String(value);
-  }
-  getSQLType() {
-    return "numeric";
-  }
-};
-var SQLiteNumericNumberBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteNumericNumberBuilder";
-  constructor(name) {
-    super(name, "number", "SQLiteNumericNumber");
-  }
-  /** @internal */
-  build(table) {
-    return new SQLiteNumericNumber(
-      table,
-      this.config
-    );
-  }
-};
-var SQLiteNumericNumber = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteNumericNumber";
-  mapFromDriverValue(value) {
-    if (typeof value === "number") return value;
-    return Number(value);
-  }
-  mapToDriverValue = String;
-  getSQLType() {
-    return "numeric";
-  }
-};
-var SQLiteNumericBigIntBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteNumericBigIntBuilder";
-  constructor(name) {
-    super(name, "bigint", "SQLiteNumericBigInt");
-  }
-  /** @internal */
-  build(table) {
-    return new SQLiteNumericBigInt(
-      table,
-      this.config
-    );
-  }
-};
-var SQLiteNumericBigInt = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteNumericBigInt";
-  mapFromDriverValue = BigInt;
-  mapToDriverValue = String;
-  getSQLType() {
-    return "numeric";
-  }
-};
-function numeric(a, b) {
-  const { name, config: config2 } = getColumnNameAndConfig(a, b);
-  const mode = config2?.mode;
-  return mode === "number" ? new SQLiteNumericNumberBuilder(name) : mode === "bigint" ? new SQLiteNumericBigIntBuilder(name) : new SQLiteNumericBuilder(name);
-}
-
-// node_modules/drizzle-orm/sqlite-core/columns/real.js
-var SQLiteRealBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteRealBuilder";
-  constructor(name) {
-    super(name, "number", "SQLiteReal");
-  }
-  /** @internal */
-  build(table) {
-    return new SQLiteReal(table, this.config);
-  }
-};
-var SQLiteReal = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteReal";
-  getSQLType() {
-    return "real";
-  }
-};
-function real(name) {
-  return new SQLiteRealBuilder(name ?? "");
-}
-
-// node_modules/drizzle-orm/sqlite-core/columns/text.js
-var SQLiteTextBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteTextBuilder";
-  constructor(name, config2) {
-    super(name, "string", "SQLiteText");
-    this.config.enumValues = config2.enum;
-    this.config.length = config2.length;
-  }
-  /** @internal */
-  build(table) {
-    return new SQLiteText(
-      table,
-      this.config
-    );
-  }
-};
-var SQLiteText = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteText";
-  enumValues = this.config.enumValues;
-  length = this.config.length;
-  constructor(table, config2) {
-    super(table, config2);
-  }
-  getSQLType() {
-    return `text${this.config.length ? `(${this.config.length})` : ""}`;
-  }
-};
-var SQLiteTextJsonBuilder = class extends SQLiteColumnBuilder {
-  static [entityKind] = "SQLiteTextJsonBuilder";
-  constructor(name) {
-    super(name, "json", "SQLiteTextJson");
-  }
-  /** @internal */
-  build(table) {
-    return new SQLiteTextJson(
-      table,
-      this.config
-    );
-  }
-};
-var SQLiteTextJson = class extends SQLiteColumn {
-  static [entityKind] = "SQLiteTextJson";
-  getSQLType() {
-    return "text";
-  }
-  mapFromDriverValue(value) {
-    return JSON.parse(value);
-  }
-  mapToDriverValue(value) {
-    return JSON.stringify(value);
-  }
-};
-function text(a, b = {}) {
-  const { name, config: config2 } = getColumnNameAndConfig(a, b);
-  if (config2.mode === "json") {
-    return new SQLiteTextJsonBuilder(name);
-  }
-  return new SQLiteTextBuilder(name, config2);
-}
-
-// node_modules/drizzle-orm/sqlite-core/columns/all.js
-function getSQLiteColumnBuilders() {
-  return {
-    blob,
-    customType,
-    integer: integer2,
-    numeric,
-    real,
-    text
-  };
-}
-
-// node_modules/drizzle-orm/sqlite-core/table.js
-var InlineForeignKeys2 = /* @__PURE__ */ Symbol.for("drizzle:SQLiteInlineForeignKeys");
-var SQLiteTable = class extends Table {
-  static [entityKind] = "SQLiteTable";
-  /** @internal */
-  static Symbol = Object.assign({}, Table.Symbol, {
-    InlineForeignKeys: InlineForeignKeys2
-  });
-  /** @internal */
-  [Table.Symbol.Columns];
-  /** @internal */
-  [InlineForeignKeys2] = [];
-  /** @internal */
-  [Table.Symbol.ExtraConfigBuilder] = void 0;
-};
-function sqliteTableBase(name, columns, extraConfig, schema, baseName = name) {
-  const rawTable = new SQLiteTable(name, schema, baseName);
-  const parsedColumns = typeof columns === "function" ? columns(getSQLiteColumnBuilders()) : columns;
-  const builtColumns = Object.fromEntries(
-    Object.entries(parsedColumns).map(([name2, colBuilderBase]) => {
-      const colBuilder = colBuilderBase;
-      colBuilder.setName(name2);
-      const column = colBuilder.build(rawTable);
-      rawTable[InlineForeignKeys2].push(...colBuilder.buildForeignKeys(column, rawTable));
-      return [name2, column];
-    })
-  );
-  const table = Object.assign(rawTable, builtColumns);
-  table[Table.Symbol.Columns] = builtColumns;
-  table[Table.Symbol.ExtraConfigColumns] = builtColumns;
-  if (extraConfig) {
-    table[SQLiteTable.Symbol.ExtraConfigBuilder] = extraConfig;
-  }
-  return table;
-}
-var sqliteTable = (name, columns, extraConfig) => {
-  return sqliteTableBase(name, columns, extraConfig);
-};
-
-// node_modules/drizzle-orm/sqlite-core/utils.js
-function extractUsedTable(table) {
-  if (is(table, SQLiteTable)) {
-    return [`${table[Table.Symbol.BaseName]}`];
-  }
-  if (is(table, Subquery)) {
-    return table._.usedTables ?? [];
-  }
-  if (is(table, SQL)) {
-    return table.usedTables ?? [];
-  }
-  return [];
-}
-
-// node_modules/drizzle-orm/sqlite-core/query-builders/delete.js
-var SQLiteDeleteBase = class extends QueryPromise {
-  constructor(table, session, dialect, withList) {
-    super();
-    this.table = table;
-    this.session = session;
-    this.dialect = dialect;
-    this.config = { table, withList };
-  }
-  static [entityKind] = "SQLiteDelete";
-  /** @internal */
-  config;
-  /**
-   * Adds a `where` clause to the query.
-   *
-   * Calling this method will delete only those rows that fulfill a specified condition.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/delete}
-   *
-   * @param where the `where` clause.
-   *
-   * @example
-   * You can use conditional operators and `sql function` to filter the rows to be deleted.
-   *
-   * ```ts
-   * // Delete all cars with green color
-   * db.delete(cars).where(eq(cars.color, 'green'));
-   * // or
-   * db.delete(cars).where(sql`${cars.color} = 'green'`)
-   * ```
-   *
-   * You can logically combine conditional operators with `and()` and `or()` operators:
-   *
-   * ```ts
-   * // Delete all BMW cars with a green color
-   * db.delete(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-   *
-   * // Delete all cars with the green or blue color
-   * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
-   * ```
-   */
-  where(where) {
-    this.config.where = where;
-    return this;
-  }
-  orderBy(...columns) {
-    if (typeof columns[0] === "function") {
-      const orderBy = columns[0](
-        new Proxy(
-          this.config.table[Table.Symbol.Columns],
-          new SelectionProxyHandler({ sqlAliasedBehavior: "alias", sqlBehavior: "sql" })
-        )
-      );
-      const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
-      this.config.orderBy = orderByArray;
-    } else {
-      const orderByArray = columns;
-      this.config.orderBy = orderByArray;
-    }
-    return this;
-  }
-  limit(limit) {
-    this.config.limit = limit;
-    return this;
-  }
-  returning(fields = this.table[SQLiteTable.Symbol.Columns]) {
-    this.config.returning = orderSelectedFields(fields);
-    return this;
-  }
-  /** @internal */
-  getSQL() {
-    return this.dialect.buildDeleteQuery(this.config);
-  }
-  toSQL() {
-    const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-    return rest;
-  }
-  /** @internal */
-  _prepare(isOneTimeQuery = true) {
-    return this.session[isOneTimeQuery ? "prepareOneTimeQuery" : "prepareQuery"](
-      this.dialect.sqlToQuery(this.getSQL()),
-      this.config.returning,
-      this.config.returning ? "all" : "run",
-      true,
-      void 0,
-      {
-        type: "delete",
-        tables: extractUsedTable(this.config.table)
-      }
-    );
-  }
-  prepare() {
-    return this._prepare(false);
-  }
-  run = (placeholderValues) => {
-    return this._prepare().run(placeholderValues);
-  };
-  all = (placeholderValues) => {
-    return this._prepare().all(placeholderValues);
-  };
-  get = (placeholderValues) => {
-    return this._prepare().get(placeholderValues);
-  };
-  values = (placeholderValues) => {
-    return this._prepare().values(placeholderValues);
-  };
-  async execute(placeholderValues) {
-    return this._prepare().execute(placeholderValues);
-  }
-  $dynamic() {
-    return this;
-  }
-};
-
-// node_modules/drizzle-orm/casing.js
-function toSnakeCase(input) {
-  const words = input.replace(/['\u2019]/g, "").match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? [];
-  return words.map((word) => word.toLowerCase()).join("_");
-}
-function toCamelCase(input) {
-  const words = input.replace(/['\u2019]/g, "").match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? [];
-  return words.reduce((acc, word, i) => {
-    const formattedWord = i === 0 ? word.toLowerCase() : `${word[0].toUpperCase()}${word.slice(1)}`;
-    return acc + formattedWord;
-  }, "");
-}
-function noopCase(input) {
-  return input;
-}
-var CasingCache = class {
-  static [entityKind] = "CasingCache";
-  /** @internal */
-  cache = {};
-  cachedTables = {};
-  convert;
-  constructor(casing) {
-    this.convert = casing === "snake_case" ? toSnakeCase : casing === "camelCase" ? toCamelCase : noopCase;
-  }
-  getColumnCasing(column) {
-    if (!column.keyAsName) return column.name;
-    const schema = column.table[Table.Symbol.Schema] ?? "public";
-    const tableName = column.table[Table.Symbol.OriginalName];
-    const key = `${schema}.${tableName}.${column.name}`;
-    if (!this.cache[key]) {
-      this.cacheTable(column.table);
-    }
-    return this.cache[key];
-  }
-  cacheTable(table) {
-    const schema = table[Table.Symbol.Schema] ?? "public";
-    const tableName = table[Table.Symbol.OriginalName];
-    const tableKey = `${schema}.${tableName}`;
-    if (!this.cachedTables[tableKey]) {
-      for (const column of Object.values(table[Table.Symbol.Columns])) {
-        const columnKey = `${tableKey}.${column.name}`;
-        this.cache[columnKey] = this.convert(column.name);
-      }
-      this.cachedTables[tableKey] = true;
-    }
-  }
-  clearCache() {
-    this.cache = {};
-    this.cachedTables = {};
-  }
-};
-
-// node_modules/drizzle-orm/errors.js
-var DrizzleError = class extends Error {
-  static [entityKind] = "DrizzleError";
-  constructor({ message, cause }) {
-    super(message);
-    this.name = "DrizzleError";
-    this.cause = cause;
-  }
-};
-var DrizzleQueryError = class _DrizzleQueryError extends Error {
-  constructor(query, params, cause) {
-    super(`Failed query: ${query}
-params: ${params}`);
-    this.query = query;
-    this.params = params;
-    this.cause = cause;
-    Error.captureStackTrace(this, _DrizzleQueryError);
-    if (cause) this.cause = cause;
-  }
-};
-var TransactionRollbackError = class extends DrizzleError {
-  static [entityKind] = "TransactionRollbackError";
-  constructor() {
-    super({ message: "Rollback" });
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/view-base.js
-var SQLiteViewBase = class extends View {
-  static [entityKind] = "SQLiteViewBase";
-};
-
-// node_modules/drizzle-orm/sqlite-core/dialect.js
-var SQLiteDialect = class {
-  static [entityKind] = "SQLiteDialect";
-  /** @internal */
-  casing;
-  constructor(config2) {
-    this.casing = new CasingCache(config2?.casing);
-  }
-  escapeName(name) {
-    return `"${name.replace(/"/g, '""')}"`;
-  }
-  escapeParam(_num) {
-    return "?";
-  }
-  escapeString(str) {
-    return `'${str.replace(/'/g, "''")}'`;
-  }
-  buildWithCTE(queries) {
-    if (!queries?.length) return void 0;
-    const withSqlChunks = [sql`with `];
-    for (const [i, w] of queries.entries()) {
-      withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
-      if (i < queries.length - 1) {
-        withSqlChunks.push(sql`, `);
-      }
-    }
-    withSqlChunks.push(sql` `);
-    return sql.join(withSqlChunks);
-  }
-  buildDeleteQuery({
-    table,
-    where,
-    returning,
-    withList,
-    limit,
-    orderBy
-  }) {
-    const withSql = this.buildWithCTE(withList);
-    const returningSql = returning ? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}` : void 0;
-    const whereSql = where ? sql` where ${where}` : void 0;
-    const orderBySql = this.buildOrderBy(orderBy);
-    const limitSql = this.buildLimit(limit);
-    return sql`${withSql}delete from ${table}${whereSql}${returningSql}${orderBySql}${limitSql}`;
-  }
-  buildUpdateSet(table, set2) {
-    const tableColumns = table[Table.Symbol.Columns];
-    const columnNames = Object.keys(tableColumns).filter(
-      (colName) => set2[colName] !== void 0 || tableColumns[colName]?.onUpdateFn !== void 0
-    );
-    const setSize = columnNames.length;
-    return sql.join(
-      columnNames.flatMap((colName, i) => {
-        const col = tableColumns[colName];
-        const onUpdateFnResult = col.onUpdateFn?.();
-        const value = set2[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-        const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
-        if (i < setSize - 1) {
-          return [res, sql.raw(", ")];
-        }
-        return [res];
-      })
-    );
-  }
-  buildUpdateQuery({
-    table,
-    set: set2,
-    where,
-    returning,
-    withList,
-    joins,
-    from,
-    limit,
-    orderBy
-  }) {
-    const withSql = this.buildWithCTE(withList);
-    const setSql = this.buildUpdateSet(table, set2);
-    const fromSql = from && sql.join([sql.raw(" from "), this.buildFromTable(from)]);
-    const joinsSql = this.buildJoins(joins);
-    const returningSql = returning ? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}` : void 0;
-    const whereSql = where ? sql` where ${where}` : void 0;
-    const orderBySql = this.buildOrderBy(orderBy);
-    const limitSql = this.buildLimit(limit);
-    return sql`${withSql}update ${table} set ${setSql}${fromSql}${joinsSql}${whereSql}${returningSql}${orderBySql}${limitSql}`;
-  }
-  /**
-   * Builds selection SQL with provided fields/expressions
-   *
-   * Examples:
-   *
-   * `select <selection> from`
-   *
-   * `insert ... returning <selection>`
-   *
-   * If `isSingleTable` is true, then columns won't be prefixed with table name
-   */
-  buildSelection(fields, { isSingleTable = false } = {}) {
-    const columnsLen = fields.length;
-    const chunks = fields.flatMap(({ field }, i) => {
-      const chunk = [];
-      if (is(field, SQL.Aliased) && field.isSelectionField) {
-        chunk.push(sql.identifier(field.fieldAlias));
-      } else if (is(field, SQL.Aliased) || is(field, SQL)) {
-        const query = is(field, SQL.Aliased) ? field.sql : field;
-        if (isSingleTable) {
-          chunk.push(
-            new SQL(
-              query.queryChunks.map((c) => {
-                if (is(c, Column)) {
-                  return sql.identifier(this.casing.getColumnCasing(c));
-                }
-                return c;
-              })
-            )
-          );
-        } else {
-          chunk.push(query);
-        }
-        if (is(field, SQL.Aliased)) {
-          chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
-        }
-      } else if (is(field, Column)) {
-        const tableName = field.table[Table.Symbol.Name];
-        if (field.columnType === "SQLiteNumericBigInt") {
-          if (isSingleTable) {
-            chunk.push(
-              sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`
-            );
-          } else {
-            chunk.push(
-              sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`
-            );
-          }
-        } else {
-          if (isSingleTable) {
-            chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-          } else {
-            chunk.push(
-              sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`
-            );
-          }
-        }
-      } else if (is(field, Subquery)) {
-        const entries = Object.entries(field._.selectedFields);
-        if (entries.length === 1) {
-          const entry = entries[0][1];
-          const fieldDecoder = is(entry, SQL) ? entry.decoder : is(entry, Column) ? { mapFromDriverValue: (v) => entry.mapFromDriverValue(v) } : entry.sql.decoder;
-          if (fieldDecoder) field._.sql.decoder = fieldDecoder;
-        }
-        chunk.push(field);
-      }
-      if (i < columnsLen - 1) {
-        chunk.push(sql`, `);
-      }
-      return chunk;
-    });
-    return sql.join(chunks);
-  }
-  buildJoins(joins) {
-    if (!joins || joins.length === 0) {
-      return void 0;
-    }
-    const joinsArray = [];
-    if (joins) {
-      for (const [index, joinMeta] of joins.entries()) {
-        if (index === 0) {
-          joinsArray.push(sql` `);
-        }
-        const table = joinMeta.table;
-        const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : void 0;
-        if (is(table, SQLiteTable)) {
-          const tableName = table[SQLiteTable.Symbol.Name];
-          const tableSchema = table[SQLiteTable.Symbol.Schema];
-          const origTableName = table[SQLiteTable.Symbol.OriginalName];
-          const alias = tableName === origTableName ? void 0 : joinMeta.alias;
-          joinsArray.push(
-            sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : void 0}${sql.identifier(
-              origTableName
-            )}${alias && sql` ${sql.identifier(alias)}`}${onSql}`
-          );
-        } else {
-          joinsArray.push(
-            sql`${sql.raw(joinMeta.joinType)} join ${table}${onSql}`
-          );
-        }
-        if (index < joins.length - 1) {
-          joinsArray.push(sql` `);
-        }
-      }
-    }
-    return sql.join(joinsArray);
-  }
-  buildLimit(limit) {
-    return typeof limit === "object" || typeof limit === "number" && limit >= 0 ? sql` limit ${limit}` : void 0;
-  }
-  buildOrderBy(orderBy) {
-    const orderByList = [];
-    if (orderBy) {
-      for (const [index, orderByValue] of orderBy.entries()) {
-        orderByList.push(orderByValue);
-        if (index < orderBy.length - 1) {
-          orderByList.push(sql`, `);
-        }
-      }
-    }
-    return orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : void 0;
-  }
-  buildFromTable(table) {
-    if (is(table, Table) && table[Table.Symbol.IsAlias]) {
-      return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? "")}.`.if(table[Table.Symbol.Schema])}${sql.identifier(
-        table[Table.Symbol.OriginalName]
-      )} ${sql.identifier(table[Table.Symbol.Name])}`;
-    }
-    return table;
-  }
-  buildSelectQuery({
-    withList,
-    fields,
-    fieldsFlat,
-    where,
-    having,
-    table,
-    joins,
-    orderBy,
-    groupBy,
-    limit,
-    offset,
-    distinct,
-    setOperators
-  }) {
-    const fieldsList = fieldsFlat ?? orderSelectedFields(fields);
-    for (const f of fieldsList) {
-      if (is(f.field, Column) && getTableName(f.field.table) !== (is(table, Subquery) ? table._.alias : is(table, SQLiteViewBase) ? table[ViewBaseConfig].name : is(table, SQL) ? void 0 : getTableName(table)) && !((table2) => joins?.some(
-        ({ alias }) => alias === (table2[Table.Symbol.IsAlias] ? getTableName(table2) : table2[Table.Symbol.BaseName])
-      ))(f.field.table)) {
-        const tableName = getTableName(f.field.table);
-        throw new Error(
-          `Your "${f.path.join(
-            "->"
-          )}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`
-        );
-      }
-    }
-    const isSingleTable = !joins || joins.length === 0;
-    const withSql = this.buildWithCTE(withList);
-    const distinctSql = distinct ? sql` distinct` : void 0;
-    const selection = this.buildSelection(fieldsList, { isSingleTable });
-    const tableSql = this.buildFromTable(table);
-    const joinsSql = this.buildJoins(joins);
-    const whereSql = where ? sql` where ${where}` : void 0;
-    const havingSql = having ? sql` having ${having}` : void 0;
-    const groupByList = [];
-    if (groupBy) {
-      for (const [index, groupByValue] of groupBy.entries()) {
-        groupByList.push(groupByValue);
-        if (index < groupBy.length - 1) {
-          groupByList.push(sql`, `);
-        }
-      }
-    }
-    const groupBySql = groupByList.length > 0 ? sql` group by ${sql.join(groupByList)}` : void 0;
-    const orderBySql = this.buildOrderBy(orderBy);
-    const limitSql = this.buildLimit(limit);
-    const offsetSql = offset ? sql` offset ${offset}` : void 0;
-    const finalQuery = sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
-    if (setOperators.length > 0) {
-      return this.buildSetOperations(finalQuery, setOperators);
-    }
-    return finalQuery;
-  }
-  buildSetOperations(leftSelect, setOperators) {
-    const [setOperator, ...rest] = setOperators;
-    if (!setOperator) {
-      throw new Error("Cannot pass undefined values to any set operator");
-    }
-    if (rest.length === 0) {
-      return this.buildSetOperationQuery({ leftSelect, setOperator });
-    }
-    return this.buildSetOperations(
-      this.buildSetOperationQuery({ leftSelect, setOperator }),
-      rest
-    );
-  }
-  buildSetOperationQuery({
-    leftSelect,
-    setOperator: { type, isAll, rightSelect, limit, orderBy, offset }
-  }) {
-    const leftChunk = sql`${leftSelect.getSQL()} `;
-    const rightChunk = sql`${rightSelect.getSQL()}`;
-    let orderBySql;
-    if (orderBy && orderBy.length > 0) {
-      const orderByValues = [];
-      for (const singleOrderBy of orderBy) {
-        if (is(singleOrderBy, SQLiteColumn)) {
-          orderByValues.push(sql.identifier(singleOrderBy.name));
-        } else if (is(singleOrderBy, SQL)) {
-          for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
-            const chunk = singleOrderBy.queryChunks[i];
-            if (is(chunk, SQLiteColumn)) {
-              singleOrderBy.queryChunks[i] = sql.identifier(
-                this.casing.getColumnCasing(chunk)
-              );
-            }
-          }
-          orderByValues.push(sql`${singleOrderBy}`);
-        } else {
-          orderByValues.push(sql`${singleOrderBy}`);
-        }
-      }
-      orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)}`;
-    }
-    const limitSql = typeof limit === "object" || typeof limit === "number" && limit >= 0 ? sql` limit ${limit}` : void 0;
-    const operatorChunk = sql.raw(`${type} ${isAll ? "all " : ""}`);
-    const offsetSql = offset ? sql` offset ${offset}` : void 0;
-    return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
-  }
-  buildInsertQuery({
-    table,
-    values: valuesOrSelect,
-    onConflict,
-    returning,
-    withList,
-    select
-  }) {
-    const valuesSqlList = [];
-    const columns = table[Table.Symbol.Columns];
-    const colEntries = Object.entries(columns).filter(
-      ([_, col]) => !col.shouldDisableInsert()
-    );
-    const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
-    if (select) {
-      const select2 = valuesOrSelect;
-      if (is(select2, SQL)) {
-        valuesSqlList.push(select2);
-      } else {
-        valuesSqlList.push(select2.getSQL());
-      }
-    } else {
-      const values = valuesOrSelect;
-      valuesSqlList.push(sql.raw("values "));
-      for (const [valueIndex, value] of values.entries()) {
-        const valueList = [];
-        for (const [fieldName, col] of colEntries) {
-          const colValue = value[fieldName];
-          if (colValue === void 0 || is(colValue, Param) && colValue.value === void 0) {
-            let defaultValue;
-            if (col.default !== null && col.default !== void 0) {
-              defaultValue = is(col.default, SQL) ? col.default : sql.param(col.default, col);
-            } else if (col.defaultFn !== void 0) {
-              const defaultFnResult = col.defaultFn();
-              defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
-            } else if (!col.default && col.onUpdateFn !== void 0) {
-              const onUpdateFnResult = col.onUpdateFn();
-              defaultValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
-            } else {
-              defaultValue = sql`null`;
-            }
-            valueList.push(defaultValue);
-          } else {
-            valueList.push(colValue);
-          }
-        }
-        valuesSqlList.push(valueList);
-        if (valueIndex < values.length - 1) {
-          valuesSqlList.push(sql`, `);
-        }
-      }
-    }
-    const withSql = this.buildWithCTE(withList);
-    const valuesSql = sql.join(valuesSqlList);
-    const returningSql = returning ? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}` : void 0;
-    const onConflictSql = onConflict?.length ? sql.join(onConflict) : void 0;
-    return sql`${withSql}insert into ${table} ${insertOrder} ${valuesSql}${onConflictSql}${returningSql}`;
-  }
-  sqlToQuery(sql2, invokeSource) {
-    return sql2.toQuery({
-      casing: this.casing,
-      escapeName: this.escapeName,
-      escapeParam: this.escapeParam,
-      escapeString: this.escapeString,
-      invokeSource
-    });
-  }
-  buildRelationalQuery({
-    fullSchema: fullSchema2,
-    schema,
-    tableNamesMap,
-    table,
-    tableConfig,
-    queryConfig: config2,
-    tableAlias,
-    nestedQueryRelation,
-    joinOn
-  }) {
-    let selection = [];
-    let limit, offset, orderBy = [], where;
-    const joins = [];
-    if (config2 === true) {
-      const selectionEntries = Object.entries(tableConfig.columns);
-      selection = selectionEntries.map(([key, value]) => ({
-        dbKey: value.name,
-        tsKey: key,
-        field: aliasedTableColumn(value, tableAlias),
-        relationTableTsKey: void 0,
-        isJson: false,
-        selection: []
-      }));
-    } else {
-      const aliasedColumns = Object.fromEntries(
-        Object.entries(tableConfig.columns).map(([key, value]) => [
-          key,
-          aliasedTableColumn(value, tableAlias)
-        ])
-      );
-      if (config2.where) {
-        const whereSql = typeof config2.where === "function" ? config2.where(aliasedColumns, getOperators()) : config2.where;
-        where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
-      }
-      const fieldsSelection = [];
-      let selectedColumns = [];
-      if (config2.columns) {
-        let isIncludeMode = false;
-        for (const [field, value] of Object.entries(config2.columns)) {
-          if (value === void 0) {
-            continue;
-          }
-          if (field in tableConfig.columns) {
-            if (!isIncludeMode && value === true) {
-              isIncludeMode = true;
-            }
-            selectedColumns.push(field);
-          }
-        }
-        if (selectedColumns.length > 0) {
-          selectedColumns = isIncludeMode ? selectedColumns.filter((c) => config2.columns?.[c] === true) : Object.keys(tableConfig.columns).filter(
-            (key) => !selectedColumns.includes(key)
-          );
-        }
-      } else {
-        selectedColumns = Object.keys(tableConfig.columns);
-      }
-      for (const field of selectedColumns) {
-        const column = tableConfig.columns[field];
-        fieldsSelection.push({ tsKey: field, value: column });
-      }
-      let selectedRelations = [];
-      if (config2.with) {
-        selectedRelations = Object.entries(config2.with).filter(
-          (entry) => !!entry[1]
-        ).map(([tsKey, queryConfig]) => ({
-          tsKey,
-          queryConfig,
-          relation: tableConfig.relations[tsKey]
-        }));
-      }
-      let extras;
-      if (config2.extras) {
-        extras = typeof config2.extras === "function" ? config2.extras(aliasedColumns, { sql }) : config2.extras;
-        for (const [tsKey, value] of Object.entries(extras)) {
-          fieldsSelection.push({
-            tsKey,
-            value: mapColumnsInAliasedSQLToAlias(value, tableAlias)
-          });
-        }
-      }
-      for (const { tsKey, value } of fieldsSelection) {
-        selection.push({
-          dbKey: is(value, SQL.Aliased) ? value.fieldAlias : tableConfig.columns[tsKey].name,
-          tsKey,
-          field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
-          relationTableTsKey: void 0,
-          isJson: false,
-          selection: []
-        });
-      }
-      let orderByOrig = typeof config2.orderBy === "function" ? config2.orderBy(aliasedColumns, getOrderByOperators()) : config2.orderBy ?? [];
-      if (!Array.isArray(orderByOrig)) {
-        orderByOrig = [orderByOrig];
-      }
-      orderBy = orderByOrig.map((orderByValue) => {
-        if (is(orderByValue, Column)) {
-          return aliasedTableColumn(orderByValue, tableAlias);
-        }
-        return mapColumnsInSQLToAlias(orderByValue, tableAlias);
-      });
-      limit = config2.limit;
-      offset = config2.offset;
-      for (const {
-        tsKey: selectedRelationTsKey,
-        queryConfig: selectedRelationConfigValue,
-        relation
-      } of selectedRelations) {
-        const normalizedRelation = normalizeRelation(
-          schema,
-          tableNamesMap,
-          relation
-        );
-        const relationTableName = getTableUniqueName(relation.referencedTable);
-        const relationTableTsName = tableNamesMap[relationTableName];
-        const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
-        const joinOn2 = and(
-          ...normalizedRelation.fields.map(
-            (field2, i) => eq(
-              aliasedTableColumn(
-                normalizedRelation.references[i],
-                relationTableAlias
-              ),
-              aliasedTableColumn(field2, tableAlias)
-            )
-          )
-        );
-        const builtRelation = this.buildRelationalQuery({
-          fullSchema: fullSchema2,
-          schema,
-          tableNamesMap,
-          table: fullSchema2[relationTableTsName],
-          tableConfig: schema[relationTableTsName],
-          queryConfig: is(relation, One) ? selectedRelationConfigValue === true ? { limit: 1 } : { ...selectedRelationConfigValue, limit: 1 } : selectedRelationConfigValue,
-          tableAlias: relationTableAlias,
-          joinOn: joinOn2,
-          nestedQueryRelation: relation
-        });
-        const field = sql`(${builtRelation.sql})`.as(selectedRelationTsKey);
-        selection.push({
-          dbKey: selectedRelationTsKey,
-          tsKey: selectedRelationTsKey,
-          field,
-          relationTableTsKey: relationTableTsName,
-          isJson: true,
-          selection: builtRelation.selection
-        });
-      }
-    }
-    if (selection.length === 0) {
-      throw new DrizzleError({
-        message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}"). You need to have at least one item in "columns", "with" or "extras". If you need to select all columns, omit the "columns" key or set it to undefined.`
-      });
-    }
-    let result;
-    where = and(joinOn, where);
-    if (nestedQueryRelation) {
-      let field = sql`json_array(${sql.join(
-        selection.map(
-          ({ field: field2 }) => is(field2, SQLiteColumn) ? sql.identifier(this.casing.getColumnCasing(field2)) : is(field2, SQL.Aliased) ? field2.sql : field2
-        ),
-        sql`, `
-      )})`;
-      if (is(nestedQueryRelation, Many)) {
-        field = sql`coalesce(json_group_array(${field}), json_array())`;
-      }
-      const nestedSelection = [
-        {
-          dbKey: "data",
-          tsKey: "data",
-          field: field.as("data"),
-          isJson: true,
-          relationTableTsKey: tableConfig.tsName,
-          selection
-        }
-      ];
-      const needsSubquery = limit !== void 0 || offset !== void 0 || orderBy.length > 0;
-      if (needsSubquery) {
-        result = this.buildSelectQuery({
-          table: aliasedTable(table, tableAlias),
-          fields: {},
-          fieldsFlat: [
-            {
-              path: [],
-              field: sql.raw("*")
-            }
-          ],
-          where,
-          limit,
-          offset,
-          orderBy,
-          setOperators: []
-        });
-        where = void 0;
-        limit = void 0;
-        offset = void 0;
-        orderBy = void 0;
-      } else {
-        result = aliasedTable(table, tableAlias);
-      }
-      result = this.buildSelectQuery({
-        table: is(result, SQLiteTable) ? result : new Subquery(result, {}, tableAlias),
-        fields: {},
-        fieldsFlat: nestedSelection.map(({ field: field2 }) => ({
-          path: [],
-          field: is(field2, Column) ? aliasedTableColumn(field2, tableAlias) : field2
-        })),
-        joins,
-        where,
-        limit,
-        offset,
-        orderBy,
-        setOperators: []
-      });
-    } else {
-      result = this.buildSelectQuery({
-        table: aliasedTable(table, tableAlias),
-        fields: {},
-        fieldsFlat: selection.map(({ field }) => ({
-          path: [],
-          field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field
-        })),
-        joins,
-        where,
-        limit,
-        offset,
-        orderBy,
-        setOperators: []
-      });
-    }
-    return {
-      tableTsKey: tableConfig.tsName,
-      sql: result,
-      selection
-    };
-  }
-};
-var SQLiteSyncDialect = class extends SQLiteDialect {
-  static [entityKind] = "SQLiteSyncDialect";
-  migrate(migrations, session, config2) {
-    const migrationsTable = config2 === void 0 ? "__drizzle_migrations" : typeof config2 === "string" ? "__drizzle_migrations" : config2.migrationsTable ?? "__drizzle_migrations";
-    const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash text NOT NULL,
-				created_at numeric
-			)
-		`;
-    session.run(migrationTableCreate);
-    const dbMigrations = session.values(
-      sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`
-    );
-    const lastDbMigration = dbMigrations[0] ?? void 0;
-    session.run(sql`BEGIN`);
-    try {
-      for (const migration of migrations) {
-        if (!lastDbMigration || Number(lastDbMigration[2]) < migration.folderMillis) {
-          for (const stmt of migration.sql) {
-            session.run(sql.raw(stmt));
-          }
-          session.run(
-            sql`INSERT INTO ${sql.identifier(
-              migrationsTable
-            )} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`
-          );
-        }
-      }
-      session.run(sql`COMMIT`);
-    } catch (e) {
-      session.run(sql`ROLLBACK`);
-      throw e;
-    }
-  }
-};
-var SQLiteAsyncDialect = class extends SQLiteDialect {
-  static [entityKind] = "SQLiteAsyncDialect";
-  async migrate(migrations, session, config2) {
-    const migrationsTable = config2 === void 0 ? "__drizzle_migrations" : typeof config2 === "string" ? "__drizzle_migrations" : config2.migrationsTable ?? "__drizzle_migrations";
-    const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash text NOT NULL,
-				created_at numeric
-			)
-		`;
-    await session.run(migrationTableCreate);
-    const dbMigrations = await session.values(
-      sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`
-    );
-    const lastDbMigration = dbMigrations[0] ?? void 0;
-    await session.transaction(async (tx) => {
-      for (const migration of migrations) {
-        if (!lastDbMigration || Number(lastDbMigration[2]) < migration.folderMillis) {
-          for (const stmt of migration.sql) {
-            await tx.run(sql.raw(stmt));
-          }
-          await tx.run(
-            sql`INSERT INTO ${sql.identifier(
-              migrationsTable
-            )} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`
-          );
-        }
-      }
-    });
-  }
-};
-
-// node_modules/drizzle-orm/query-builders/query-builder.js
-var TypedQueryBuilder = class {
-  static [entityKind] = "TypedQueryBuilder";
-  /** @internal */
-  getSelectedFields() {
-    return this._.selectedFields;
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/query-builders/select.js
-var SQLiteSelectBuilder = class {
-  static [entityKind] = "SQLiteSelectBuilder";
-  fields;
-  session;
-  dialect;
-  withList;
-  distinct;
-  constructor(config2) {
-    this.fields = config2.fields;
-    this.session = config2.session;
-    this.dialect = config2.dialect;
-    this.withList = config2.withList;
-    this.distinct = config2.distinct;
-  }
-  from(source) {
-    const isPartialSelect = !!this.fields;
-    let fields;
-    if (this.fields) {
-      fields = this.fields;
-    } else if (is(source, Subquery)) {
-      fields = Object.fromEntries(
-        Object.keys(source._.selectedFields).map((key) => [key, source[key]])
-      );
-    } else if (is(source, SQLiteViewBase)) {
-      fields = source[ViewBaseConfig].selectedFields;
-    } else if (is(source, SQL)) {
-      fields = {};
-    } else {
-      fields = getTableColumns(source);
-    }
-    return new SQLiteSelectBase({
-      table: source,
-      fields,
-      isPartialSelect,
-      session: this.session,
-      dialect: this.dialect,
-      withList: this.withList,
-      distinct: this.distinct
-    });
-  }
-};
-var SQLiteSelectQueryBuilderBase = class extends TypedQueryBuilder {
-  static [entityKind] = "SQLiteSelectQueryBuilder";
-  _;
-  /** @internal */
-  config;
-  joinsNotNullableMap;
-  tableName;
-  isPartialSelect;
-  session;
-  dialect;
-  cacheConfig = void 0;
-  usedTables = /* @__PURE__ */ new Set();
-  constructor({ table, fields, isPartialSelect, session, dialect, withList, distinct }) {
-    super();
-    this.config = {
-      withList,
-      table,
-      fields: { ...fields },
-      distinct,
-      setOperators: []
-    };
-    this.isPartialSelect = isPartialSelect;
-    this.session = session;
-    this.dialect = dialect;
-    this._ = {
-      selectedFields: fields,
-      config: this.config
-    };
-    this.tableName = getTableLikeName(table);
-    this.joinsNotNullableMap = typeof this.tableName === "string" ? { [this.tableName]: true } : {};
-    for (const item of extractUsedTable(table)) this.usedTables.add(item);
-  }
-  /** @internal */
-  getUsedTables() {
-    return [...this.usedTables];
-  }
-  createJoin(joinType) {
-    return (table, on) => {
-      const baseTableName = this.tableName;
-      const tableName = getTableLikeName(table);
-      for (const item of extractUsedTable(table)) this.usedTables.add(item);
-      if (typeof tableName === "string" && this.config.joins?.some((join) => join.alias === tableName)) {
-        throw new Error(`Alias "${tableName}" is already used in this query`);
-      }
-      if (!this.isPartialSelect) {
-        if (Object.keys(this.joinsNotNullableMap).length === 1 && typeof baseTableName === "string") {
-          this.config.fields = {
-            [baseTableName]: this.config.fields
-          };
-        }
-        if (typeof tableName === "string" && !is(table, SQL)) {
-          const selection = is(table, Subquery) ? table._.selectedFields : is(table, View) ? table[ViewBaseConfig].selectedFields : table[Table.Symbol.Columns];
-          this.config.fields[tableName] = selection;
-        }
-      }
-      if (typeof on === "function") {
-        on = on(
-          new Proxy(
-            this.config.fields,
-            new SelectionProxyHandler({ sqlAliasedBehavior: "sql", sqlBehavior: "sql" })
-          )
-        );
-      }
-      if (!this.config.joins) {
-        this.config.joins = [];
-      }
-      this.config.joins.push({ on, table, joinType, alias: tableName });
-      if (typeof tableName === "string") {
-        switch (joinType) {
-          case "left": {
-            this.joinsNotNullableMap[tableName] = false;
-            break;
-          }
-          case "right": {
-            this.joinsNotNullableMap = Object.fromEntries(
-              Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false])
-            );
-            this.joinsNotNullableMap[tableName] = true;
-            break;
-          }
-          case "cross":
-          case "inner": {
-            this.joinsNotNullableMap[tableName] = true;
-            break;
-          }
-          case "full": {
-            this.joinsNotNullableMap = Object.fromEntries(
-              Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false])
-            );
-            this.joinsNotNullableMap[tableName] = false;
-            break;
-          }
-        }
-      }
-      return this;
-    };
-  }
-  /**
-   * Executes a `left join` operation by adding another table to the current query.
-   *
-   * Calling this method associates each row of the table with the corresponding row from the joined table, if a match is found. If no matching row exists, it sets all columns of the joined table to null.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/joins#left-join}
-   *
-   * @param table the table to join.
-   * @param on the `on` clause.
-   *
-   * @example
-   *
-   * ```ts
-   * // Select all users and their pets
-   * const usersWithPets: { user: User; pets: Pet | null; }[] = await db.select()
-   *   .from(users)
-   *   .leftJoin(pets, eq(users.id, pets.ownerId))
-   *
-   * // Select userId and petId
-   * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
-   *   userId: users.id,
-   *   petId: pets.id,
-   * })
-   *   .from(users)
-   *   .leftJoin(pets, eq(users.id, pets.ownerId))
-   * ```
-   */
-  leftJoin = this.createJoin("left");
-  /**
-   * Executes a `right join` operation by adding another table to the current query.
-   *
-   * Calling this method associates each row of the joined table with the corresponding row from the main table, if a match is found. If no matching row exists, it sets all columns of the main table to null.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/joins#right-join}
-   *
-   * @param table the table to join.
-   * @param on the `on` clause.
-   *
-   * @example
-   *
-   * ```ts
-   * // Select all users and their pets
-   * const usersWithPets: { user: User | null; pets: Pet; }[] = await db.select()
-   *   .from(users)
-   *   .rightJoin(pets, eq(users.id, pets.ownerId))
-   *
-   * // Select userId and petId
-   * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = await db.select({
-   *   userId: users.id,
-   *   petId: pets.id,
-   * })
-   *   .from(users)
-   *   .rightJoin(pets, eq(users.id, pets.ownerId))
-   * ```
-   */
-  rightJoin = this.createJoin("right");
-  /**
-   * Executes an `inner join` operation, creating a new table by combining rows from two tables that have matching values.
-   *
-   * Calling this method retrieves rows that have corresponding entries in both joined tables. Rows without matching entries in either table are excluded, resulting in a table that includes only matching pairs.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/joins#inner-join}
-   *
-   * @param table the table to join.
-   * @param on the `on` clause.
-   *
-   * @example
-   *
-   * ```ts
-   * // Select all users and their pets
-   * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
-   *   .from(users)
-   *   .innerJoin(pets, eq(users.id, pets.ownerId))
-   *
-   * // Select userId and petId
-   * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
-   *   userId: users.id,
-   *   petId: pets.id,
-   * })
-   *   .from(users)
-   *   .innerJoin(pets, eq(users.id, pets.ownerId))
-   * ```
-   */
-  innerJoin = this.createJoin("inner");
-  /**
-   * Executes a `full join` operation by combining rows from two tables into a new table.
-   *
-   * Calling this method retrieves all rows from both main and joined tables, merging rows with matching values and filling in `null` for non-matching columns.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/joins#full-join}
-   *
-   * @param table the table to join.
-   * @param on the `on` clause.
-   *
-   * @example
-   *
-   * ```ts
-   * // Select all users and their pets
-   * const usersWithPets: { user: User | null; pets: Pet | null; }[] = await db.select()
-   *   .from(users)
-   *   .fullJoin(pets, eq(users.id, pets.ownerId))
-   *
-   * // Select userId and petId
-   * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = await db.select({
-   *   userId: users.id,
-   *   petId: pets.id,
-   * })
-   *   .from(users)
-   *   .fullJoin(pets, eq(users.id, pets.ownerId))
-   * ```
-   */
-  fullJoin = this.createJoin("full");
-  /**
-   * Executes a `cross join` operation by combining rows from two tables into a new table.
-   *
-   * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join}
-   *
-   * @param table the table to join.
-   *
-   * @example
-   *
-   * ```ts
-   * // Select all users, each user with every pet
-   * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
-   *   .from(users)
-   *   .crossJoin(pets)
-   *
-   * // Select userId and petId
-   * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
-   *   userId: users.id,
-   *   petId: pets.id,
-   * })
-   *   .from(users)
-   *   .crossJoin(pets)
-   * ```
-   */
-  crossJoin = this.createJoin("cross");
-  createSetOperator(type, isAll) {
-    return (rightSelection) => {
-      const rightSelect = typeof rightSelection === "function" ? rightSelection(getSQLiteSetOperators()) : rightSelection;
-      if (!haveSameKeys(this.getSelectedFields(), rightSelect.getSelectedFields())) {
-        throw new Error(
-          "Set operator error (union / intersect / except): selected fields are not the same or are in a different order"
-        );
-      }
-      this.config.setOperators.push({ type, isAll, rightSelect });
-      return this;
-    };
-  }
-  /**
-   * Adds `union` set operator to the query.
-   *
-   * Calling this method will combine the result sets of the `select` statements and remove any duplicate rows that appear across them.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/set-operations#union}
-   *
-   * @example
-   *
-   * ```ts
-   * // Select all unique names from customers and users tables
-   * await db.select({ name: users.name })
-   *   .from(users)
-   *   .union(
-   *     db.select({ name: customers.name }).from(customers)
-   *   );
-   * // or
-   * import { union } from 'drizzle-orm/sqlite-core'
-   *
-   * await union(
-   *   db.select({ name: users.name }).from(users),
-   *   db.select({ name: customers.name }).from(customers)
-   * );
-   * ```
-   */
-  union = this.createSetOperator("union", false);
-  /**
-   * Adds `union all` set operator to the query.
-   *
-   * Calling this method will combine the result-set of the `select` statements and keep all duplicate rows that appear across them.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/set-operations#union-all}
-   *
-   * @example
-   *
-   * ```ts
-   * // Select all transaction ids from both online and in-store sales
-   * await db.select({ transaction: onlineSales.transactionId })
-   *   .from(onlineSales)
-   *   .unionAll(
-   *     db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
-   *   );
-   * // or
-   * import { unionAll } from 'drizzle-orm/sqlite-core'
-   *
-   * await unionAll(
-   *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
-   *   db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
-   * );
-   * ```
-   */
-  unionAll = this.createSetOperator("union", true);
-  /**
-   * Adds `intersect` set operator to the query.
-   *
-   * Calling this method will retain only the rows that are present in both result sets and eliminate duplicates.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect}
-   *
-   * @example
-   *
-   * ```ts
-   * // Select course names that are offered in both departments A and B
-   * await db.select({ courseName: depA.courseName })
-   *   .from(depA)
-   *   .intersect(
-   *     db.select({ courseName: depB.courseName }).from(depB)
-   *   );
-   * // or
-   * import { intersect } from 'drizzle-orm/sqlite-core'
-   *
-   * await intersect(
-   *   db.select({ courseName: depA.courseName }).from(depA),
-   *   db.select({ courseName: depB.courseName }).from(depB)
-   * );
-   * ```
-   */
-  intersect = this.createSetOperator("intersect", false);
-  /**
-   * Adds `except` set operator to the query.
-   *
-   * Calling this method will retrieve all unique rows from the left query, except for the rows that are present in the result set of the right query.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/set-operations#except}
-   *
-   * @example
-   *
-   * ```ts
-   * // Select all courses offered in department A but not in department B
-   * await db.select({ courseName: depA.courseName })
-   *   .from(depA)
-   *   .except(
-   *     db.select({ courseName: depB.courseName }).from(depB)
-   *   );
-   * // or
-   * import { except } from 'drizzle-orm/sqlite-core'
-   *
-   * await except(
-   *   db.select({ courseName: depA.courseName }).from(depA),
-   *   db.select({ courseName: depB.courseName }).from(depB)
-   * );
-   * ```
-   */
-  except = this.createSetOperator("except", false);
-  /** @internal */
-  addSetOperators(setOperators) {
-    this.config.setOperators.push(...setOperators);
-    return this;
-  }
-  /**
-   * Adds a `where` clause to the query.
-   *
-   * Calling this method will select only those rows that fulfill a specified condition.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/select#filtering}
-   *
-   * @param where the `where` clause.
-   *
-   * @example
-   * You can use conditional operators and `sql function` to filter the rows to be selected.
-   *
-   * ```ts
-   * // Select all cars with green color
-   * await db.select().from(cars).where(eq(cars.color, 'green'));
-   * // or
-   * await db.select().from(cars).where(sql`${cars.color} = 'green'`)
-   * ```
-   *
-   * You can logically combine conditional operators with `and()` and `or()` operators:
-   *
-   * ```ts
-   * // Select all BMW cars with a green color
-   * await db.select().from(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-   *
-   * // Select all cars with the green or blue color
-   * await db.select().from(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
-   * ```
-   */
-  where(where) {
-    if (typeof where === "function") {
-      where = where(
-        new Proxy(
-          this.config.fields,
-          new SelectionProxyHandler({ sqlAliasedBehavior: "sql", sqlBehavior: "sql" })
-        )
-      );
-    }
-    this.config.where = where;
-    return this;
-  }
-  /**
-   * Adds a `having` clause to the query.
-   *
-   * Calling this method will select only those rows that fulfill a specified condition. It is typically used with aggregate functions to filter the aggregated data based on a specified condition.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/select#aggregations}
-   *
-   * @param having the `having` clause.
-   *
-   * @example
-   *
-   * ```ts
-   * // Select all brands with more than one car
-   * await db.select({
-   * 	brand: cars.brand,
-   * 	count: sql<number>`cast(count(${cars.id}) as int)`,
-   * })
-   *   .from(cars)
-   *   .groupBy(cars.brand)
-   *   .having(({ count }) => gt(count, 1));
-   * ```
-   */
-  having(having) {
-    if (typeof having === "function") {
-      having = having(
-        new Proxy(
-          this.config.fields,
-          new SelectionProxyHandler({ sqlAliasedBehavior: "sql", sqlBehavior: "sql" })
-        )
-      );
-    }
-    this.config.having = having;
-    return this;
-  }
-  groupBy(...columns) {
-    if (typeof columns[0] === "function") {
-      const groupBy = columns[0](
-        new Proxy(
-          this.config.fields,
-          new SelectionProxyHandler({ sqlAliasedBehavior: "alias", sqlBehavior: "sql" })
-        )
-      );
-      this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
-    } else {
-      this.config.groupBy = columns;
-    }
-    return this;
-  }
-  orderBy(...columns) {
-    if (typeof columns[0] === "function") {
-      const orderBy = columns[0](
-        new Proxy(
-          this.config.fields,
-          new SelectionProxyHandler({ sqlAliasedBehavior: "alias", sqlBehavior: "sql" })
-        )
-      );
-      const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
-      if (this.config.setOperators.length > 0) {
-        this.config.setOperators.at(-1).orderBy = orderByArray;
-      } else {
-        this.config.orderBy = orderByArray;
-      }
-    } else {
-      const orderByArray = columns;
-      if (this.config.setOperators.length > 0) {
-        this.config.setOperators.at(-1).orderBy = orderByArray;
-      } else {
-        this.config.orderBy = orderByArray;
-      }
-    }
-    return this;
-  }
-  /**
-   * Adds a `limit` clause to the query.
-   *
-   * Calling this method will set the maximum number of rows that will be returned by this query.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
-   *
-   * @param limit the `limit` clause.
-   *
-   * @example
-   *
-   * ```ts
-   * // Get the first 10 people from this query.
-   * await db.select().from(people).limit(10);
-   * ```
-   */
-  limit(limit) {
-    if (this.config.setOperators.length > 0) {
-      this.config.setOperators.at(-1).limit = limit;
-    } else {
-      this.config.limit = limit;
-    }
-    return this;
-  }
-  /**
-   * Adds an `offset` clause to the query.
-   *
-   * Calling this method will skip a number of rows when returning results from this query.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
-   *
-   * @param offset the `offset` clause.
-   *
-   * @example
-   *
-   * ```ts
-   * // Get the 10th-20th people from this query.
-   * await db.select().from(people).offset(10).limit(10);
-   * ```
-   */
-  offset(offset) {
-    if (this.config.setOperators.length > 0) {
-      this.config.setOperators.at(-1).offset = offset;
-    } else {
-      this.config.offset = offset;
-    }
-    return this;
-  }
-  /** @internal */
-  getSQL() {
-    return this.dialect.buildSelectQuery(this.config);
-  }
-  toSQL() {
-    const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-    return rest;
-  }
-  as(alias) {
-    const usedTables = [];
-    usedTables.push(...extractUsedTable(this.config.table));
-    if (this.config.joins) {
-      for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table));
-    }
-    return new Proxy(
-      new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
-      new SelectionProxyHandler({ alias, sqlAliasedBehavior: "alias", sqlBehavior: "error" })
-    );
-  }
-  /** @internal */
-  getSelectedFields() {
-    return new Proxy(
-      this.config.fields,
-      new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: "alias", sqlBehavior: "error" })
-    );
-  }
-  $dynamic() {
-    return this;
-  }
-};
-var SQLiteSelectBase = class extends SQLiteSelectQueryBuilderBase {
-  static [entityKind] = "SQLiteSelect";
-  /** @internal */
-  _prepare(isOneTimeQuery = true) {
-    if (!this.session) {
-      throw new Error("Cannot execute a query on a query builder. Please use a database instance instead.");
-    }
-    const fieldsList = orderSelectedFields(this.config.fields);
-    const query = this.session[isOneTimeQuery ? "prepareOneTimeQuery" : "prepareQuery"](
-      this.dialect.sqlToQuery(this.getSQL()),
-      fieldsList,
-      "all",
-      true,
-      void 0,
-      {
-        type: "select",
-        tables: [...this.usedTables]
-      },
-      this.cacheConfig
-    );
-    query.joinsNotNullableMap = this.joinsNotNullableMap;
-    return query;
-  }
-  $withCache(config2) {
-    this.cacheConfig = config2 === void 0 ? { config: {}, enable: true, autoInvalidate: true } : config2 === false ? { enable: false } : { enable: true, autoInvalidate: true, ...config2 };
-    return this;
-  }
-  prepare() {
-    return this._prepare(false);
-  }
-  run = (placeholderValues) => {
-    return this._prepare().run(placeholderValues);
-  };
-  all = (placeholderValues) => {
-    return this._prepare().all(placeholderValues);
-  };
-  get = (placeholderValues) => {
-    return this._prepare().get(placeholderValues);
-  };
-  values = (placeholderValues) => {
-    return this._prepare().values(placeholderValues);
-  };
-  async execute() {
-    return this.all();
-  }
-};
-applyMixins(SQLiteSelectBase, [QueryPromise]);
-function createSetOperator(type, isAll) {
-  return (leftSelect, rightSelect, ...restSelects) => {
-    const setOperators = [rightSelect, ...restSelects].map((select) => ({
-      type,
-      isAll,
-      rightSelect: select
-    }));
-    for (const setOperator of setOperators) {
-      if (!haveSameKeys(leftSelect.getSelectedFields(), setOperator.rightSelect.getSelectedFields())) {
-        throw new Error(
-          "Set operator error (union / intersect / except): selected fields are not the same or are in a different order"
-        );
-      }
-    }
-    return leftSelect.addSetOperators(setOperators);
-  };
-}
-var getSQLiteSetOperators = () => ({
-  union: union2,
-  unionAll,
-  intersect,
-  except
-});
-var union2 = createSetOperator("union", false);
-var unionAll = createSetOperator("union", true);
-var intersect = createSetOperator("intersect", false);
-var except = createSetOperator("except", false);
-
-// node_modules/drizzle-orm/sqlite-core/query-builders/query-builder.js
-var QueryBuilder = class {
-  static [entityKind] = "SQLiteQueryBuilder";
-  dialect;
-  dialectConfig;
-  constructor(dialect) {
-    this.dialect = is(dialect, SQLiteDialect) ? dialect : void 0;
-    this.dialectConfig = is(dialect, SQLiteDialect) ? void 0 : dialect;
-  }
-  $with = (alias, selection) => {
-    const queryBuilder = this;
-    const as = (qb) => {
-      if (typeof qb === "function") {
-        qb = qb(queryBuilder);
-      }
-      return new Proxy(
-        new WithSubquery(
-          qb.getSQL(),
-          selection ?? ("getSelectedFields" in qb ? qb.getSelectedFields() ?? {} : {}),
-          alias,
-          true
-        ),
-        new SelectionProxyHandler({ alias, sqlAliasedBehavior: "alias", sqlBehavior: "error" })
-      );
-    };
-    return { as };
-  };
-  with(...queries) {
-    const self = this;
-    function select(fields) {
-      return new SQLiteSelectBuilder({
-        fields: fields ?? void 0,
-        session: void 0,
-        dialect: self.getDialect(),
-        withList: queries
-      });
-    }
-    function selectDistinct(fields) {
-      return new SQLiteSelectBuilder({
-        fields: fields ?? void 0,
-        session: void 0,
-        dialect: self.getDialect(),
-        withList: queries,
-        distinct: true
-      });
-    }
-    return { select, selectDistinct };
-  }
-  select(fields) {
-    return new SQLiteSelectBuilder({ fields: fields ?? void 0, session: void 0, dialect: this.getDialect() });
-  }
-  selectDistinct(fields) {
-    return new SQLiteSelectBuilder({
-      fields: fields ?? void 0,
-      session: void 0,
-      dialect: this.getDialect(),
-      distinct: true
-    });
-  }
-  // Lazy load dialect to avoid circular dependency
-  getDialect() {
-    if (!this.dialect) {
-      this.dialect = new SQLiteSyncDialect(this.dialectConfig);
-    }
-    return this.dialect;
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/query-builders/insert.js
-var SQLiteInsertBuilder = class {
-  constructor(table, session, dialect, withList) {
-    this.table = table;
-    this.session = session;
-    this.dialect = dialect;
-    this.withList = withList;
-  }
-  static [entityKind] = "SQLiteInsertBuilder";
-  values(values) {
-    values = Array.isArray(values) ? values : [values];
-    if (values.length === 0) {
-      throw new Error("values() must be called with at least one value");
-    }
-    const mappedValues = values.map((entry) => {
-      const result = {};
-      const cols = this.table[Table.Symbol.Columns];
-      for (const colKey of Object.keys(entry)) {
-        const colValue = entry[colKey];
-        result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
-      }
-      return result;
-    });
-    return new SQLiteInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
-  }
-  select(selectQuery) {
-    const select = typeof selectQuery === "function" ? selectQuery(new QueryBuilder()) : selectQuery;
-    if (!is(select, SQL) && !haveSameKeys(this.table[Columns], select._.selectedFields)) {
-      throw new Error(
-        "Insert select error: selected fields are not the same or are in a different order compared to the table definition"
-      );
-    }
-    return new SQLiteInsertBase(this.table, select, this.session, this.dialect, this.withList, true);
-  }
-};
-var SQLiteInsertBase = class extends QueryPromise {
-  constructor(table, values, session, dialect, withList, select) {
-    super();
-    this.session = session;
-    this.dialect = dialect;
-    this.config = { table, values, withList, select };
-  }
-  static [entityKind] = "SQLiteInsert";
-  /** @internal */
-  config;
-  returning(fields = this.config.table[SQLiteTable.Symbol.Columns]) {
-    this.config.returning = orderSelectedFields(fields);
-    return this;
-  }
-  /**
-   * Adds an `on conflict do nothing` clause to the query.
-   *
-   * Calling this method simply avoids inserting a row as its alternative action.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/insert#on-conflict-do-nothing}
-   *
-   * @param config The `target` and `where` clauses.
-   *
-   * @example
-   * ```ts
-   * // Insert one row and cancel the insert if there's a conflict
-   * await db.insert(cars)
-   *   .values({ id: 1, brand: 'BMW' })
-   *   .onConflictDoNothing();
-   *
-   * // Explicitly specify conflict target
-   * await db.insert(cars)
-   *   .values({ id: 1, brand: 'BMW' })
-   *   .onConflictDoNothing({ target: cars.id });
-   * ```
-   */
-  onConflictDoNothing(config2 = {}) {
-    if (!this.config.onConflict) this.config.onConflict = [];
-    if (config2.target === void 0) {
-      this.config.onConflict.push(sql` on conflict do nothing`);
-    } else {
-      const targetSql = Array.isArray(config2.target) ? sql`${config2.target}` : sql`${[config2.target]}`;
-      const whereSql = config2.where ? sql` where ${config2.where}` : sql``;
-      this.config.onConflict.push(sql` on conflict ${targetSql} do nothing${whereSql}`);
-    }
-    return this;
-  }
-  /**
-   * Adds an `on conflict do update` clause to the query.
-   *
-   * Calling this method will update the existing row that conflicts with the row proposed for insertion as its alternative action.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts}
-   *
-   * @param config The `target`, `set` and `where` clauses.
-   *
-   * @example
-   * ```ts
-   * // Update the row if there's a conflict
-   * await db.insert(cars)
-   *   .values({ id: 1, brand: 'BMW' })
-   *   .onConflictDoUpdate({
-   *     target: cars.id,
-   *     set: { brand: 'Porsche' }
-   *   });
-   *
-   * // Upsert with 'where' clause
-   * await db.insert(cars)
-   *   .values({ id: 1, brand: 'BMW' })
-   *   .onConflictDoUpdate({
-   *     target: cars.id,
-   *     set: { brand: 'newBMW' },
-   *     where: sql`${cars.createdAt} > '2023-01-01'::date`,
-   *   });
-   * ```
-   */
-  onConflictDoUpdate(config2) {
-    if (config2.where && (config2.targetWhere || config2.setWhere)) {
-      throw new Error(
-        'You cannot use both "where" and "targetWhere"/"setWhere" at the same time - "where" is deprecated, use "targetWhere" or "setWhere" instead.'
-      );
-    }
-    if (!this.config.onConflict) this.config.onConflict = [];
-    const whereSql = config2.where ? sql` where ${config2.where}` : void 0;
-    const targetWhereSql = config2.targetWhere ? sql` where ${config2.targetWhere}` : void 0;
-    const setWhereSql = config2.setWhere ? sql` where ${config2.setWhere}` : void 0;
-    const targetSql = Array.isArray(config2.target) ? sql`${config2.target}` : sql`${[config2.target]}`;
-    const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config2.set));
-    this.config.onConflict.push(
-      sql` on conflict ${targetSql}${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`
-    );
-    return this;
-  }
-  /** @internal */
-  getSQL() {
-    return this.dialect.buildInsertQuery(this.config);
-  }
-  toSQL() {
-    const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-    return rest;
-  }
-  /** @internal */
-  _prepare(isOneTimeQuery = true) {
-    return this.session[isOneTimeQuery ? "prepareOneTimeQuery" : "prepareQuery"](
-      this.dialect.sqlToQuery(this.getSQL()),
-      this.config.returning,
-      this.config.returning ? "all" : "run",
-      true,
-      void 0,
-      {
-        type: "insert",
-        tables: extractUsedTable(this.config.table)
-      }
-    );
-  }
-  prepare() {
-    return this._prepare(false);
-  }
-  run = (placeholderValues) => {
-    return this._prepare().run(placeholderValues);
-  };
-  all = (placeholderValues) => {
-    return this._prepare().all(placeholderValues);
-  };
-  get = (placeholderValues) => {
-    return this._prepare().get(placeholderValues);
-  };
-  values = (placeholderValues) => {
-    return this._prepare().values(placeholderValues);
-  };
-  async execute() {
-    return this.config.returning ? this.all() : this.run();
-  }
-  $dynamic() {
-    return this;
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/query-builders/update.js
-var SQLiteUpdateBuilder = class {
-  constructor(table, session, dialect, withList) {
-    this.table = table;
-    this.session = session;
-    this.dialect = dialect;
-    this.withList = withList;
-  }
-  static [entityKind] = "SQLiteUpdateBuilder";
-  set(values) {
-    return new SQLiteUpdateBase(
-      this.table,
-      mapUpdateSet(this.table, values),
-      this.session,
-      this.dialect,
-      this.withList
-    );
-  }
-};
-var SQLiteUpdateBase = class extends QueryPromise {
-  constructor(table, set2, session, dialect, withList) {
-    super();
-    this.session = session;
-    this.dialect = dialect;
-    this.config = { set: set2, table, withList, joins: [] };
-  }
-  static [entityKind] = "SQLiteUpdate";
-  /** @internal */
-  config;
-  from(source) {
-    this.config.from = source;
-    return this;
-  }
-  createJoin(joinType) {
-    return (table, on) => {
-      const tableName = getTableLikeName(table);
-      if (typeof tableName === "string" && this.config.joins.some((join) => join.alias === tableName)) {
-        throw new Error(`Alias "${tableName}" is already used in this query`);
-      }
-      if (typeof on === "function") {
-        const from = this.config.from ? is(table, SQLiteTable) ? table[Table.Symbol.Columns] : is(table, Subquery) ? table._.selectedFields : is(table, SQLiteViewBase) ? table[ViewBaseConfig].selectedFields : void 0 : void 0;
-        on = on(
-          new Proxy(
-            this.config.table[Table.Symbol.Columns],
-            new SelectionProxyHandler({ sqlAliasedBehavior: "sql", sqlBehavior: "sql" })
-          ),
-          from && new Proxy(
-            from,
-            new SelectionProxyHandler({ sqlAliasedBehavior: "sql", sqlBehavior: "sql" })
-          )
-        );
-      }
-      this.config.joins.push({ on, table, joinType, alias: tableName });
-      return this;
-    };
-  }
-  leftJoin = this.createJoin("left");
-  rightJoin = this.createJoin("right");
-  innerJoin = this.createJoin("inner");
-  fullJoin = this.createJoin("full");
-  /**
-   * Adds a 'where' clause to the query.
-   *
-   * Calling this method will update only those rows that fulfill a specified condition.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/update}
-   *
-   * @param where the 'where' clause.
-   *
-   * @example
-   * You can use conditional operators and `sql function` to filter the rows to be updated.
-   *
-   * ```ts
-   * // Update all cars with green color
-   * db.update(cars).set({ color: 'red' })
-   *   .where(eq(cars.color, 'green'));
-   * // or
-   * db.update(cars).set({ color: 'red' })
-   *   .where(sql`${cars.color} = 'green'`)
-   * ```
-   *
-   * You can logically combine conditional operators with `and()` and `or()` operators:
-   *
-   * ```ts
-   * // Update all BMW cars with a green color
-   * db.update(cars).set({ color: 'red' })
-   *   .where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-   *
-   * // Update all cars with the green or blue color
-   * db.update(cars).set({ color: 'red' })
-   *   .where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
-   * ```
-   */
-  where(where) {
-    this.config.where = where;
-    return this;
-  }
-  orderBy(...columns) {
-    if (typeof columns[0] === "function") {
-      const orderBy = columns[0](
-        new Proxy(
-          this.config.table[Table.Symbol.Columns],
-          new SelectionProxyHandler({ sqlAliasedBehavior: "alias", sqlBehavior: "sql" })
-        )
-      );
-      const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
-      this.config.orderBy = orderByArray;
-    } else {
-      const orderByArray = columns;
-      this.config.orderBy = orderByArray;
-    }
-    return this;
-  }
-  limit(limit) {
-    this.config.limit = limit;
-    return this;
-  }
-  returning(fields = this.config.table[SQLiteTable.Symbol.Columns]) {
-    this.config.returning = orderSelectedFields(fields);
-    return this;
-  }
-  /** @internal */
-  getSQL() {
-    return this.dialect.buildUpdateQuery(this.config);
-  }
-  toSQL() {
-    const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-    return rest;
-  }
-  /** @internal */
-  _prepare(isOneTimeQuery = true) {
-    return this.session[isOneTimeQuery ? "prepareOneTimeQuery" : "prepareQuery"](
-      this.dialect.sqlToQuery(this.getSQL()),
-      this.config.returning,
-      this.config.returning ? "all" : "run",
-      true,
-      void 0,
-      {
-        type: "insert",
-        tables: extractUsedTable(this.config.table)
-      }
-    );
-  }
-  prepare() {
-    return this._prepare(false);
-  }
-  run = (placeholderValues) => {
-    return this._prepare().run(placeholderValues);
-  };
-  all = (placeholderValues) => {
-    return this._prepare().all(placeholderValues);
-  };
-  get = (placeholderValues) => {
-    return this._prepare().get(placeholderValues);
-  };
-  values = (placeholderValues) => {
-    return this._prepare().values(placeholderValues);
-  };
-  async execute() {
-    return this.config.returning ? this.all() : this.run();
-  }
-  $dynamic() {
-    return this;
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/query-builders/count.js
-var SQLiteCountBuilder = class _SQLiteCountBuilder extends SQL {
-  constructor(params) {
-    super(_SQLiteCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
-    this.params = params;
-    this.session = params.session;
-    this.sql = _SQLiteCountBuilder.buildCount(
-      params.source,
-      params.filters
-    );
-  }
-  sql;
-  static [entityKind] = "SQLiteCountBuilderAsync";
-  [Symbol.toStringTag] = "SQLiteCountBuilderAsync";
-  session;
-  static buildEmbeddedCount(source, filters) {
-    return sql`(select count(*) from ${source}${sql.raw(" where ").if(filters)}${filters})`;
-  }
-  static buildCount(source, filters) {
-    return sql`select count(*) from ${source}${sql.raw(" where ").if(filters)}${filters}`;
-  }
-  then(onfulfilled, onrejected) {
-    return Promise.resolve(this.session.count(this.sql)).then(
-      onfulfilled,
-      onrejected
-    );
-  }
-  catch(onRejected) {
-    return this.then(void 0, onRejected);
-  }
-  finally(onFinally) {
-    return this.then(
-      (value) => {
-        onFinally?.();
-        return value;
-      },
-      (reason) => {
-        onFinally?.();
-        throw reason;
-      }
-    );
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/query-builders/query.js
-var RelationalQueryBuilder = class {
-  constructor(mode, fullSchema2, schema, tableNamesMap, table, tableConfig, dialect, session) {
-    this.mode = mode;
-    this.fullSchema = fullSchema2;
-    this.schema = schema;
-    this.tableNamesMap = tableNamesMap;
-    this.table = table;
-    this.tableConfig = tableConfig;
-    this.dialect = dialect;
-    this.session = session;
-  }
-  static [entityKind] = "SQLiteAsyncRelationalQueryBuilder";
-  findMany(config2) {
-    return this.mode === "sync" ? new SQLiteSyncRelationalQuery(
-      this.fullSchema,
-      this.schema,
-      this.tableNamesMap,
-      this.table,
-      this.tableConfig,
-      this.dialect,
-      this.session,
-      config2 ? config2 : {},
-      "many"
-    ) : new SQLiteRelationalQuery(
-      this.fullSchema,
-      this.schema,
-      this.tableNamesMap,
-      this.table,
-      this.tableConfig,
-      this.dialect,
-      this.session,
-      config2 ? config2 : {},
-      "many"
-    );
-  }
-  findFirst(config2) {
-    return this.mode === "sync" ? new SQLiteSyncRelationalQuery(
-      this.fullSchema,
-      this.schema,
-      this.tableNamesMap,
-      this.table,
-      this.tableConfig,
-      this.dialect,
-      this.session,
-      config2 ? { ...config2, limit: 1 } : { limit: 1 },
-      "first"
-    ) : new SQLiteRelationalQuery(
-      this.fullSchema,
-      this.schema,
-      this.tableNamesMap,
-      this.table,
-      this.tableConfig,
-      this.dialect,
-      this.session,
-      config2 ? { ...config2, limit: 1 } : { limit: 1 },
-      "first"
-    );
-  }
-};
-var SQLiteRelationalQuery = class extends QueryPromise {
-  constructor(fullSchema2, schema, tableNamesMap, table, tableConfig, dialect, session, config2, mode) {
-    super();
-    this.fullSchema = fullSchema2;
-    this.schema = schema;
-    this.tableNamesMap = tableNamesMap;
-    this.table = table;
-    this.tableConfig = tableConfig;
-    this.dialect = dialect;
-    this.session = session;
-    this.config = config2;
-    this.mode = mode;
-  }
-  static [entityKind] = "SQLiteAsyncRelationalQuery";
-  /** @internal */
-  mode;
-  /** @internal */
-  getSQL() {
-    return this.dialect.buildRelationalQuery({
-      fullSchema: this.fullSchema,
-      schema: this.schema,
-      tableNamesMap: this.tableNamesMap,
-      table: this.table,
-      tableConfig: this.tableConfig,
-      queryConfig: this.config,
-      tableAlias: this.tableConfig.tsName
-    }).sql;
-  }
-  /** @internal */
-  _prepare(isOneTimeQuery = false) {
-    const { query, builtQuery } = this._toSQL();
-    return this.session[isOneTimeQuery ? "prepareOneTimeQuery" : "prepareQuery"](
-      builtQuery,
-      void 0,
-      this.mode === "first" ? "get" : "all",
-      true,
-      (rawRows, mapColumnValue) => {
-        const rows = rawRows.map(
-          (row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
-        );
-        if (this.mode === "first") {
-          return rows[0];
-        }
-        return rows;
-      }
-    );
-  }
-  prepare() {
-    return this._prepare(false);
-  }
-  _toSQL() {
-    const query = this.dialect.buildRelationalQuery({
-      fullSchema: this.fullSchema,
-      schema: this.schema,
-      tableNamesMap: this.tableNamesMap,
-      table: this.table,
-      tableConfig: this.tableConfig,
-      queryConfig: this.config,
-      tableAlias: this.tableConfig.tsName
-    });
-    const builtQuery = this.dialect.sqlToQuery(query.sql);
-    return { query, builtQuery };
-  }
-  toSQL() {
-    return this._toSQL().builtQuery;
-  }
-  /** @internal */
-  executeRaw() {
-    if (this.mode === "first") {
-      return this._prepare(false).get();
-    }
-    return this._prepare(false).all();
-  }
-  async execute() {
-    return this.executeRaw();
-  }
-};
-var SQLiteSyncRelationalQuery = class extends SQLiteRelationalQuery {
-  static [entityKind] = "SQLiteSyncRelationalQuery";
-  sync() {
-    return this.executeRaw();
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/query-builders/raw.js
-var SQLiteRaw = class extends QueryPromise {
-  constructor(execute, getSQL, action, dialect, mapBatchResult) {
-    super();
-    this.execute = execute;
-    this.getSQL = getSQL;
-    this.dialect = dialect;
-    this.mapBatchResult = mapBatchResult;
-    this.config = { action };
-  }
-  static [entityKind] = "SQLiteRaw";
-  /** @internal */
-  config;
-  getQuery() {
-    return { ...this.dialect.sqlToQuery(this.getSQL()), method: this.config.action };
-  }
-  mapResult(result, isFromBatch) {
-    return isFromBatch ? this.mapBatchResult(result) : result;
-  }
-  _prepare() {
-    return this;
-  }
-  /** @internal */
-  isResponseInArrayMode() {
-    return false;
-  }
-};
-
-// node_modules/drizzle-orm/sqlite-core/db.js
-var BaseSQLiteDatabase = class {
-  constructor(resultKind, dialect, session, schema) {
-    this.resultKind = resultKind;
-    this.dialect = dialect;
-    this.session = session;
-    this._ = schema ? {
-      schema: schema.schema,
-      fullSchema: schema.fullSchema,
-      tableNamesMap: schema.tableNamesMap
-    } : {
-      schema: void 0,
-      fullSchema: {},
-      tableNamesMap: {}
-    };
-    this.query = {};
-    const query = this.query;
-    if (this._.schema) {
-      for (const [tableName, columns] of Object.entries(this._.schema)) {
-        query[tableName] = new RelationalQueryBuilder(
-          resultKind,
-          schema.fullSchema,
-          this._.schema,
-          this._.tableNamesMap,
-          schema.fullSchema[tableName],
-          columns,
-          dialect,
-          session
-        );
-      }
-    }
-    this.$cache = { invalidate: async (_params) => {
-    } };
-  }
-  static [entityKind] = "BaseSQLiteDatabase";
-  query;
-  /**
-   * Creates a subquery that defines a temporary named result set as a CTE.
-   *
-   * It is useful for breaking down complex queries into simpler parts and for reusing the result set in subsequent parts of the query.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/select#with-clause}
-   *
-   * @param alias The alias for the subquery.
-   *
-   * Failure to provide an alias will result in a DrizzleTypeError, preventing the subquery from being referenced in other queries.
-   *
-   * @example
-   *
-   * ```ts
-   * // Create a subquery with alias 'sq' and use it in the select query
-   * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
-   *
-   * const result = await db.with(sq).select().from(sq);
-   * ```
-   *
-   * To select arbitrary SQL values as fields in a CTE and reference them in other CTEs or in the main query, you need to add aliases to them:
-   *
-   * ```ts
-   * // Select an arbitrary SQL value as a field in a CTE and reference it in the main query
-   * const sq = db.$with('sq').as(db.select({
-   *   name: sql<string>`upper(${users.name})`.as('name'),
-   * })
-   * .from(users));
-   *
-   * const result = await db.with(sq).select({ name: sq.name }).from(sq);
-   * ```
-   */
-  $with = (alias, selection) => {
-    const self = this;
-    const as = (qb) => {
-      if (typeof qb === "function") {
-        qb = qb(new QueryBuilder(self.dialect));
-      }
-      return new Proxy(
-        new WithSubquery(
-          qb.getSQL(),
-          selection ?? ("getSelectedFields" in qb ? qb.getSelectedFields() ?? {} : {}),
-          alias,
-          true
-        ),
-        new SelectionProxyHandler({ alias, sqlAliasedBehavior: "alias", sqlBehavior: "error" })
-      );
-    };
-    return { as };
-  };
-  $count(source, filters) {
-    return new SQLiteCountBuilder({ source, filters, session: this.session });
-  }
-  /**
-   * Incorporates a previously defined CTE (using `$with`) into the main query.
-   *
-   * This method allows the main query to reference a temporary named result set.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/select#with-clause}
-   *
-   * @param queries The CTEs to incorporate into the main query.
-   *
-   * @example
-   *
-   * ```ts
-   * // Define a subquery 'sq' as a CTE using $with
-   * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
-   *
-   * // Incorporate the CTE 'sq' into the main query and select from it
-   * const result = await db.with(sq).select().from(sq);
-   * ```
-   */
-  with(...queries) {
-    const self = this;
-    function select(fields) {
-      return new SQLiteSelectBuilder({
-        fields: fields ?? void 0,
-        session: self.session,
-        dialect: self.dialect,
-        withList: queries
-      });
-    }
-    function selectDistinct(fields) {
-      return new SQLiteSelectBuilder({
-        fields: fields ?? void 0,
-        session: self.session,
-        dialect: self.dialect,
-        withList: queries,
-        distinct: true
-      });
-    }
-    function update(table) {
-      return new SQLiteUpdateBuilder(table, self.session, self.dialect, queries);
-    }
-    function insert(into) {
-      return new SQLiteInsertBuilder(into, self.session, self.dialect, queries);
-    }
-    function delete_(from) {
-      return new SQLiteDeleteBase(from, self.session, self.dialect, queries);
-    }
-    return { select, selectDistinct, update, insert, delete: delete_ };
-  }
-  select(fields) {
-    return new SQLiteSelectBuilder({ fields: fields ?? void 0, session: this.session, dialect: this.dialect });
-  }
-  selectDistinct(fields) {
-    return new SQLiteSelectBuilder({
-      fields: fields ?? void 0,
-      session: this.session,
-      dialect: this.dialect,
-      distinct: true
-    });
-  }
-  /**
-   * Creates an update query.
-   *
-   * Calling this method without `.where()` clause will update all rows in a table. The `.where()` clause specifies which rows should be updated.
-   *
-   * Use `.set()` method to specify which values to update.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/update}
-   *
-   * @param table The table to update.
-   *
-   * @example
-   *
-   * ```ts
-   * // Update all rows in the 'cars' table
-   * await db.update(cars).set({ color: 'red' });
-   *
-   * // Update rows with filters and conditions
-   * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
-   *
-   * // Update with returning clause
-   * const updatedCar: Car[] = await db.update(cars)
-   *   .set({ color: 'red' })
-   *   .where(eq(cars.id, 1))
-   *   .returning();
-   * ```
-   */
-  update(table) {
-    return new SQLiteUpdateBuilder(table, this.session, this.dialect);
-  }
-  $cache;
-  /**
-   * Creates an insert query.
-   *
-   * Calling this method will create new rows in a table. Use `.values()` method to specify which values to insert.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/insert}
-   *
-   * @param table The table to insert into.
-   *
-   * @example
-   *
-   * ```ts
-   * // Insert one row
-   * await db.insert(cars).values({ brand: 'BMW' });
-   *
-   * // Insert multiple rows
-   * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
-   *
-   * // Insert with returning clause
-   * const insertedCar: Car[] = await db.insert(cars)
-   *   .values({ brand: 'BMW' })
-   *   .returning();
-   * ```
-   */
-  insert(into) {
-    return new SQLiteInsertBuilder(into, this.session, this.dialect);
-  }
-  /**
-   * Creates a delete query.
-   *
-   * Calling this method without `.where()` clause will delete all rows in a table. The `.where()` clause specifies which rows should be deleted.
-   *
-   * See docs: {@link https://orm.drizzle.team/docs/delete}
-   *
-   * @param table The table to delete from.
-   *
-   * @example
-   *
-   * ```ts
-   * // Delete all rows in the 'cars' table
-   * await db.delete(cars);
-   *
-   * // Delete rows with filters and conditions
-   * await db.delete(cars).where(eq(cars.color, 'green'));
-   *
-   * // Delete with returning clause
-   * const deletedCar: Car[] = await db.delete(cars)
-   *   .where(eq(cars.id, 1))
-   *   .returning();
-   * ```
-   */
-  delete(from) {
-    return new SQLiteDeleteBase(from, this.session, this.dialect);
-  }
-  run(query) {
-    const sequel = typeof query === "string" ? sql.raw(query) : query.getSQL();
-    if (this.resultKind === "async") {
-      return new SQLiteRaw(
-        async () => this.session.run(sequel),
-        () => sequel,
-        "run",
-        this.dialect,
-        this.session.extractRawRunValueFromBatchResult.bind(this.session)
-      );
-    }
-    return this.session.run(sequel);
-  }
-  all(query) {
-    const sequel = typeof query === "string" ? sql.raw(query) : query.getSQL();
-    if (this.resultKind === "async") {
-      return new SQLiteRaw(
-        async () => this.session.all(sequel),
-        () => sequel,
-        "all",
-        this.dialect,
-        this.session.extractRawAllValueFromBatchResult.bind(this.session)
-      );
-    }
-    return this.session.all(sequel);
-  }
-  get(query) {
-    const sequel = typeof query === "string" ? sql.raw(query) : query.getSQL();
-    if (this.resultKind === "async") {
-      return new SQLiteRaw(
-        async () => this.session.get(sequel),
-        () => sequel,
-        "get",
-        this.dialect,
-        this.session.extractRawGetValueFromBatchResult.bind(this.session)
-      );
-    }
-    return this.session.get(sequel);
-  }
-  values(query) {
-    const sequel = typeof query === "string" ? sql.raw(query) : query.getSQL();
-    if (this.resultKind === "async") {
-      return new SQLiteRaw(
-        async () => this.session.values(sequel),
-        () => sequel,
-        "values",
-        this.dialect,
-        this.session.extractRawValuesValueFromBatchResult.bind(this.session)
-      );
-    }
-    return this.session.values(sequel);
-  }
-  transaction(transaction, config2) {
-    return this.session.transaction(transaction, config2);
-  }
-};
-
-// node_modules/drizzle-orm/cache/core/cache.js
-var Cache = class {
-  static [entityKind] = "Cache";
-};
-var NoopCache = class extends Cache {
-  strategy() {
-    return "all";
-  }
-  static [entityKind] = "NoopCache";
-  async get(_key) {
-    return void 0;
-  }
-  async put(_hashedQuery, _response, _tables, _config) {
-  }
-  async onMutate(_params) {
-  }
-};
-async function hashQuery(sql2, params) {
-  const dataToHash = `${sql2}-${JSON.stringify(params)}`;
-  const encoder = new TextEncoder();
-  const data = encoder.encode(dataToHash);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = [...new Uint8Array(hashBuffer)];
-  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-  return hashHex;
-}
-
-// node_modules/drizzle-orm/sqlite-core/session.js
-var ExecuteResultSync = class extends QueryPromise {
-  constructor(resultCb) {
-    super();
-    this.resultCb = resultCb;
-  }
-  static [entityKind] = "ExecuteResultSync";
-  async execute() {
-    return this.resultCb();
-  }
-  sync() {
-    return this.resultCb();
-  }
-};
-var SQLitePreparedQuery = class {
-  constructor(mode, executeMethod, query, cache, queryMetadata, cacheConfig) {
-    this.mode = mode;
-    this.executeMethod = executeMethod;
-    this.query = query;
-    this.cache = cache;
-    this.queryMetadata = queryMetadata;
-    this.cacheConfig = cacheConfig;
-    if (cache && cache.strategy() === "all" && cacheConfig === void 0) {
-      this.cacheConfig = { enable: true, autoInvalidate: true };
-    }
-    if (!this.cacheConfig?.enable) {
-      this.cacheConfig = void 0;
-    }
-  }
-  static [entityKind] = "PreparedQuery";
-  /** @internal */
-  joinsNotNullableMap;
-  /** @internal */
-  async queryWithCache(queryString, params, query) {
-    if (this.cache === void 0 || is(this.cache, NoopCache) || this.queryMetadata === void 0) {
-      try {
-        return await query();
-      } catch (e) {
-        throw new DrizzleQueryError(queryString, params, e);
-      }
-    }
-    if (this.cacheConfig && !this.cacheConfig.enable) {
-      try {
-        return await query();
-      } catch (e) {
-        throw new DrizzleQueryError(queryString, params, e);
-      }
-    }
-    if ((this.queryMetadata.type === "insert" || this.queryMetadata.type === "update" || this.queryMetadata.type === "delete") && this.queryMetadata.tables.length > 0) {
-      try {
-        const [res] = await Promise.all([
-          query(),
-          this.cache.onMutate({ tables: this.queryMetadata.tables })
-        ]);
-        return res;
-      } catch (e) {
-        throw new DrizzleQueryError(queryString, params, e);
-      }
-    }
-    if (!this.cacheConfig) {
-      try {
-        return await query();
-      } catch (e) {
-        throw new DrizzleQueryError(queryString, params, e);
-      }
-    }
-    if (this.queryMetadata.type === "select") {
-      const fromCache = await this.cache.get(
-        this.cacheConfig.tag ?? await hashQuery(queryString, params),
-        this.queryMetadata.tables,
-        this.cacheConfig.tag !== void 0,
-        this.cacheConfig.autoInvalidate
-      );
-      if (fromCache === void 0) {
-        let result;
-        try {
-          result = await query();
-        } catch (e) {
-          throw new DrizzleQueryError(queryString, params, e);
-        }
-        await this.cache.put(
-          this.cacheConfig.tag ?? await hashQuery(queryString, params),
-          result,
-          // make sure we send tables that were used in a query only if user wants to invalidate it on each write
-          this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],
-          this.cacheConfig.tag !== void 0,
-          this.cacheConfig.config
-        );
-        return result;
-      }
-      return fromCache;
-    }
-    try {
-      return await query();
-    } catch (e) {
-      throw new DrizzleQueryError(queryString, params, e);
-    }
-  }
-  getQuery() {
-    return this.query;
-  }
-  mapRunResult(result, _isFromBatch) {
-    return result;
-  }
-  mapAllResult(_result, _isFromBatch) {
-    throw new Error("Not implemented");
-  }
-  mapGetResult(_result, _isFromBatch) {
-    throw new Error("Not implemented");
-  }
-  execute(placeholderValues) {
-    if (this.mode === "async") {
-      return this[this.executeMethod](placeholderValues);
-    }
-    return new ExecuteResultSync(() => this[this.executeMethod](placeholderValues));
-  }
-  mapResult(response, isFromBatch) {
-    switch (this.executeMethod) {
-      case "run": {
-        return this.mapRunResult(response, isFromBatch);
-      }
-      case "all": {
-        return this.mapAllResult(response, isFromBatch);
-      }
-      case "get": {
-        return this.mapGetResult(response, isFromBatch);
-      }
-    }
-  }
-};
-var SQLiteSession = class {
-  constructor(dialect) {
-    this.dialect = dialect;
-  }
-  static [entityKind] = "SQLiteSession";
-  prepareOneTimeQuery(query, fields, executeMethod, isResponseInArrayMode, customResultMapper, queryMetadata, cacheConfig) {
-    return this.prepareQuery(
-      query,
-      fields,
-      executeMethod,
-      isResponseInArrayMode,
-      customResultMapper,
-      queryMetadata,
-      cacheConfig
-    );
-  }
-  run(query) {
-    const staticQuery = this.dialect.sqlToQuery(query);
-    try {
-      return this.prepareOneTimeQuery(staticQuery, void 0, "run", false).run();
-    } catch (err) {
-      throw new DrizzleError({ cause: err, message: `Failed to run the query '${staticQuery.sql}'` });
-    }
-  }
-  /** @internal */
-  extractRawRunValueFromBatchResult(result) {
-    return result;
-  }
-  all(query) {
-    return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), void 0, "run", false).all();
-  }
-  /** @internal */
-  extractRawAllValueFromBatchResult(_result) {
-    throw new Error("Not implemented");
-  }
-  get(query) {
-    return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), void 0, "run", false).get();
-  }
-  /** @internal */
-  extractRawGetValueFromBatchResult(_result) {
-    throw new Error("Not implemented");
-  }
-  values(query) {
-    return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), void 0, "run", false).values();
-  }
-  async count(sql2) {
-    const result = await this.values(sql2);
-    return result[0][0];
-  }
-  /** @internal */
-  extractRawValuesValueFromBatchResult(_result) {
-    throw new Error("Not implemented");
-  }
-};
-var SQLiteTransaction = class extends BaseSQLiteDatabase {
-  constructor(resultType, dialect, session, schema, nestedIndex = 0) {
-    super(resultType, dialect, session, schema);
-    this.schema = schema;
-    this.nestedIndex = nestedIndex;
-  }
-  static [entityKind] = "SQLiteTransaction";
-  rollback() {
-    throw new TransactionRollbackError();
-  }
-};
-
-// node_modules/drizzle-orm/better-sqlite3/session.js
-var BetterSQLiteSession = class extends SQLiteSession {
-  constructor(client, dialect, schema, options = {}) {
-    super(dialect);
-    this.client = client;
-    this.schema = schema;
-    this.logger = options.logger ?? new NoopLogger();
-    this.cache = options.cache ?? new NoopCache();
-  }
-  static [entityKind] = "BetterSQLiteSession";
-  logger;
-  cache;
-  prepareQuery(query, fields, executeMethod, isResponseInArrayMode, customResultMapper, queryMetadata, cacheConfig) {
-    const stmt = this.client.prepare(query.sql);
-    return new PreparedQuery(
-      stmt,
-      query,
-      this.logger,
-      this.cache,
-      queryMetadata,
-      cacheConfig,
-      fields,
-      executeMethod,
-      isResponseInArrayMode,
-      customResultMapper
-    );
-  }
-  transaction(transaction, config2 = {}) {
-    const tx = new BetterSQLiteTransaction("sync", this.dialect, this, this.schema);
-    const nativeTx = this.client.transaction(transaction);
-    return nativeTx[config2.behavior ?? "deferred"](tx);
-  }
-};
-var BetterSQLiteTransaction = class _BetterSQLiteTransaction extends SQLiteTransaction {
-  static [entityKind] = "BetterSQLiteTransaction";
-  transaction(transaction) {
-    const savepointName = `sp${this.nestedIndex}`;
-    const tx = new _BetterSQLiteTransaction("sync", this.dialect, this.session, this.schema, this.nestedIndex + 1);
-    this.session.run(sql.raw(`savepoint ${savepointName}`));
-    try {
-      const result = transaction(tx);
-      this.session.run(sql.raw(`release savepoint ${savepointName}`));
-      return result;
-    } catch (err) {
-      this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
-      throw err;
-    }
-  }
-};
-var PreparedQuery = class extends SQLitePreparedQuery {
-  constructor(stmt, query, logger, cache, queryMetadata, cacheConfig, fields, executeMethod, _isResponseInArrayMode, customResultMapper) {
-    super("sync", executeMethod, query, cache, queryMetadata, cacheConfig);
-    this.stmt = stmt;
-    this.logger = logger;
-    this.fields = fields;
-    this._isResponseInArrayMode = _isResponseInArrayMode;
-    this.customResultMapper = customResultMapper;
-  }
-  static [entityKind] = "BetterSQLitePreparedQuery";
-  run(placeholderValues) {
-    const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-    this.logger.logQuery(this.query.sql, params);
-    return this.stmt.run(...params);
-  }
-  all(placeholderValues) {
-    const { fields, joinsNotNullableMap, query, logger, stmt, customResultMapper } = this;
-    if (!fields && !customResultMapper) {
-      const params = fillPlaceholders(query.params, placeholderValues ?? {});
-      logger.logQuery(query.sql, params);
-      return stmt.all(...params);
-    }
-    const rows = this.values(placeholderValues);
-    if (customResultMapper) {
-      return customResultMapper(rows);
-    }
-    return rows.map((row) => mapResultRow(fields, row, joinsNotNullableMap));
-  }
-  get(placeholderValues) {
-    const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-    this.logger.logQuery(this.query.sql, params);
-    const { fields, stmt, joinsNotNullableMap, customResultMapper } = this;
-    if (!fields && !customResultMapper) {
-      return stmt.get(...params);
-    }
-    const row = stmt.raw().get(...params);
-    if (!row) {
-      return void 0;
-    }
-    if (customResultMapper) {
-      return customResultMapper([row]);
-    }
-    return mapResultRow(fields, row, joinsNotNullableMap);
-  }
-  values(placeholderValues) {
-    const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-    this.logger.logQuery(this.query.sql, params);
-    return this.stmt.raw().all(...params);
-  }
-  /** @internal */
-  isResponseInArrayMode() {
-    return this._isResponseInArrayMode;
-  }
-};
-
-// node_modules/drizzle-orm/better-sqlite3/driver.js
-var BetterSQLite3Database = class extends BaseSQLiteDatabase {
-  static [entityKind] = "BetterSQLite3Database";
-};
-function construct(client, config2 = {}) {
-  const dialect = new SQLiteSyncDialect({ casing: config2.casing });
-  let logger;
-  if (config2.logger === true) {
-    logger = new DefaultLogger();
-  } else if (config2.logger !== false) {
-    logger = config2.logger;
-  }
-  let schema;
-  if (config2.schema) {
-    const tablesConfig = extractTablesRelationalConfig(
-      config2.schema,
-      createTableRelationsHelpers
-    );
-    schema = {
-      fullSchema: config2.schema,
-      schema: tablesConfig.tables,
-      tableNamesMap: tablesConfig.tableNamesMap
-    };
-  }
-  const session = new BetterSQLiteSession(client, dialect, schema, { logger });
-  const db = new BetterSQLite3Database("sync", dialect, session, schema);
-  db.$client = client;
-  return db;
-}
-function drizzle(...params) {
-  if (params[0] === void 0 || typeof params[0] === "string") {
-    const instance2 = params[0] === void 0 ? new import_better_sqlite3.default() : new import_better_sqlite3.default(params[0]);
-    return construct(instance2, params[1]);
-  }
-  if (isConfig(params[0])) {
-    const { connection, client, ...drizzleConfig } = params[0];
-    if (client) return construct(client, drizzleConfig);
-    if (typeof connection === "object") {
-      const { source, ...options } = connection;
-      const instance22 = new import_better_sqlite3.default(source, options);
-      return construct(instance22, drizzleConfig);
-    }
-    const instance2 = new import_better_sqlite3.default(connection);
-    return construct(instance2, drizzleConfig);
-  }
-  return construct(params[0], params[1]);
-}
-((drizzle2) => {
-  function mock(config2) {
-    return construct({}, config2);
-  }
-  drizzle2.mock = mock;
-})(drizzle || (drizzle = {}));
-
-// api/queries/connection.ts
-var import_better_sqlite33 = __toESM(require_lib(), 1);
-
-// db/schema.ts
-var schema_exports = {};
-__export(schema_exports, {
-  dailyStats: () => dailyStats,
-  pollingUnits: () => pollingUnits,
-  reportMedia: () => reportMedia,
-  reports: () => reports,
-  users: () => users
-});
-var users = sqliteTable("users", {
-  id: integer2("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
-  unionId: text("unionId").notNull().unique(),
-  name: text("name"),
-  email: text("email"),
-  avatar: text("avatar"),
-  role: text("role", { enum: ["user", "admin"] }).default("user").notNull(),
-  createdAt: integer2("createdAt", { mode: "timestamp" }).$defaultFn(() => /* @__PURE__ */ new Date()),
-  updatedAt: integer2("updatedAt", { mode: "timestamp" }).$defaultFn(() => /* @__PURE__ */ new Date()),
-  lastSignInAt: integer2("lastSignInAt", { mode: "timestamp" }).$defaultFn(() => /* @__PURE__ */ new Date())
-});
-var pollingUnits = sqliteTable("polling_units", {
-  id: integer2("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
-  name: text("name").notNull(),
-  lga: text("lga").notNull(),
-  ward: text("ward").notNull(),
-  latitude: real("latitude"),
-  longitude: real("longitude"),
-  registrationAreaCode: text("registration_area_code"),
-  createdAt: integer2("created_at", { mode: "timestamp" }).$defaultFn(() => /* @__PURE__ */ new Date())
-});
-var reports = sqliteTable("reports", {
-  id: integer2("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
-  incidentType: text("incident_type", {
-    enum: ["vote_buying", "ballot_snatching", "intimidation", "bvas_failure", "overvoting", "late_arrival", "other"]
-  }).notNull(),
-  lga: text("lga").notNull(),
-  ward: text("ward"),
-  pollingUnit: text("polling_unit"),
-  description: text("description"),
-  latitude: real("latitude"),
-  longitude: real("longitude"),
-  locationAccuracy: real("location_accuracy"),
-  status: text("status", { enum: ["submitted", "pending", "resolved", "escalated"] }).default("submitted").notNull(),
-  syncStatus: text("sync_status", { enum: ["synced", "offline_queue", "syncing"] }).default("synced").notNull(),
-  reporterPhone: text("reporter_phone"),
-  submittedAt: integer2("submitted_at", { mode: "timestamp" }).$defaultFn(() => /* @__PURE__ */ new Date()),
-  updatedAt: integer2("updated_at", { mode: "timestamp" }).$defaultFn(() => /* @__PURE__ */ new Date())
-});
-var reportMedia = sqliteTable("report_media", {
-  id: integer2("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
-  reportId: integer2("report_id", { mode: "number" }).notNull(),
-  mediaType: text("media_type", { enum: ["photo", "video", "audio"] }).notNull(),
-  url: text("url").notNull(),
-  thumbnail: text("thumbnail"),
-  createdAt: integer2("created_at", { mode: "timestamp" }).$defaultFn(() => /* @__PURE__ */ new Date())
-});
-var dailyStats = sqliteTable("daily_stats", {
-  id: integer2("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
-  date: text("date").notNull(),
-  totalReports: integer2("total_reports").default(0).notNull(),
-  resolvedReports: integer2("resolved_reports").default(0).notNull(),
-  activeUsers: integer2("active_users").default(0).notNull(),
-  pollingUnitsCovered: integer2("polling_units_covered").default(0).notNull(),
-  createdAt: integer2("created_at", { mode: "timestamp" }).$defaultFn(() => /* @__PURE__ */ new Date())
-});
-
-// api/queries/connection.ts
-var fullSchema = { ...schema_exports };
-var instance;
-function getDb() {
-  if (!instance) {
-    const client = new import_better_sqlite33.default("/tmp/local.db");
-    instance = drizzle(client, { schema: fullSchema });
-  }
-  return instance;
-}
-
 // api/routers/pollingUnitRouter.ts
+init_json_store();
 var pollingUnitRouter = createRouter({
   list: publicQuery.input(
     external_exports.object({
@@ -25005,53 +24282,40 @@ var pollingUnitRouter = createRouter({
       limit: external_exports.number().min(1).max(500).default(100),
       offset: external_exports.number().min(0).default(0)
     }).optional()
-  ).query(async ({ input }) => {
-    const db = getDb();
-    const conditions = [];
-    if (input?.lga) {
-      conditions.push(eq(pollingUnits.lga, input.lga));
-    }
-    if (input?.ward) {
-      conditions.push(eq(pollingUnits.ward, input.ward));
-    }
+  ).query(({ input }) => {
+    let units = getPollingUnits();
     if (input?.search) {
-      conditions.push(like(pollingUnits.name, `%${input.search}%`));
+      units = searchPollingUnits(input.search);
+    } else {
+      if (input?.lga) {
+        units = units.filter((u) => u.lga === input.lga);
+      }
+      if (input?.ward) {
+        units = units.filter((u) => u.ward === input.ward);
+      }
     }
-    const where = conditions.length > 0 ? and(...conditions) : void 0;
-    const results = await db.select().from(pollingUnits).where(where).limit(input?.limit || 100).offset(input?.offset || 0);
-    const countResult = await db.select({ count: sql`count(*)` }).from(pollingUnits).where(where);
-    return {
-      units: results,
-      total: countResult[0]?.count || 0
-    };
+    const total = units.length;
+    const limit = input?.limit || 100;
+    const offset = input?.offset || 0;
+    units = units.slice(offset, offset + limit);
+    return { units, total };
   }),
-  getById: publicQuery.input(external_exports.object({ id: external_exports.number() })).query(async ({ input }) => {
-    const db = getDb();
-    const result = await db.select().from(pollingUnits).where(eq(pollingUnits.id, input.id));
-    return result[0] || null;
+  getById: publicQuery.input(external_exports.object({ id: external_exports.number() })).query(({ input }) => {
+    return getPollingUnitById(input.id);
   }),
-  getLGAs: publicQuery.query(async () => {
-    const db = getDb();
-    const results = await db.select({ lga: pollingUnits.lga }).from(pollingUnits).groupBy(pollingUnits.lga).orderBy(pollingUnits.lga);
-    return results.map((r) => r.lga);
+  getLGAs: publicQuery.query(() => {
+    return getLGAs();
   }),
-  getWardsByLGA: publicQuery.input(external_exports.object({ lga: external_exports.string() })).query(async ({ input }) => {
-    const db = getDb();
-    const results = await db.select({ ward: pollingUnits.ward }).from(pollingUnits).where(eq(pollingUnits.lga, input.lga)).groupBy(pollingUnits.ward).orderBy(pollingUnits.ward);
-    return results.map((r) => r.ward);
+  getWardsByLGA: publicQuery.input(external_exports.object({ lga: external_exports.string() })).query(({ input }) => {
+    return getWardsByLGA(input.lga);
   }),
   getUnitsByLGAAndWard: publicQuery.input(
     external_exports.object({
       lga: external_exports.string(),
       ward: external_exports.string().optional()
     })
-  ).query(async ({ input }) => {
-    const db = getDb();
-    const conditions = [eq(pollingUnits.lga, input.lga)];
-    if (input.ward) {
-      conditions.push(eq(pollingUnits.ward, input.ward));
-    }
-    return await db.select().from(pollingUnits).where(and(...conditions)).orderBy(pollingUnits.ward, pollingUnits.name);
+  ).query(({ input }) => {
+    return getUnitsByLGAAndWard(input.lga, input.ward);
   }),
   nearby: publicQuery.input(
     external_exports.object({
@@ -25060,21 +24324,13 @@ var pollingUnitRouter = createRouter({
       radiusKm: external_exports.number().default(5),
       limit: external_exports.number().default(20)
     })
-  ).query(async ({ input }) => {
-    const db = getDb();
-    const latDelta = input.radiusKm / 111;
-    const lngDelta = input.radiusKm / (111 * Math.cos(input.lat * Math.PI / 180));
-    const results = await db.select().from(pollingUnits).where(
-      and(
-        sql`${pollingUnits.latitude} BETWEEN ${(input.lat - latDelta).toFixed(7)} AND ${(input.lat + latDelta).toFixed(7)}`,
-        sql`${pollingUnits.longitude} BETWEEN ${(input.lng - lngDelta).toFixed(7)} AND ${(input.lng + lngDelta).toFixed(7)}`
-      )
-    ).limit(input.limit);
-    return results;
+  ).query(({ input }) => {
+    return getNearbyPollingUnits(input.lat, input.lng, input.radiusKm, input.limit);
   })
 });
 
 // api/routers/reportRouter.ts
+init_json_store();
 var reportRouter = createRouter({
   list: publicQuery.input(
     external_exports.object({
@@ -25092,35 +24348,20 @@ var reportRouter = createRouter({
       limit: external_exports.number().min(1).max(100).default(20),
       offset: external_exports.number().min(0).default(0)
     }).optional()
-  ).query(async ({ input }) => {
-    const db = getDb();
-    const conditions = [];
-    if (input?.status) {
-      conditions.push(eq(reports.status, input.status));
-    }
-    if (input?.lga) {
-      conditions.push(eq(reports.lga, input.lga));
-    }
-    if (input?.incidentType) {
-      conditions.push(eq(reports.incidentType, input.incidentType));
-    }
-    const where = conditions.length > 0 ? and(...conditions) : void 0;
-    const results = await db.select().from(reports).where(where).orderBy(desc(reports.submittedAt)).limit(input?.limit || 20).offset(input?.offset || 0);
-    const countResult = await db.select({ count: sql`count(*)` }).from(reports).where(where);
-    return {
-      reports: results,
-      total: countResult[0]?.count || 0
-    };
+  ).query(({ input }) => {
+    return reportStore.filter({
+      status: input?.status,
+      lga: input?.lga,
+      incidentType: input?.incidentType,
+      limit: input?.limit,
+      offset: input?.offset
+    });
   }),
-  getById: publicQuery.input(external_exports.object({ id: external_exports.number() })).query(async ({ input }) => {
-    const db = getDb();
-    const reportResult = await db.select().from(reports).where(eq(reports.id, input.id));
-    if (!reportResult[0]) return null;
-    const mediaResult = await db.select().from(reportMedia).where(eq(reportMedia.reportId, input.id));
-    return {
-      ...reportResult[0],
-      media: mediaResult
-    };
+  getById: publicQuery.input(external_exports.object({ id: external_exports.number() })).query(({ input }) => {
+    const report = reportStore.getById(input.id);
+    if (!report) return null;
+    const media = reportStore.getMediaByReportId(input.id);
+    return { ...report, media };
   }),
   create: publicQuery.input(
     external_exports.object({
@@ -25149,68 +24390,34 @@ var reportRouter = createRouter({
         })
       ).optional()
     })
-  ).mutation(async ({ input }) => {
-    const db = getDb();
-    const { media, latitude, longitude, locationAccuracy, ...reportData } = input;
-    const result = await db.insert(reports).values({
+  ).mutation(({ input }) => {
+    const { media, ...reportData } = input;
+    const id = reportStore.create({
       ...reportData,
+      status: "submitted",
       syncStatus: "synced",
-      latitude: latitude != null ? String(latitude) : null,
-      longitude: longitude != null ? String(longitude) : null,
-      locationAccuracy: locationAccuracy != null ? String(locationAccuracy) : null
+      media
     });
-    const reportId = Number(result[0].insertId);
-    if (media && media.length > 0) {
-      await db.insert(reportMedia).values(
-        media.map((m) => ({
-          reportId,
-          mediaType: m.mediaType,
-          url: m.url,
-          thumbnail: m.thumbnail
-        }))
-      );
-    }
-    return { id: reportId, success: true };
+    return { id, success: true };
   }),
   updateStatus: adminQuery.input(
     external_exports.object({
       id: external_exports.number(),
       status: external_exports.enum(["submitted", "pending", "resolved", "escalated"])
     })
-  ).mutation(async ({ input }) => {
-    const db = getDb();
-    await db.update(reports).set({ status: input.status }).where(eq(reports.id, input.id));
+  ).mutation(({ input }) => {
+    reportStore.updateStatus(input.id, input.status);
     return { success: true };
   }),
-  getStats: publicQuery.query(async () => {
-    const db = getDb();
-    const totalResult = await db.select({ count: sql`count(*)` }).from(reports);
-    const statusBreakdown = await db.select({
-      status: reports.status,
-      count: sql`count(*)`
-    }).from(reports).groupBy(reports.status);
-    const typeBreakdown = await db.select({
-      incidentType: reports.incidentType,
-      count: sql`count(*)`
-    }).from(reports).groupBy(reports.incidentType);
-    const lgaBreakdown = await db.select({
-      lga: reports.lga,
-      count: sql`count(*)`
-    }).from(reports).groupBy(reports.lga).orderBy(sql`count(*) DESC`).limit(10);
-    return {
-      total: totalResult[0]?.count || 0,
-      byStatus: statusBreakdown,
-      byType: typeBreakdown,
-      byLGA: lgaBreakdown
-    };
+  getStats: publicQuery.query(() => {
+    return reportStore.getStats();
   }),
   getRecent: publicQuery.input(
     external_exports.object({
       limit: external_exports.number().min(1).max(50).default(10)
     }).optional()
-  ).query(async ({ input }) => {
-    const db = getDb();
-    return await db.select().from(reports).orderBy(desc(reports.submittedAt)).limit(input?.limit || 10);
+  ).query(({ input }) => {
+    return reportStore.getAll().slice(0, input?.limit || 10);
   })
 });
 
@@ -25222,163 +24429,97 @@ var appRouter = createRouter({
   report: reportRouter
 });
 
-// api/boot.ts
-var import_better_sqlite34 = __toESM(require_lib(), 1);
-function bootstrap() {
-  const dbPath = "/tmp/local.db";
-  const client = new import_better_sqlite34.default(dbPath);
-  client.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      unionId TEXT NOT NULL UNIQUE,
-      name TEXT,
-      email TEXT,
-      avatar TEXT,
-      role TEXT NOT NULL DEFAULT 'user',
-      createdAt INTEGER,
-      updatedAt INTEGER,
-      lastSignInAt INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS polling_units (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      lga TEXT NOT NULL,
-      ward TEXT NOT NULL,
-      latitude REAL,
-      longitude REAL,
-      registration_area_code TEXT,
-      created_at INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS reports (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      incident_type TEXT NOT NULL,
-      lga TEXT NOT NULL,
-      ward TEXT,
-      polling_unit TEXT,
-      description TEXT,
-      latitude REAL,
-      longitude REAL,
-      location_accuracy REAL,
-      status TEXT NOT NULL DEFAULT 'submitted',
-      sync_status TEXT NOT NULL DEFAULT 'synced',
-      reporter_phone TEXT,
-      submitted_at INTEGER,
-      updated_at INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS report_media (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      report_id INTEGER NOT NULL,
-      media_type TEXT NOT NULL,
-      url TEXT NOT NULL,
-      thumbnail TEXT,
-      created_at INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS daily_stats (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL,
-      total_reports INTEGER NOT NULL DEFAULT 0,
-      resolved_reports INTEGER NOT NULL DEFAULT 0,
-      active_users INTEGER NOT NULL DEFAULT 0,
-      polling_units_covered INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER
-    );
-  `);
-  client.close();
-  const osunLGAs = [
-    "Aiyedaade",
-    "Aiyedire",
-    "Atakunmosa East",
-    "Atakunmosa West",
-    "Boluwaduro",
-    "Boripe",
-    "Ede North",
-    "Ede South",
-    "Egbedore",
-    "Ejigbo",
-    "Ife Central",
-    "Ife East",
-    "Ife North",
-    "Ife South",
-    "Ifedayo",
-    "Ifelodun",
-    "Ila",
-    "Ilesa East",
-    "Ilesa West",
-    "Irepodun",
-    "Irewole",
-    "Isokan",
-    "Iwo",
-    "Obokun",
-    "Odo-Otin",
-    "Ola-Oluwa",
-    "Olorunda",
-    "Oriade",
-    "Orolu",
-    "Osogbo"
-  ];
-  const puTemplates = [
-    "St. Peter's Pry Sch",
-    "Baptist Day Sch",
-    "Community Pry Sch",
-    "Town Hall",
-    "Market Square",
-    "L.A. Pry Sch",
-    "N.U.D. Pry Sch",
-    "Methodist Pry Sch",
-    "C.A.C. Pry Sch",
-    "Health Centre"
-  ];
-  const count = client.prepare("SELECT COUNT(*) as c FROM polling_units").get();
-  if (!count || count.c === 0) {
-    const insert = client.prepare("INSERT INTO polling_units (name, lga, ward, latitude, longitude, registration_area_code) VALUES (?, ?, ?, ?, ?, ?)");
-    for (let i = 0; i < osunLGAs.length; i++) {
-      for (let w = 0; w < 4; w++) {
-        for (let u = 0; u < 3 + i % 3; u++) {
-          insert.run(
-            `${puTemplates[(i + w + u) % puTemplates.length]}, ${osunLGAs[i]} ${w + 1}`,
-            osunLGAs[i],
-            `Ward ${w + 1}`,
-            7.5 + Math.random() * 0.5,
-            4.2 + Math.random() * 0.8,
-            `${String(i + 1).padStart(2, "0")}-${String(w + 1).padStart(2, "0")}-${String(u + 1).padStart(3, "0")}`
-          );
-        }
-      }
-    }
+// api/context.ts
+init_auth();
+async function createContext(opts) {
+  const ctx = { req: opts.req, resHeaders: opts.resHeaders };
+  try {
+    ctx.user = await authenticateRequest(opts.req.headers);
+  } catch {
   }
-  const app = new Hono2();
-  app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
-  const apiRoutes = appRouter;
-  app.route("/api", apiRoutes);
-  app.use("/*", serveStatic({ root: "./public" }));
-  app.get("/", (ctx) => {
-    return ctx.redirect("/index.html");
-  });
-  app.onError((err, ctx) => {
-    if (err instanceof HTTPException) {
-      return ctx.json(
-        {
-          error: err.message,
-          code: err.status
-        },
-        err.status
-      );
-    }
-    return ctx.json(
-      {
-        error: "Internal server error",
-        code: 500
-      },
-      500
-    );
-  });
-  return app;
+  return ctx;
 }
-var boot_default = bootstrap();
+
+// api/boot.ts
+function createApp() {
+  try {
+    console.log("[BOOT] Starting OJUTOL\xC9...");
+    console.log("[BOOT] Environment:", env.isProduction ? "production" : "development");
+    const app2 = new Hono2();
+    app2.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
+    console.log("[BOOT] Hono app created");
+    app2.all("/api/trpc/*", async (c) => {
+      const response = await fetchRequestHandler({
+        endpoint: "/api/trpc",
+        req: c.req.raw,
+        router: appRouter,
+        createContext
+      });
+      return response;
+    });
+    console.log("[BOOT] tRPC API routes registered at /api/trpc");
+    app2.get("/api/oauth/callback", async (c) => {
+      const { createOAuthCallbackHandler: createOAuthCallbackHandler2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
+      const handler = createOAuthCallbackHandler2();
+      return handler(c);
+    });
+    console.log("[BOOT] OAuth callback registered");
+    const staticRoot = env.isProduction ? "./dist/public" : "./public";
+    app2.use("/*", serveStatic({ root: staticRoot }));
+    app2.get("/", (c) => c.redirect("/index.html"));
+    console.log("[BOOT] Static files registered from", staticRoot);
+    app2.onError((err, c) => {
+      console.error("[ERROR]", err);
+      if (err instanceof HTTPException) {
+        return c.json({ error: err.message, code: err.status }, err.status);
+      }
+      return c.json({ error: "Internal server error", code: 500 }, 500);
+    });
+    console.log("[BOOT] OJUTOL\xC9 ready!");
+    return app2;
+  } catch (err) {
+    console.error("[BOOT FAILED]", err.message);
+    console.error("[STACK]", err.stack);
+    const app2 = new Hono2();
+    app2.all("/*", (c) => c.json({ error: "Server startup failed: " + err.message, status: "down" }, 500));
+    return app2;
+  }
+}
+var app = createApp();
+var PORT = Number(process.env.PORT || 3e3);
+if (typeof Bun !== "undefined") {
+  Bun.serve({
+    fetch: app.fetch,
+    port: PORT
+  });
+  console.log(`[BOOT] Server running on http://localhost:${PORT}`);
+} else {
+  Promise.resolve().then(() => (init_dist(), dist_exports)).then(({ serve: nodeServe }) => {
+    nodeServe({
+      fetch: app.fetch,
+      port: PORT
+    });
+    console.log(`[BOOT] Server running on http://localhost:${PORT}`);
+  }).catch((err) => {
+    console.error("[BOOT] Failed to start Node server:", err.message);
+    process.exit(1);
+  });
+}
+var boot_default = app;
 export {
   boot_default as default
 };
+/*! Bundled license information:
+
+@trpc/server/dist/resolveResponse-CdASWfAV.mjs:
+  (* istanbul ignore if -- @preserve *)
+  (*!
+  * is-plain-object <https://github.com/jonschlinkert/is-plain-object>
+  *
+  * Copyright (c) 2014-2017, Jon Schlinkert.
+  * Released under the MIT License.
+  *)
+
+@trpc/server/dist/resolveResponse-CdASWfAV.mjs:
+  (* istanbul ignore if -- @preserve *)
+*/

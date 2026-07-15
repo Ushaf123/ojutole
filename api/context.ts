@@ -1,5 +1,5 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import type { User } from "@db/schema";
+import type { User } from "./json-store";
 import { authenticateRequest } from "./kimi/auth";
 
 export type TrpcContext = {
