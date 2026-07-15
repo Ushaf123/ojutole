@@ -1,0 +1,30 @@
+{
+  "name": "Ojutole - Election Monitoring",
+  "short_name": "Ojutole",
+  "description": "Report electoral irregularities in real-time across Osun State",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0E27",
+  "theme_color": "#0A0E27",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/hero-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/hero-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "en",
+  "dir": "ltr",
+  "related_applications": [],
+  "prefer_related_applications": false
+}

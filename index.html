@@ -2,11 +2,43 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ojutole</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0A0E27" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Ojutole" />
+    <meta name="description" content="Report electoral irregularities in real-time across Osun State. Protect Nigerian democracy." />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/hero-logo.png" />
+    <link rel="icon" type="image/png" href="/hero-logo.png" />
+    <title>Ojutole - Election Monitoring</title>
+    <style>
+      body {
+        background: #0A0E27;
+        margin: 0;
+        padding: 0;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        overscroll-behavior-y: none;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Register Service Worker
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((reg) => {
+              console.log('SW registered:', reg.scope);
+            })
+            .catch((err) => {
+              console.log('SW registration failed:', err);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
