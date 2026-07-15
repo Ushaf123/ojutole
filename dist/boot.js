@@ -47477,8 +47477,8 @@ var env = {
   appSecret: required2("APP_SECRET"),
   isProduction: process.env.NODE_ENV === "production",
   databaseUrl: required2("DATABASE_URL"),
-  kimiAuthUrl: required2("KIMI_AUTH_URL"),
-  kimiOpenUrl: required2("KIMI_OPEN_URL"),
+  kimiAuthUrl: process.env.KIMI_AUTH_URL ?? "",
+  kimiOpenUrl: process.env.KIMI_OPEN_URL ?? "",
   ownerUnionId: process.env.OWNER_UNION_ID ?? ""
 };
 
