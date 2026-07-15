@@ -3,14 +3,46 @@ import { trpc } from "@/providers/trpc";
 import { useLanguage } from "@/hooks/useLanguage";
 import {
   FileText, TrendingUp, CheckCircle,
-  Clock, Filter, Download, ChevronDown
+  Clock, Filter, Download, ChevronDown,
+  MapPin, Phone, Camera, Video, Mic, X,
+  ExternalLink, Image, Play, AudioLines,
+  ChevronLeft
 } from "lucide-react";
+
+interface ReportDetail {
+  id: number;
+  incidentType: string;
+  lga: string;
+  ward?: string;
+  pollingUnit?: string;
+  description?: string;
+  latitude?: number;
+  longitude?: number;
+  locationAccuracy?: number;
+  locationAddress?: string;
+  status: string;
+  reporterPhone?: string;
+  submittedAt: string;
+  updatedAt: string;
+  media?: Array<{
+    id: number;
+    reportId: number;
+    mediaType: "photo" | "video" | "audio";
+    url: string;
+    thumbnail?: string;
+    fileName?: string;
+    fileSize?: number;
+    createdAt: string;
+  }>;
+}
 
 export default function Admin() {
   const { t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [lgaFilter, setLgaFilter] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null);
+  const [showMediaModal, setShowMediaModal] = useState<string | null>(null);
 
   const statsQuery = trpc.report.getStats.useQuery();
   const reportsQuery = trpc.report.list.useQuery(
@@ -21,6 +53,7 @@ export default function Admin() {
     }
   );
   const lgaQuery = trpc.pollingUnit.getLGAs.useQuery();
+  const puStatsQuery = trpc.pollingUnit.stats.useQuery();
 
   const stats = statsQuery.data;
   const reports = reportsQuery.data?.reports || [];
@@ -45,6 +78,169 @@ export default function Admin() {
     escalated: { color: "text-red-400", bg: "bg-red-500/20", label: t("status.escalated") },
   };
 
+  const mediaIcon = (type: string) => {
+    switch (type) {
+      case "photo": return <Camera size={14} />;
+      case "video": return <Video size={14} />;
+      case "audio": return <Mic size={14} />;
+      default: return <FileText size={14} />;
+    }
+  };
+
+  const mediaColor = (type: string) => {
+    switch (type) {
+      case "photo": return "text-blue-400 bg-blue-500/20";
+      case "video": return "text-pink-400 bg-pink-500/20";
+      case "audio": return "text-amber-400 bg-amber-500/20";
+      default: return "text-white/40 bg-white/10";
+    }
+  };
+
+  // Report Detail Modal
+  if (selectedReport) {
+    const st = statusConfig[selectedReport.status] || statusConfig.submitted;
+    const hasMedia = selectedReport.media && selectedReport.media.length > 0;
+    const hasLocation = selectedReport.latitude && selectedReport.longitude;
+
+    return (
+      <div className="min-h-screen bg-[#0A0E27] pb-8">
+        {/* Header */}
+        <div className="glass border-b border-white/10 px-4 py-4">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSelectedReport(null)} className="w-8 h-8 flex items-center justify-center rounded-full glass">
+              <ChevronLeft size={18} className="text-white/60" />
+            </button>
+            <div>
+              <h1 className="text-lg font-black uppercase tracking-tight text-white">Report #{selectedReport.id}</h1>
+              <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">OJÚTÓLÉ | USHAF Nigeria</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 py-4 space-y-4">
+          {/* Status Badge */}
+          <div className="flex items-center gap-3">
+            <span className={`text-xs px-3 py-1 rounded-full ${st.bg} ${st.color} font-medium`}>{st.label}</span>
+            <span className="text-xs text-white/40">{incidentLabels[selectedReport.incidentType] || selectedReport.incidentType}</span>
+          </div>
+
+          {/* Location */}
+          <section className="glass rounded-2xl p-4">
+            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <MapPin size={14} /> Location
+            </h2>
+            <div className="space-y-2">
+              <p className="text-white font-medium">{selectedReport.lga} LGA</p>
+              {selectedReport.ward && <p className="text-sm text-white/60">Ward: {selectedReport.ward}</p>}
+              {selectedReport.pollingUnit && <p className="text-sm text-white/60">PU: {selectedReport.pollingUnit}</p>}
+
+              {hasLocation && (
+                <div className="mt-3 p-3 rounded-xl bg-white/5 space-y-2">
+                  <p className="text-xs text-white/40">
+                    Lat: {selectedReport.latitude?.toFixed(6)}, Lng: {selectedReport.longitude?.toFixed(6)}
+                  </p>
+                  {selectedReport.locationAccuracy && (
+                    <p className="text-xs text-white/40">Accuracy: ±{Math.round(selectedReport.locationAccuracy)}m</p>
+                  )}
+                  {selectedReport.locationAddress && (
+                    <p className="text-xs text-emerald-400/80">{selectedReport.locationAddress}</p>
+                  )}
+                  <a
+                    href={`https://www.google.com/maps?q=${selectedReport.latitude},${selectedReport.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-[#2563EB] underline"
+                  >
+                    <ExternalLink size={10} /> View Exact Location on Google Maps
+                  </a>
+                </div>
+              )}
+
+              {!hasLocation && (
+                <p className="text-xs text-amber-400/60 mt-2">No GPS coordinates captured</p>
+              )}
+            </div>
+          </section>
+
+          {/* Description */}
+          {selectedReport.description && (
+            <section className="glass rounded-2xl p-4">
+              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <FileText size={14} /> Description
+              </h2>
+              <p className="text-sm text-white/80 whitespace-pre-wrap">{selectedReport.description}</p>
+            </section>
+          )}
+
+          {/* Media Attachments */}
+          {hasMedia && (
+            <section className="glass rounded-2xl p-4">
+              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Image size={14} /> Evidence Attachments ({selectedReport.media?.length})
+              </h2>
+              <div className="grid grid-cols-2 gap-3">
+                {selectedReport.media?.map((m, idx) => (
+                  <div key={m.id} className="relative rounded-xl overflow-hidden bg-white/5">
+                    {m.mediaType === "photo" && (
+                      <>
+                        <img src={m.url} alt={`Evidence ${idx + 1}`} className="w-full aspect-square object-cover" />
+                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-white/80 flex items-center gap-1">
+                          <Camera size={10} /> Photo
+                        </div>
+                      </>
+                    )}
+                    {m.mediaType === "video" && (
+                      <>
+                        <video src={m.url} className="w-full aspect-square object-cover" controls />
+                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-white/80 flex items-center gap-1">
+                          <Video size={10} /> Video
+                        </div>
+                      </>
+                    )}
+                    {m.mediaType === "audio" && (
+                      <div className="p-4 flex flex-col items-center justify-center aspect-square">
+                        <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mb-2">
+                          <AudioLines size={24} className="text-amber-400" />
+                        </div>
+                        <audio src={m.url} controls className="w-full max-w-[200px]" />
+                        <div className="mt-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 flex items-center gap-1">
+                          <Mic size={10} /> Voice Note
+                        </div>
+                        {m.fileName && <p className="text-[10px] text-white/30 mt-1 truncate max-w-full">{m.fileName}</p>}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Reporter Info */}
+          <section className="glass rounded-2xl p-4">
+            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Phone size={14} /> Reporter
+            </h2>
+            {selectedReport.reporterPhone ? (
+              <a href={`tel:${selectedReport.reporterPhone}`} className="text-sm text-[#2563EB] flex items-center gap-2">
+                <Phone size={14} /> {selectedReport.reporterPhone}
+              </a>
+            ) : (
+              <p className="text-sm text-white/40">No phone number provided</p>
+            )}
+          </section>
+
+          {/* Timestamps */}
+          <section className="glass rounded-2xl p-4">
+            <div className="space-y-1">
+              <p className="text-xs text-white/40">Submitted: {new Date(selectedReport.submittedAt).toLocaleString("en-NG")}</p>
+              <p className="text-xs text-white/40">Updated: {new Date(selectedReport.updatedAt).toLocaleString("en-NG")}</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen pb-8 bg-[#0A0E27]">
       <div className="glass border-b border-white/10 px-4 py-4">
@@ -61,6 +257,28 @@ export default function Admin() {
       </div>
 
       <div className="px-4 py-4 space-y-6">
+        {/* PU Stats */}
+        {puStatsQuery.data && (
+          <section className="glass rounded-2xl p-4">
+            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">Osun State Coverage</h2>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <p className="text-xl font-bold text-white">{puStatsQuery.data.totalLGAs}</p>
+                <p className="text-[10px] text-white/40 uppercase">LGAs</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xl font-bold text-white">{puStatsQuery.data.totalWards}</p>
+                <p className="text-[10px] text-white/40 uppercase">Wards</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xl font-bold text-white">{puStatsQuery.data.totalPollingUnits.toLocaleString()}</p>
+                <p className="text-[10px] text-white/40 uppercase">Polling Units</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-white/20 mt-2 text-center">{puStatsQuery.data.source}</p>
+          </section>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-2 gap-3">
           {[
@@ -135,8 +353,8 @@ export default function Admin() {
                 <Filter size={12} /> Filter <ChevronDown size={10} />
               </button>
               <button onClick={() => {
-                  const csv = reports.map((r) => `${r.id},${r.incidentType},${r.lga},${r.status},${new Date(r.submittedAt).toISOString()}`).join("\n");
-                  const blob = new Blob([`ID,Type,LGA,Status,Date\n${csv}`], { type: "text/csv" });
+                  const csv = reports.map((r) => `${r.id},${r.incidentType},${r.lga},${r.ward || ""},${r.status},${new Date(r.submittedAt).toISOString()},${r.latitude || ""},${r.longitude || ""},${r.reporterPhone || ""}`).join("\n");
+                  const blob = new Blob([`ID,Type,LGA,Ward,Status,Date,Lat,Lng,Phone\n${csv}`], { type: "text/csv" });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a"); a.href = url; a.download = "ojutole-reports-ushaf-nigeria.csv"; a.click();
                 }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg glass text-xs text-white/60">
@@ -149,7 +367,7 @@ export default function Admin() {
             <div className="glass rounded-xl p-3 mb-3 space-y-2 animate-slide-up">
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
                 className="w-full h-9 px-3 rounded-lg glass text-sm text-white bg-transparent">
-                <option value="">{t("myReports.filter.all")} {t("status.submitted") === "Submitted" ? "Statuses" : "Statuses"}</option>
+                <option value="">All Statuses</option>
                 <option value="submitted">{t("status.submitted")}</option>
                 <option value="pending">{t("status.pending")}</option>
                 <option value="resolved">{t("status.resolved")}</option>
@@ -163,38 +381,53 @@ export default function Admin() {
             </div>
           )}
 
-          <div className="glass rounded-2xl overflow-hidden">
+          <div className="space-y-3">
             {reports.length === 0 ? (
-              <div className="p-8 text-center">
+              <div className="glass rounded-2xl p-8 text-center">
                 <FileText size={32} className="mx-auto text-white/20 mb-2" />
                 <p className="text-white/40 text-sm">{t("myReports.noReports")}</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="px-4 py-3 text-xs font-semibold text-white/40 uppercase">{t("report.incidentType")}</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-white/40 uppercase">LGA</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-white/40 uppercase">{t("status.submitted") === "Submitted" ? "Status" : "Status"}</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-white/40 uppercase">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reports.map((report) => {
-                      const st = statusConfig[report.status] || statusConfig.submitted;
-                      return (
-                        <tr key={report.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          <td className="px-4 py-3 text-sm text-white">{incidentLabels[report.incidentType] || report.incidentType}</td>
-                          <td className="px-4 py-3 text-sm text-white/60">{report.lga}</td>
-                          <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${st.bg} ${st.color}`}>{st.label}</span></td>
-                          <td className="px-4 py-3 text-xs text-white/40">{new Date(report.submittedAt).toLocaleDateString("en-NG")}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              reports.map((report) => {
+                const st = statusConfig[report.status] || statusConfig.submitted;
+                const hasMedia = report.media && report.media.length > 0;
+                const hasLocation = report.latitude && report.longitude;
+                return (
+                  <button
+                    key={report.id}
+                    onClick={() => setSelectedReport(report as unknown as ReportDetail)}
+                    className="w-full glass rounded-2xl p-4 text-left hover:bg-white/5 transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${st.bg} ${st.color} font-medium`}>{st.label}</span>
+                          {hasMedia && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 flex items-center gap-1">
+                              <Image size={10} /> {report.media?.length}
+                            </span>
+                          )}
+                          {hasLocation && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center gap-1">
+                              <MapPin size={10} /> GPS
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-white font-medium text-sm">{incidentLabels[report.incidentType] || report.incidentType}</p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-xs text-white/40">{report.lga}</span>
+                          {report.ward && <span className="text-xs text-white/30">{report.ward}</span>}
+                        </div>
+                        {report.description && (
+                          <p className="text-xs text-white/30 mt-1 line-clamp-2">{report.description}</p>
+                        )}
+                        <p className="text-[10px] text-white/20 mt-2">{new Date(report.submittedAt).toLocaleString("en-NG")}</p>
+                      </div>
+                      <ChevronDown size={16} className="text-white/20 flex-shrink-0 mt-1 rotate-[-90deg]" />
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         </section>

@@ -66,28 +66,6 @@ export default function Report() {
     },
   });
 
-  const getLocation = useCallback(() => {
-    setGpsLoading(true);
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setGps({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-          });
-          setGpsLoading(false);
-        },
-        () => {
-          setGpsLoading(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    } else {
-      setGpsLoading(false);
-    }
-  }, []);
-
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -146,6 +124,45 @@ export default function Report() {
     setMedia((prev) => prev.filter((m) => m.id !== id));
   };
 
+  // Get human-readable address from GPS coordinates
+  const [locationAddress, setLocationAddress] = useState("");
+
+  const getLocation = useCallback(() => {
+    setGpsLoading(true);
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          setGps({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          });
+          setGpsLoading(false);
+
+          // Try to get address from coordinates (reverse geocoding)
+          try {
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&zoom=18&addressdetails=1`,
+              { headers: { "User-Agent": "OJUTOLÉ/1.0" } }
+            );
+            const data = await response.json();
+            if (data.display_name) {
+              setLocationAddress(data.display_name);
+            }
+          } catch {
+            // Address lookup failed, use coordinates only
+          }
+        },
+        () => {
+          setGpsLoading(false);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    } else {
+      setGpsLoading(false);
+    }
+  }, []);
+
   const handleSubmit = async () => {
     if (!incidentType) return;
     setSubmitting(true);
@@ -153,6 +170,9 @@ export default function Report() {
     const mediaUrls = media.map((m) => ({
       mediaType: m.type as "photo" | "video" | "audio",
       url: m.url,
+      thumbnail: m.type === "photo" ? m.url : undefined,
+      fileName: m.file.name,
+      fileSize: m.file.size,
     }));
 
     try {
@@ -164,6 +184,7 @@ export default function Report() {
         latitude: gps?.lat,
         longitude: gps?.lng,
         locationAccuracy: gps?.accuracy,
+        locationAddress: locationAddress || undefined,
         reporterPhone: reporterPhone || undefined,
         media: mediaUrls.length > 0 ? mediaUrls : undefined,
       });
@@ -175,6 +196,7 @@ export default function Report() {
         ward,
         description,
         gps,
+        locationAddress,
         reporterPhone,
         media: mediaUrls,
         submittedAt: new Date().toISOString(),
@@ -374,9 +396,25 @@ export default function Report() {
             </button>
           </div>
           {gps && (
-            <p className="text-xs text-white/40 mt-2">
-              {gps.lat.toFixed(6)}, {gps.lng.toFixed(6)} (±{Math.round(gps.accuracy)}m)
-            </p>
+            <div className="mt-2 space-y-1">
+              <p className="text-xs text-white/40">
+                Lat: {gps.lat.toFixed(6)}, Lng: {gps.lng.toFixed(6)}
+              </p>
+              <p className="text-xs text-white/40">
+                Accuracy: ±{Math.round(gps.accuracy)}m
+              </p>
+              {locationAddress && (
+                <p className="text-xs text-emerald-400/80 line-clamp-2">{locationAddress}</p>
+              )}
+              <a
+                href={`https://www.google.com/maps?q=${gps.lat},${gps.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-[#2563EB] underline"
+              >
+                View on Google Maps
+              </a>
+            </div>
           )}
         </section>
 

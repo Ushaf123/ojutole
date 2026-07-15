@@ -1,99 +1,103 @@
 /**
  * Simple JSON file-based store for OJUTOLÉ.
- * Replaces SQLite with pure JavaScript that works reliably on Render free tier.
- * No native modules, no compilation needed.
+ * Uses official INEC polling unit data for Osun State.
+ * Source: INEC Directory of Polling Units, Revised January 2015
+ * 30 LGAs, 332 Wards, ~3,010 Polling Units
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
+import { OSUN_POLLING_UNITS } from "./osun-pu-data";
 
-// All 30 Osun State LGAs with their wards and polling units
-export const OSUN_LGAS = [
-  "Aiyedaade", "Aiyedire", "Atakunmosa East", "Atakunmosa West",
-  "Boluwaduro", "Boripe", "Ede North", "Ede South", "Egbedore",
-  "Ejigbo", "Ife Central", "Ife East", "Ife North", "Ife South",
-  "Ifedayo", "Ifelodun", "Ila", "Ilesa East", "Ilesa West",
-  "Irepodun", "Irewole", "Isokan", "Iwo", "Obokun",
-  "Odo-Otin", "Ola-Oluwa", "Olorunda", "Oriade", "Orolu", "Osogbo",
-];
+// ============================================================
+// POLLING UNIT DATA (Official INEC)
+// ============================================================
 
-const PU_TEMPLATES = [
-  "St. Peter's Pry Sch", "Baptist Day Sch", "Community Pry Sch",
-  "Town Hall", "Market Square", "L.A. Pry Sch", "N.U.D. Pry Sch",
-  "Methodist Pry Sch", "C.A.C. Pry Sch", "Health Centre",
-  "Anglican Pry Sch", "Catholic Pry Sch", "Muslim Pry Sch",
-  "Oba's Palace", "Village Square", "A.U.D. Pry Sch",
-];
+interface OsunPUEntry {
+  lga: string;
+  ward: string;
+  units: Array<{ name: string; code: string }>;
+}
 
-// Generate static polling units
-function generatePollingUnits() {
-  const units: Array<{
-    id: number;
-    name: string;
-    lga: string;
-    ward: string;
-    latitude: number;
-    longitude: number;
-    registrationAreaCode: string;
-  }> = [];
+let _flatPollingUnits: Array<{
+  id: number;
+  name: string;
+  lga: string;
+  ward: string;
+  code: string;
+  latitude: number;
+  longitude: number;
+}> | null = null;
 
-  let id = 1;
-  for (let i = 0; i < OSUN_LGAS.length; i++) {
-    const lga = OSUN_LGAS[i];
-    const wardCount = 3 + (i % 3); // 3-5 wards per LGA
-    for (let w = 0; w < wardCount; w++) {
-      const unitCount = 3 + ((i + w) % 4); // 3-6 units per ward
-      for (let u = 0; u < unitCount; u++) {
-        const wardName = `Ward ${w + 1}`;
-        const puName = `${PU_TEMPLATES[(i + w + u) % PU_TEMPLATES.length]}, ${lga} ${wardName}`;
-        const lat = 7.5 + (i * 0.015) + (w * 0.003) + (Math.random() * 0.002);
-        const lng = 4.2 + (w * 0.015) + (u * 0.003) + (Math.random() * 0.002);
-        units.push({
+function getFlatPollingUnits() {
+  if (_flatPollingUnits === null) {
+    _flatPollingUnits = [];
+    let id = 1;
+    for (const entry of OSUN_POLLING_UNITS) {
+      for (const unit of entry.units) {
+        _flatPollingUnits.push({
           id,
-          name: puName,
-          lga,
-          ward: wardName,
-          latitude: Math.round(lat * 1000000) / 1000000,
-          longitude: Math.round(lng * 1000000) / 1000000,
-          registrationAreaCode: `${String(i + 1).padStart(2, "0")}-${String(w + 1).padStart(2, "0")}-${String(u + 1).padStart(3, "0")}`,
+          name: unit.name,
+          lga: entry.lga,
+          ward: entry.ward,
+          code: unit.code,
+          // Approximate coordinates - centered around Osun State
+          latitude: 7.5 + (id * 0.0001),
+          longitude: 4.5 + (id * 0.0001),
         });
         id++;
       }
     }
   }
-  return units;
-}
-
-// Static polling units — generated once, never changes
-const POLLING_UNITS = generatePollingUnits();
-
-export function getPollingUnits() {
-  return POLLING_UNITS;
+  return _flatPollingUnits;
 }
 
 export function getLGAs(): string[] {
-  return [...OSUN_LGAS];
+  const lgas = new Set<string>();
+  for (const entry of OSUN_POLLING_UNITS) {
+    lgas.add(entry.lga);
+  }
+  return Array.from(lgas).sort();
 }
 
 export function getWardsByLGA(lga: string): string[] {
   const wards = new Set<string>();
-  for (const unit of POLLING_UNITS) {
-    if (unit.lga === lga) {
-      wards.add(unit.ward);
+  for (const entry of OSUN_POLLING_UNITS) {
+    if (entry.lga === lga) {
+      wards.add(entry.ward);
     }
   }
   return Array.from(wards).sort();
 }
 
 export function getUnitsByLGAAndWard(lga: string, ward?: string) {
-  return POLLING_UNITS.filter(
-    (u) => u.lga === lga && (!ward || u.ward === ward)
-  );
+  const results = [];
+  for (const entry of OSUN_POLLING_UNITS) {
+    if (entry.lga === lga && (!ward || entry.ward === ward)) {
+      for (const unit of entry.units) {
+        results.push({
+          name: unit.name,
+          lga: entry.lga,
+          ward: entry.ward,
+          code: unit.code,
+        });
+      }
+    }
+  }
+  return results;
+}
+
+export function getPollingUnits() {
+  return getFlatPollingUnits();
+}
+
+export function getPollingUnitById(id: number) {
+  return getFlatPollingUnits().find((u) => u.id === id) || null;
 }
 
 export function searchPollingUnits(query: string) {
   const q = query.toLowerCase();
-  return POLLING_UNITS.filter(
+  return getFlatPollingUnits().filter(
     (u) =>
       u.name.toLowerCase().includes(q) ||
       u.lga.toLowerCase().includes(q) ||
@@ -101,13 +105,14 @@ export function searchPollingUnits(query: string) {
   );
 }
 
-export function getPollingUnitById(id: number) {
-  return POLLING_UNITS.find((u) => u.id === id) || null;
-}
-
-export function getNearbyPollingUnits(lat: number, lng: number, radiusKm: number, limit: number) {
+export function getNearbyPollingUnits(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  limit: number
+) {
   const results = [];
-  for (const unit of POLLING_UNITS) {
+  for (const unit of getFlatPollingUnits()) {
     const dLat = ((unit.latitude - lat) * Math.PI) / 180;
     const dLng = ((unit.longitude - lng) * Math.PI) / 180;
     const a =
@@ -117,7 +122,7 @@ export function getNearbyPollingUnits(lat: number, lng: number, radiusKm: number
         Math.sin(dLng / 2) *
         Math.sin(dLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = 6371 * c; // Earth's radius in km
+    const distance = 6371 * c;
     if (distance <= radiusKm) {
       results.push({ ...unit, distance: Math.round(distance * 100) / 100 });
     }
@@ -133,7 +138,7 @@ export function getNearbyPollingUnits(lat: number, lng: number, radiusKm: number
 const REPORTS_FILE = "/tmp/reports.json";
 const USERS_FILE = "/tmp/users.json";
 
-interface ReportRecord {
+export interface ReportRecord {
   id: number;
   incidentType: string;
   lga: string;
@@ -143,28 +148,33 @@ interface ReportRecord {
   latitude?: number;
   longitude?: number;
   locationAccuracy?: number;
+  locationAddress?: string;
   status: string;
   syncStatus: string;
   reporterPhone?: string;
+  reporterName?: string;
   submittedAt: string;
   updatedAt: string;
 }
 
-interface ReportMediaRecord {
+export interface ReportMediaRecord {
   id: number;
   reportId: number;
-  mediaType: string;
+  mediaType: "photo" | "video" | "audio";
   url: string;
   thumbnail?: string;
+  fileName?: string;
+  fileSize?: number;
   createdAt: string;
 }
 
-interface UserRecord {
+export interface UserRecord {
   id: number;
   unionId: string;
   name?: string;
   email?: string;
   avatar?: string;
+  phone?: string;
   role: string;
   createdAt: string;
   updatedAt: string;
@@ -200,7 +210,6 @@ let reportsNextId = 1;
 function loadReports(): ReportRecord[] {
   if (reportsCache === null) {
     reportsCache = readJsonFile<ReportRecord[]>(REPORTS_FILE, []);
-    // Find next ID
     for (const r of reportsCache) {
       if (r.id >= reportsNextId) reportsNextId = r.id + 1;
     }
@@ -258,19 +267,36 @@ function saveUsers() {
 export const reportStore = {
   getAll(): ReportRecord[] {
     return [...loadReports()].sort(
-      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+      (a, b) =>
+        new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     );
   },
 
-  getById(id: number): ReportRecord | undefined {
-    return loadReports().find((r) => r.id === id);
+  getById(id: number): (ReportRecord & { media: ReportMediaRecord[] }) | undefined {
+    const report = loadReports().find((r) => r.id === id);
+    if (!report) return undefined;
+    const media = loadMedia().filter((m) => m.reportId === id);
+    return { ...report, media };
   },
 
   getMediaByReportId(reportId: number): ReportMediaRecord[] {
     return loadMedia().filter((m) => m.reportId === reportId);
   },
 
-  create(data: Omit<ReportRecord, "id" | "submittedAt" | "updatedAt"> & { media?: Array<{ mediaType: string; url: string; thumbnail?: string }> }): number {
+  create(
+    data: Omit<
+      ReportRecord,
+      "id" | "submittedAt" | "updatedAt"
+    > & {
+      media?: Array<{
+        mediaType: "photo" | "video" | "audio";
+        url: string;
+        thumbnail?: string;
+        fileName?: string;
+        fileSize?: number;
+      }>;
+    }
+  ): number {
     const now = new Date().toISOString();
     const report: ReportRecord = {
       ...data,
@@ -289,6 +315,8 @@ export const reportStore = {
         mediaType: m.mediaType,
         url: m.url,
         thumbnail: m.thumbnail,
+        fileName: m.fileName,
+        fileSize: m.fileSize,
         createdAt: now,
       }));
       loadMedia().push(...mediaRecords);
@@ -322,8 +350,14 @@ export const reportStore = {
 
     return {
       total: all.length,
-      byStatus: Object.entries(byStatus).map(([status, count]) => ({ status, count })),
-      byType: Object.entries(byType).map(([incidentType, count]) => ({ incidentType, count })),
+      byStatus: Object.entries(byStatus).map(([status, count]) => ({
+        status,
+        count,
+      })),
+      byType: Object.entries(byType).map(([incidentType, count]) => ({
+        incidentType,
+        count,
+      })),
       byLGA: Object.entries(byLGA)
         .map(([lga, count]) => ({ lga, count }))
         .sort((a, b) => b.count - a.count)
@@ -351,7 +385,8 @@ export const reportStore = {
     }
 
     results.sort(
-      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+      (a, b) =>
+        new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     );
 
     const total = results.length;
@@ -376,7 +411,12 @@ export const userStore = {
     return loadUsers().find((u) => u.id === id);
   },
 
-  upsert(data: { unionId: string; name?: string; email?: string; avatar?: string }): UserRecord {
+  upsert(data: {
+    unionId: string;
+    name?: string;
+    email?: string;
+    avatar?: string;
+  }): UserRecord {
     const users = loadUsers();
     const existing = users.find((u) => u.unionId === data.unionId);
     const now = new Date().toISOString();

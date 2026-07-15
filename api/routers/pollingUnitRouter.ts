@@ -9,6 +9,7 @@ import {
   searchPollingUnits,
   getPollingUnits,
 } from "../json-store";
+import { OSUN_POLLING_UNITS } from "../osun-pu-data";
 
 export const pollingUnitRouter = createRouter({
   list: publicQuery
@@ -82,6 +83,35 @@ export const pollingUnitRouter = createRouter({
       })
     )
     .query(({ input }) => {
-      return getNearbyPollingUnits(input.lat, input.lng, input.radiusKm, input.limit);
+      return getNearbyPollingUnits(
+        input.lat,
+        input.lng,
+        input.radiusKm,
+        input.limit
+      );
     }),
+
+  // Summary stats
+  stats: publicQuery.query(() => {
+    const lgas = getLGAs();
+    let totalWards = 0;
+    let totalUnits = 0;
+    for (const entry of OSUN_POLLING_UNITS) {
+      totalUnits += entry.units.length;
+    }
+    // Count unique wards
+    const wardSet = new Set();
+    for (const entry of OSUN_POLLING_UNITS) {
+      wardSet.add(`${entry.lga}|${entry.ward}`);
+    }
+    totalWards = wardSet.size;
+
+    return {
+      totalLGAs: lgas.length,
+      totalWards,
+      totalPollingUnits: totalUnits,
+      state: "Osun",
+      source: "INEC Directory of Polling Units, Revised January 2015",
+    };
+  }),
 });

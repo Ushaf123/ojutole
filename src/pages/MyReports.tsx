@@ -1,13 +1,38 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLanguage } from "@/hooks/useLanguage";
-import { FileText, MapPin, Clock, WifiOff, ChevronRight, AlertTriangle } from "lucide-react";
+import { FileText, MapPin, Clock, WifiOff, ChevronRight, AlertTriangle, ChevronLeft, Camera, Video, Mic, Phone, ExternalLink, Image } from "lucide-react";
 
 type FilterTab = "all" | "submitted" | "pending" | "resolved" | "offline";
+
+interface ReportDetail {
+  id: number;
+  incidentType: string;
+  lga: string;
+  ward?: string;
+  pollingUnit?: string;
+  description?: string;
+  latitude?: number;
+  longitude?: number;
+  locationAccuracy?: number;
+  locationAddress?: string;
+  status: string;
+  reporterPhone?: string;
+  submittedAt: string;
+  updatedAt: string;
+  media?: Array<{
+    id: number;
+    mediaType: "photo" | "video" | "audio";
+    url: string;
+    thumbnail?: string;
+    fileName?: string;
+  }>;
+}
 
 export default function MyReports() {
   const { t } = useLanguage();
   const [filter, setFilter] = useState<FilterTab>("all");
+  const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null);
 
   const reportsQuery = trpc.report.list.useQuery(
     filter !== "all" && filter !== "offline"
@@ -44,6 +69,107 @@ export default function MyReports() {
     { value: "resolved", label: t("myReports.filter.resolved") },
     { value: "offline", label: t("myReports.filter.offline") },
   ];
+
+  // Report Detail View
+  if (selectedReport) {
+    const st = statusConfig[selectedReport.status] || statusConfig.submitted;
+    const hasMedia = selectedReport.media && selectedReport.media.length > 0;
+    const hasLocation = selectedReport.latitude && selectedReport.longitude;
+
+    return (
+      <div className="min-h-screen pb-8">
+        <div className="sticky top-0 z-40 glass border-b border-white/10 px-4 py-4">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSelectedReport(null)} className="w-8 h-8 flex items-center justify-center rounded-full glass">
+              <ChevronLeft size={18} className="text-white/60" />
+            </button>
+            <div>
+              <h1 className="text-lg font-black uppercase tracking-tight text-white">Report #{selectedReport.id}</h1>
+              <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">OJÚTÓLÉ</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 py-4 space-y-4">
+          <div className="flex items-center gap-3">
+            <span className={`text-xs px-3 py-1 rounded-full font-medium ${st.color}`}>{st.label}</span>
+            <span className="text-xs text-white/40">{incidentLabels[selectedReport.incidentType] || selectedReport.incidentType}</span>
+          </div>
+
+          {/* Location */}
+          <section className="glass rounded-2xl p-4">
+            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <MapPin size={14} /> Location
+            </h2>
+            <p className="text-white font-medium">{selectedReport.lga} LGA</p>
+            {selectedReport.ward && <p className="text-sm text-white/60 mt-1">{selectedReport.ward}</p>}
+            {hasLocation && (
+              <div className="mt-3 p-3 rounded-xl bg-white/5 space-y-2">
+                <p className="text-xs text-white/40">
+                  {selectedReport.latitude?.toFixed(6)}, {selectedReport.longitude?.toFixed(6)}
+                </p>
+                {selectedReport.locationAddress && (
+                  <p className="text-xs text-emerald-400/80">{selectedReport.locationAddress}</p>
+                )}
+                <a
+                  href={`https://www.google.com/maps?q=${selectedReport.latitude},${selectedReport.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-[#2563EB] underline"
+                >
+                  <ExternalLink size={10} /> View on Map
+                </a>
+              </div>
+            )}
+          </section>
+
+          {/* Description */}
+          {selectedReport.description && (
+            <section className="glass rounded-2xl p-4">
+              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">Description</h2>
+              <p className="text-sm text-white/80 whitespace-pre-wrap">{selectedReport.description}</p>
+            </section>
+          )}
+
+          {/* Media */}
+          {hasMedia && (
+            <section className="glass rounded-2xl p-4">
+              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Image size={14} /> Evidence ({selectedReport.media?.length})
+              </h2>
+              <div className="space-y-3">
+                {selectedReport.media?.map((m, idx) => (
+                  <div key={m.id} className="rounded-xl overflow-hidden bg-white/5">
+                    {m.mediaType === "photo" && (
+                      <img src={m.url} alt={`Evidence ${idx + 1}`} className="w-full object-contain max-h-64" />
+                    )}
+                    {m.mediaType === "video" && (
+                      <video src={m.url} className="w-full" controls />
+                    )}
+                    {m.mediaType === "audio" && (
+                      <div className="p-4 flex items-center gap-3">
+                        <Mic size={20} className="text-amber-400" />
+                        <audio src={m.url} controls className="flex-1" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Reporter */}
+          {selectedReport.reporterPhone && (
+            <section className="glass rounded-2xl p-4">
+              <a href={`tel:${selectedReport.reporterPhone}`} className="text-sm text-[#2563EB] flex items-center gap-2">
+                <Phone size={14} /> {selectedReport.reporterPhone}
+              </a>
+            </section>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-24">
@@ -119,12 +245,20 @@ export default function MyReports() {
               <div className="space-y-3">
                 {filteredReports.map((report) => {
                   const status = statusConfig[report.status] || statusConfig.submitted;
+                  const hasMedia = report.media && report.media.length > 0;
+                  const hasLocation = report.latitude && report.longitude;
                   return (
-                    <div key={report.id} className="glass rounded-xl p-4">
+                    <button
+                      key={report.id}
+                      onClick={() => setSelectedReport(report as unknown as ReportDetail)}
+                      className="w-full glass rounded-xl p-4 text-left hover:bg-white/5 transition-colors"
+                    >
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>{status.label}</span>
+                            {hasMedia && <span className="text-xs text-purple-400 flex items-center gap-1"><Camera size={10} /> {report.media?.length}</span>}
+                            {hasLocation && <span className="text-xs text-emerald-400 flex items-center gap-1"><MapPin size={10} /> GPS</span>}
                           </div>
                           <p className="text-white font-medium">{incidentLabels[report.incidentType] || report.incidentType}</p>
                           <div className="flex items-center gap-3 mt-1.5">
@@ -135,7 +269,7 @@ export default function MyReports() {
                         </div>
                         <ChevronRight size={16} className="text-white/20 flex-shrink-0 mt-1" />
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>

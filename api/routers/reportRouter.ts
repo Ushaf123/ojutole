@@ -40,10 +40,7 @@ export const reportRouter = createRouter({
   getById: publicQuery
     .input(z.object({ id: z.number() }))
     .query(({ input }) => {
-      const report = reportStore.getById(input.id);
-      if (!report) return null;
-      const media = reportStore.getMediaByReportId(input.id);
-      return { ...report, media };
+      return reportStore.getById(input.id);
     }),
 
   create: publicQuery
@@ -65,13 +62,17 @@ export const reportRouter = createRouter({
         latitude: z.number().optional(),
         longitude: z.number().optional(),
         locationAccuracy: z.number().optional(),
+        locationAddress: z.string().optional(),
         reporterPhone: z.string().optional(),
+        reporterName: z.string().optional(),
         media: z
           .array(
             z.object({
               mediaType: z.enum(["photo", "video", "audio"]),
               url: z.string(),
               thumbnail: z.string().optional(),
+              fileName: z.string().optional(),
+              fileSize: z.number().optional(),
             })
           )
           .optional(),
