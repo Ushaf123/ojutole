@@ -117,7 +117,7 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     const data = event.data.json();
     event.waitUntil(
-      self.registration.showNotification(data.title || 'Ojutole', {
+      self.registration.showNotification(data.title || 'OJÚTÓLÉ', {
         body: data.body || 'New election update',
         icon: '/hero-logo.png',
         badge: '/hero-logo.png',

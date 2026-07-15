@@ -217,7 +217,10 @@ export default function Report() {
       {/* Header */}
       <div className="sticky top-0 z-40 glass border-b border-white/10 px-4 py-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-black uppercase tracking-tight text-white">New Report</h1>
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-tight text-white">New Report</h1>
+            <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">OJÚTÓLÉ · USHAF Nigeria</p>
+          </div>
           <button onClick={() => navigate("/")} className="w-8 h-8 flex items-center justify-center rounded-full glass">
             <X size={18} className="text-white/60" />
           </button>

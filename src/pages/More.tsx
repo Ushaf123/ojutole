@@ -16,9 +16,9 @@ export default function More() {
       items: [
         {
           icon: Info,
-          label: "About Ojutole",
+          label: "About OJÚTÓLÉ",
           desc: "Learn about our mission for electoral transparency",
-          action: () => alert("Ojutole is a civic tech platform enabling Nigerian citizens to report electoral irregularities in real-time. Built for the Osun State gubernatorial election pilot."),
+          action: () => alert("OJÚTÓLÉ (The Eye That Watches) is a civic tech innovation from USHAF Nigeria, enabling Nigerian citizens to report electoral irregularities in real-time. OJÚTÓLÉ was built for the Osun State gubernatorial election pilot to strengthen electoral transparency, civic engagement, and credible participation.\n\nPowered by USHAF Nigeria — developing technology for social good."),
         },
         {
           icon: BookOpen,
@@ -74,13 +74,13 @@ export default function More() {
           icon: Heart,
           label: "Partner With Us",
           desc: "NGOs, CSOs, and election bodies",
-          action: () => alert("Thank you for your interest! Please email partner@ojutole.org"),
+          action: () => alert("Thank you for your interest in partnering with USHAF Nigeria on OJÚTÓLÉ! Please email ushafnigeria@gmail.com"),
         },
         {
           icon: ExternalLink,
-          label: "Visit Website",
-          desc: "ojutole.org",
-          action: () => window.open("https://ojutole.org", "_blank"),
+          label: "Visit USHAF Nigeria",
+          desc: "Learn more about our work",
+          action: () => alert("Visit USHAF Nigeria to learn more about our civic tech innovations."),
         },
       ],
     },
@@ -90,13 +90,20 @@ export default function More() {
     <div className="min-h-screen pb-24">
       {/* Header */}
       <div className="glass border-b border-white/10 px-4 py-6">
-        <h1 className="text-xl font-black uppercase tracking-tight text-white mb-4">
-          Settings
-        </h1>
+        {/* USHAF Nigeria Branding */}
+        <div className="flex items-center gap-2 mb-4">
+          <img src="/ojutole-logo.png" alt="OJÚTÓLÉ" className="w-8 h-8 object-contain" />
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-tight text-white">
+              OJÚTÓLÉ
+            </h1>
+            <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">Powered by USHAF Nigeria</p>
+          </div>
+        </div>
 
         {/* Profile Card */}
         <div className="glass rounded-2xl p-4 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#2563EB] to-[#FF4D6D] flex items-center justify-center text-white text-xl font-bold">
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#2563EB] to-[#F59E0B] flex items-center justify-center text-white text-xl font-bold">
             {user?.name?.[0] || "U"}
           </div>
           <div className="flex-1 min-w-0">
@@ -181,13 +188,13 @@ export default function More() {
           </h2>
           <div className="space-y-1">
             <button
-              onClick={() => alert("Privacy Policy: Ojutole is committed to protecting your privacy. We collect minimal data, anonymize locations, and never share personal information with third parties without consent.")}
+              onClick={() => alert("Privacy Policy: OJÚTÓLÉ by USHAF Nigeria is committed to protecting your privacy. We collect minimal data, anonymize locations to ~100m accuracy, and never share personal information with third parties without consent.\n\nPowered by USHAF Nigeria — developing technology for social good.")}
               className="w-full glass rounded-xl p-3 text-left text-sm text-white/60 hover:text-white transition-colors"
             >
               Privacy Policy
             </button>
             <button
-              onClick={() => alert("Terms of Service: By using Ojutole, you agree to use the platform responsibly for reporting genuine electoral irregularities. False reports may be flagged and removed.")}
+              onClick={() => alert("Terms of Service: By using OJÚTÓLÉ, you agree to use the platform responsibly for reporting genuine electoral irregularities. False reports may be flagged and removed.\n\nOJÚTÓLÉ is an innovation of USHAF Nigeria, developed to strengthen electoral transparency and civic engagement in Nigeria.")}
               className="w-full glass rounded-xl p-3 text-left text-sm text-white/60 hover:text-white transition-colors"
             >
               Terms of Service
@@ -196,9 +203,10 @@ export default function More() {
         </section>
 
         {/* Version */}
-        <p className="text-center text-xs text-white/20 pt-4">
-          Ojutole v1.0.0 \u00b7 Pilot Release
-        </p>
+        <div className="text-center pt-4 space-y-1">
+          <p className="text-xs text-white/20">OJÚTÓLÉ v1.0.0 · Pilot Release</p>
+          <p className="text-[10px] text-[#F59E0B]/60 uppercase tracking-wider">An Innovation of USHAF Nigeria</p>
+        </div>
 
         {/* Logout */}
         {user && (

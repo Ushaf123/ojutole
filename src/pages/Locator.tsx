@@ -32,9 +32,12 @@ export default function Locator() {
     <div className="min-h-screen pb-24">
       {/* Header */}
       <div className="sticky top-0 z-40 glass border-b border-white/10 px-4 py-4">
-        <h1 className="text-xl font-black uppercase tracking-tight text-white mb-3">
-          Polling Unit Locator
-        </h1>
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-xl font-black uppercase tracking-tight text-white">
+            Polling Unit Locator
+          </h1>
+          <span className="text-[10px] text-[#F59E0B] uppercase tracking-wider">OJÚTÓLÉ</span>
+        </div>
 
         {/* Search Bar */}
         <div className="flex items-center gap-2">

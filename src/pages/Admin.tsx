@@ -51,9 +51,9 @@ export default function Admin() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-black uppercase tracking-tight text-white">
-              Admin Dashboard
+              OJÚTÓLÉ Admin
             </h1>
-            <p className="text-xs text-white/40 mt-1">Election Monitoring Center</p>
+            <p className="text-xs text-[#F59E0B] mt-1">USHAF Nigeria · Election Monitoring Center</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -163,7 +163,7 @@ export default function Admin() {
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = "ojutole-reports.csv";
+                  a.download = "ojutole-reports-ushaf-nigeria.csv";
                   a.click();
                 }}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg glass text-xs text-white/60"

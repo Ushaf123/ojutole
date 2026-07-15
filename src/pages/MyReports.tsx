@@ -53,9 +53,12 @@ export default function MyReports() {
     <div className="min-h-screen pb-24">
       {/* Header */}
       <div className="sticky top-0 z-40 glass border-b border-white/10 px-4 py-4">
-        <h1 className="text-xl font-black uppercase tracking-tight text-white mb-4">
-          My Reports
-        </h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl font-black uppercase tracking-tight text-white">
+            My Reports
+          </h1>
+          <span className="text-[10px] text-[#F59E0B] uppercase tracking-wider">OJÚTÓLÉ</span>
+        </div>
 
         {/* Filter Tabs */}
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">

@@ -46,9 +46,15 @@ export default function Home() {
         {/* Content */}
         <div className="relative z-10 flex flex-col items-center gap-6">
           {/* Logo */}
-          <div className="w-20 h-20 mb-2">
-            <img src="/hero-logo.png" alt="Ojutole" className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(37,99,235,0.5)]" />
+          <div className="w-24 h-24 mb-2">
+            <img src="/ojutole-logo.png" alt="OJÚTÓLÉ" className="w-full h-full object-contain drop-shadow-[0_0_30px_rgba(37,99,235,0.6)]" />
           </div>
+
+          {/* App Name */}
+          <h1 className="text-3xl font-black tracking-tight text-white" style={{ textShadow: "0 0 40px rgba(37,99,235,0.5)" }}>
+            OJÚTÓLÉ
+          </h1>
+          <p className="text-xs text-white/40 uppercase tracking-[0.3em] -mt-1">The Eye That Watches</p>
 
           {/* Live Indicator */}
           <div className="flex items-center gap-2 px-4 py-2 rounded-full glass">
@@ -57,15 +63,21 @@ export default function Home() {
           </div>
 
           {/* Headline */}
-          <h1 className="text-4xl sm:text-5xl font-black uppercase tracking-tight text-white leading-[1.1]"
+          <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white leading-[1.2]"
               style={{ textShadow: "0 2px 40px rgba(37,99,235,0.4)" }}>
             Your Vote,<br />
             <span className="text-gradient">Your Voice</span>
-          </h1>
+          </h2>
 
-          <p className="text-lg text-white/65 max-w-md">
-            Report election irregularities instantly. Protect Nigerian democracy.
+          <p className="text-base text-white/65 max-w-md">
+            Report electoral irregularities in real-time across Osun State.
           </p>
+
+          {/* USHAF Nigeria Branding */}
+          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full glass-inner">
+            <span className="text-[10px] text-white/40 uppercase tracking-wider">Powered by</span>
+            <span className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider">USHAF Nigeria</span>
+          </div>
 
           {/* CTA Button */}
           <button
