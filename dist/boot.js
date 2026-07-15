@@ -936,13 +936,29 @@ var init_cookies = __esm({
 
 // api/json-store.ts
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+function findPUDataPath() {
+  const candidates = [
+    "./api/osun-pu-data.json",
+    // Development
+    "./dist/osun-pu-data.json",
+    // Production (from project root)
+    "./osun-pu-data.json"
+    // Same directory as boot.js
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return "./dist/osun-pu-data.json";
+}
 function loadPUData() {
   if (_puData === null) {
-    const jsonPath = join(__dirname, "osun-pu-data.json");
+    const jsonPath = findPUDataPath();
+    console.log("[PU DATA] Loading from:", jsonPath);
     const raw2 = readFileSync(jsonPath, "utf-8");
     _puData = JSON.parse(raw2);
+    console.log("[PU DATA] Loaded", _puData.length, "LGA/ward entries");
   }
   return _puData;
 }
@@ -1091,10 +1107,9 @@ function saveUsers() {
     writeJsonFile(USERS_FILE, usersCache);
   }
 }
-var __dirname, _puData, _flatPollingUnits, REPORTS_FILE, USERS_FILE, reportsCache, reportsNextId, mediaCache, mediaNextId, usersCache, usersNextId, reportStore, userStore;
+var _puData, _flatPollingUnits, REPORTS_FILE, USERS_FILE, reportsCache, reportsNextId, mediaCache, mediaNextId, usersCache, usersNextId, reportStore, userStore;
 var init_json_store = __esm({
   "api/json-store.ts"() {
-    __dirname = dirname(fileURLToPath(import.meta.url));
     _puData = null;
     _flatPollingUnits = null;
     REPORTS_FILE = "/tmp/reports.json";
@@ -3967,7 +3982,7 @@ var init_dist = __esm({
             });
             if (!chunk) {
               if (i === 1) {
-                await new Promise((resolve) => setTimeout(resolve));
+                await new Promise((resolve2) => setTimeout(resolve2));
                 maxReadCount = 3;
                 continue;
               }
@@ -6030,168 +6045,6 @@ var Hono2 = class extends Hono {
   }
 };
 
-// node_modules/hono/dist/utils/compress.js
-var COMPRESSIBLE_CONTENT_TYPE_REGEX = /^\s*(?:text\/(?!event-stream(?:[;\s]|$))[^;\s]+|application\/(?:javascript|json|xml|xml-dtd|ecmascript|dart|msgpack|postscript|rtf|tar|toml|vnd\.dart|vnd\.ms-fontobject|vnd\.ms-opentype|vnd\.msgpack|wasm|x-httpd-php|x-javascript|x-msgpack|x-ns-proxy-autoconfig|x-sh|x-tar|x-virtualbox-hdd|x-virtualbox-ova|x-virtualbox-ovf|x-virtualbox-vbox|x-virtualbox-vdi|x-virtualbox-vhd|x-virtualbox-vmdk|x-www-form-urlencoded)|font\/(?:otf|ttf)|image\/(?:bmp|vnd\.adobe\.photoshop|vnd\.microsoft\.icon|vnd\.ms-dds|x-icon|x-ms-bmp)|message\/rfc822|model\/gltf-binary|x-shader\/x-fragment|x-shader\/x-vertex|[^;\s]+?\+(?:json|text|xml|yaml|msgpack))(?:[;\s]|$)/i;
-
-// node_modules/hono/dist/utils/mime.js
-var getMimeType = (filename, mimes = baseMimes) => {
-  const regexp = /\.([a-zA-Z0-9]+?)$/;
-  const match2 = filename.match(regexp);
-  if (!match2) {
-    return;
-  }
-  return mimes[match2[1].toLowerCase()];
-};
-var _baseMimes = {
-  aac: "audio/aac",
-  avi: "video/x-msvideo",
-  avif: "image/avif",
-  av1: "video/av1",
-  bin: "application/octet-stream",
-  bmp: "image/bmp",
-  css: "text/css; charset=utf-8",
-  csv: "text/csv; charset=utf-8",
-  eot: "application/vnd.ms-fontobject",
-  epub: "application/epub+zip",
-  gif: "image/gif",
-  gz: "application/gzip",
-  htm: "text/html; charset=utf-8",
-  html: "text/html; charset=utf-8",
-  ico: "image/x-icon",
-  ics: "text/calendar; charset=utf-8",
-  jpeg: "image/jpeg",
-  jpg: "image/jpeg",
-  js: "text/javascript; charset=utf-8",
-  json: "application/json",
-  jsonld: "application/ld+json",
-  map: "application/json",
-  mid: "audio/x-midi",
-  midi: "audio/x-midi",
-  mjs: "text/javascript; charset=utf-8",
-  mp3: "audio/mpeg",
-  mp4: "video/mp4",
-  mpeg: "video/mpeg",
-  oga: "audio/ogg",
-  ogv: "video/ogg",
-  ogx: "application/ogg",
-  opus: "audio/opus",
-  otf: "font/otf",
-  pdf: "application/pdf",
-  png: "image/png",
-  rtf: "application/rtf",
-  svg: "image/svg+xml; charset=utf-8",
-  tif: "image/tiff",
-  tiff: "image/tiff",
-  ts: "video/mp2t",
-  ttf: "font/ttf",
-  txt: "text/plain; charset=utf-8",
-  wasm: "application/wasm",
-  webm: "video/webm",
-  weba: "audio/webm",
-  webmanifest: "application/manifest+json",
-  webp: "image/webp",
-  woff: "font/woff",
-  woff2: "font/woff2",
-  xhtml: "application/xhtml+xml; charset=utf-8",
-  xml: "application/xml; charset=utf-8",
-  zip: "application/zip",
-  "3gp": "video/3gpp",
-  "3g2": "video/3gpp2",
-  gltf: "model/gltf+json",
-  glb: "model/gltf-binary"
-};
-var baseMimes = _baseMimes;
-
-// node_modules/hono/dist/middleware/serve-static/index.js
-init_url();
-
-// node_modules/hono/dist/middleware/serve-static/path.js
-var defaultJoin = (...paths) => {
-  let result = paths.filter((p) => p !== "").join("/");
-  result = result.replace(/(?<=\/)\/+/g, "");
-  const segments = result.split("/");
-  const resolved = [];
-  for (const segment of segments) {
-    if (segment === ".." && resolved.length > 0 && resolved.at(-1) !== "..") {
-      resolved.pop();
-    } else if (segment !== ".") {
-      resolved.push(segment);
-    }
-  }
-  return resolved.join("/") || ".";
-};
-
-// node_modules/hono/dist/middleware/serve-static/index.js
-var ENCODINGS = {
-  br: ".br",
-  zstd: ".zst",
-  gzip: ".gz"
-};
-var ENCODINGS_ORDERED_KEYS = Object.keys(ENCODINGS);
-var DEFAULT_DOCUMENT = "index.html";
-var serveStatic = (options) => {
-  const root = options.root ?? "./";
-  const optionPath = options.path;
-  const join2 = options.join ?? defaultJoin;
-  return async (c, next) => {
-    if (c.finalized) {
-      return next();
-    }
-    let filename;
-    if (options.path) {
-      filename = options.path;
-    } else {
-      try {
-        filename = tryDecodeURI(c.req.path);
-        if (/(?:^|[\/\\])\.{1,2}(?:$|[\/\\])|[\/\\]{2,}|\\/.test(filename)) {
-          throw new Error();
-        }
-      } catch {
-        await options.onNotFound?.(c.req.path, c);
-        return next();
-      }
-    }
-    let path = join2(
-      root,
-      !optionPath && options.rewriteRequestPath ? options.rewriteRequestPath(filename) : filename
-    );
-    if (options.isDir && await options.isDir(path)) {
-      path = join2(path, DEFAULT_DOCUMENT);
-    }
-    const getContent = options.getContent;
-    let content = await getContent(path, c);
-    if (content instanceof Response) {
-      return c.newResponse(content.body, content);
-    }
-    if (content) {
-      const mimeType = options.mimes && getMimeType(path, options.mimes) || getMimeType(path);
-      c.header("Content-Type", mimeType || "application/octet-stream");
-      if (options.precompressed && (!mimeType || COMPRESSIBLE_CONTENT_TYPE_REGEX.test(mimeType))) {
-        const acceptEncodingSet = new Set(
-          c.req.header("Accept-Encoding")?.split(",").map((encoding) => encoding.trim())
-        );
-        for (const encoding of ENCODINGS_ORDERED_KEYS) {
-          if (!acceptEncodingSet.has(encoding)) {
-            continue;
-          }
-          const compressedContent = await getContent(path + ENCODINGS[encoding], c);
-          if (compressedContent) {
-            content = compressedContent;
-            c.header("Content-Encoding", encoding);
-            c.header("Vary", "Accept-Encoding", { append: true });
-            break;
-          }
-        }
-      }
-      await options.onFound?.(path, c);
-      return c.body(content);
-    }
-    await options.onNotFound?.(path, c);
-    await next();
-    return;
-  };
-};
-
 // node_modules/hono/dist/middleware/body-limit/index.js
 var ERROR_MESSAGE = "Payload Too Large";
 var bodyLimit = (options) => {
@@ -7124,8 +6977,8 @@ var Unpromise = class Unpromise2 {
         status: "fulfilled",
         value
       };
-      subscribers === null || subscribers === void 0 || subscribers.forEach(({ resolve }) => {
-        resolve(value);
+      subscribers === null || subscribers === void 0 || subscribers.forEach(({ resolve: resolve2 }) => {
+        resolve2(value);
       });
     });
     if ("catch" in thenReturn) thenReturn.catch((reason) => {
@@ -7266,15 +7119,15 @@ function resolveSelfTuple(promise2) {
   return Unpromise.proxy(promise2).then(() => [promise2]);
 }
 function withResolvers() {
-  let resolve;
+  let resolve2;
   let reject;
   const promise2 = new Promise((_resolve, _reject) => {
-    resolve = _resolve;
+    resolve2 = _resolve;
     reject = _reject;
   });
   return {
     promise: promise2,
-    resolve,
+    resolve: resolve2,
     reject
   };
 }
@@ -7318,8 +7171,8 @@ function timerResource(ms) {
   let timer = null;
   return makeResource({ start() {
     if (timer) throw new Error("Timer already started");
-    const promise2 = new Promise((resolve) => {
-      timer = setTimeout(() => resolve(disposablePromiseTimerResult), ms);
+    const promise2 = new Promise((resolve2) => {
+      timer = setTimeout(() => resolve2(disposablePromiseTimerResult), ms);
     });
     return promise2;
   } }, () => {
@@ -7506,15 +7359,15 @@ function _takeWithGrace() {
   return _takeWithGrace.apply(this, arguments);
 }
 function createDeferred() {
-  let resolve;
+  let resolve2;
   let reject;
   const promise2 = new Promise((res, rej) => {
-    resolve = res;
+    resolve2 = res;
     reject = rej;
   });
   return {
     promise: promise2,
-    resolve,
+    resolve: resolve2,
     reject
   };
 }
@@ -24452,6 +24305,54 @@ async function createContext(opts) {
 }
 
 // api/boot.ts
+import { readFileSync as readFileSync2, existsSync as existsSync2 } from "fs";
+import { join, resolve } from "path";
+function serveStaticFiles(root) {
+  return async (c) => {
+    const url2 = new URL(c.req.url);
+    let filepath = join(root, url2.pathname === "/" ? "/index.html" : url2.pathname);
+    const fullPath = resolve(filepath);
+    const rootPath = resolve(root);
+    if (!fullPath.startsWith(rootPath)) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    if (!existsSync2(filepath)) {
+      filepath = join(root, "index.html");
+      if (!existsSync2(filepath)) {
+        return c.json({ error: "Not found" }, 404);
+      }
+    }
+    try {
+      const content = readFileSync2(filepath);
+      const ext = filepath.split(".").pop()?.toLowerCase() || "";
+      const mimeTypes = {
+        html: "text/html",
+        js: "application/javascript",
+        css: "text/css",
+        json: "application/json",
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        gif: "image/gif",
+        svg: "image/svg+xml",
+        ico: "image/x-icon",
+        webm: "video/webm",
+        mp4: "video/mp4",
+        webp: "image/webp",
+        woff: "font/woff",
+        woff2: "font/woff2",
+        ttf: "font/ttf",
+        otf: "font/otf"
+      };
+      const contentType = mimeTypes[ext] || "application/octet-stream";
+      return new Response(content, {
+        headers: { "Content-Type": contentType }
+      });
+    } catch {
+      return c.json({ error: "Failed to read file" }, 500);
+    }
+  };
+}
 function createApp() {
   try {
     console.log("[BOOT] Starting OJUTOL\xC9...");
@@ -24476,8 +24377,7 @@ function createApp() {
     });
     console.log("[BOOT] OAuth callback registered");
     const staticRoot = env.isProduction ? "./dist/public" : "./public";
-    app2.use("/*", serveStatic({ root: staticRoot }));
-    app2.get("/", (c) => c.redirect("/index.html"));
+    app2.use("/*", serveStaticFiles(staticRoot));
     console.log("[BOOT] Static files registered from", staticRoot);
     app2.onError((err, c) => {
       console.error("[ERROR]", err);
@@ -24499,17 +24399,11 @@ function createApp() {
 var app = createApp();
 var PORT = Number(process.env.PORT || 3e3);
 if (typeof Bun !== "undefined") {
-  Bun.serve({
-    fetch: app.fetch,
-    port: PORT
-  });
+  Bun.serve({ fetch: app.fetch, port: PORT });
   console.log(`[BOOT] Server running on http://localhost:${PORT}`);
 } else {
   Promise.resolve().then(() => (init_dist(), dist_exports)).then(({ serve: nodeServe }) => {
-    nodeServe({
-      fetch: app.fetch,
-      port: PORT
-    });
+    nodeServe({ fetch: app.fetch, port: PORT });
     console.log(`[BOOT] Server running on http://localhost:${PORT}`);
   }).catch((err) => {
     console.error("[BOOT] Failed to start Node server:", err.message);

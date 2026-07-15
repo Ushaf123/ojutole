@@ -6,10 +6,25 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// Find the PU data JSON file - works both in dev and bundled production
+function findPUDataPath(): string {
+  // When bundled with esbuild, the code runs from dist/boot.js
+  // The osun-pu-data.json is copied to dist/ during build
+  const candidates = [
+    "./api/osun-pu-data.json",           // Development
+    "./dist/osun-pu-data.json",          // Production (from project root)
+    "./osun-pu-data.json",               // Same directory as boot.js
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  // Default fallback - will throw a clear error if not found
+  return "./dist/osun-pu-data.json";
+}
 
 // ============================================================
 // POLLING UNIT DATA (Official INEC) - Loaded from JSON at runtime
@@ -25,9 +40,11 @@ let _puData: PUEntry[] | null = null;
 
 function loadPUData(): PUEntry[] {
   if (_puData === null) {
-    const jsonPath = join(__dirname, "osun-pu-data.json");
+    const jsonPath = findPUDataPath();
+    console.log("[PU DATA] Loading from:", jsonPath);
     const raw = readFileSync(jsonPath, "utf-8");
     _puData = JSON.parse(raw) as PUEntry[];
+    console.log("[PU DATA] Loaded", _puData.length, "LGA/ward entries");
   }
   return _puData;
 }
