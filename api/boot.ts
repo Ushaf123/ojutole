@@ -10,9 +10,7 @@ import Database from "better-sqlite3";
 // Seed data inline - avoid ESM module issues
 
 function bootstrap() {
-  const dbPath = env.databaseUrl?.startsWith("file:")
-    ? env.databaseUrl.replace("file:", "")
-    : env.databaseUrl || "./local.db";
+  const dbPath = "/tmp/local.db";
 
   const client = new Database(dbPath);
 

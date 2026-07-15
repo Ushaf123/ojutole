@@ -9,10 +9,7 @@ let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
 
 export function getDb() {
   if (!instance) {
-    const dbPath = env.databaseUrl?.startsWith("file:")
-      ? env.databaseUrl.replace("file:", "")
-      : env.databaseUrl || "./local.db";
-    const client = new Database(dbPath);
+    const client = new Database("/tmp/local.db");
     instance = drizzle(client, { schema: fullSchema });
   }
   return instance;
