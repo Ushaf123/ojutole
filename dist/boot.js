@@ -37,7 +37,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
-  "node_modules/dotenv/lib/main.js"(exports, module2) {
+  "node_modules/dotenv/lib/main.js"(exports, module) {
     var fs = __require("fs");
     var path = __require("path");
     var os = __require("os");
@@ -343,20 +343,20 @@ var require_main = __commonJS({
       parse: parse4,
       populate
     };
-    module2.exports.configDotenv = DotenvModule.configDotenv;
-    module2.exports._configVault = DotenvModule._configVault;
-    module2.exports._parseVault = DotenvModule._parseVault;
-    module2.exports.config = DotenvModule.config;
-    module2.exports.decrypt = DotenvModule.decrypt;
-    module2.exports.parse = DotenvModule.parse;
-    module2.exports.populate = DotenvModule.populate;
-    module2.exports = DotenvModule;
+    module.exports.configDotenv = DotenvModule.configDotenv;
+    module.exports._configVault = DotenvModule._configVault;
+    module.exports._parseVault = DotenvModule._parseVault;
+    module.exports.config = DotenvModule.config;
+    module.exports.decrypt = DotenvModule.decrypt;
+    module.exports.parse = DotenvModule.parse;
+    module.exports.populate = DotenvModule.populate;
+    module.exports = DotenvModule;
   }
 });
 
 // node_modules/dotenv/lib/env-options.js
 var require_env_options = __commonJS({
-  "node_modules/dotenv/lib/env-options.js"(exports, module2) {
+  "node_modules/dotenv/lib/env-options.js"(exports, module) {
     var options = {};
     if (process.env.DOTENV_CONFIG_ENCODING != null) {
       options.encoding = process.env.DOTENV_CONFIG_ENCODING;
@@ -376,15 +376,15 @@ var require_env_options = __commonJS({
     if (process.env.DOTENV_CONFIG_DOTENV_KEY != null) {
       options.DOTENV_KEY = process.env.DOTENV_CONFIG_DOTENV_KEY;
     }
-    module2.exports = options;
+    module.exports = options;
   }
 });
 
 // node_modules/dotenv/lib/cli-options.js
 var require_cli_options = __commonJS({
-  "node_modules/dotenv/lib/cli-options.js"(exports, module2) {
+  "node_modules/dotenv/lib/cli-options.js"(exports, module) {
     var re = /^dotenv_config_(encoding|path|quiet|debug|override|DOTENV_KEY)=(.+)$/;
-    module2.exports = function optionMatcher(args) {
+    module.exports = function optionMatcher(args) {
       const options = args.reduce(function(acc, cur) {
         const matches = cur.match(re);
         if (matches) {
@@ -667,7 +667,7 @@ var require_util = __commonJS({
 
 // node_modules/better-sqlite3/lib/sqlite-error.js
 var require_sqlite_error = __commonJS({
-  "node_modules/better-sqlite3/lib/sqlite-error.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/sqlite-error.js"(exports, module) {
     "use strict";
     var descriptor = { value: "SqliteError", writable: true, enumerable: false, configurable: true };
     function SqliteError(message, code) {
@@ -686,15 +686,15 @@ var require_sqlite_error = __commonJS({
     Object.setPrototypeOf(SqliteError, Error);
     Object.setPrototypeOf(SqliteError.prototype, Error.prototype);
     Object.defineProperty(SqliteError.prototype, "name", descriptor);
-    module2.exports = SqliteError;
+    module.exports = SqliteError;
   }
 });
 
 // node_modules/file-uri-to-path/index.js
 var require_file_uri_to_path = __commonJS({
-  "node_modules/file-uri-to-path/index.js"(exports, module2) {
+  "node_modules/file-uri-to-path/index.js"(exports, module) {
     var sep = __require("path").sep || "/";
-    module2.exports = fileUriToPath;
+    module.exports = fileUriToPath;
     function fileUriToPath(uri) {
       if ("string" != typeof uri || uri.length <= 7 || "file://" != uri.substring(0, 7)) {
         throw new TypeError("must pass in a file:// URI to convert to a file path");
@@ -722,7 +722,7 @@ var require_file_uri_to_path = __commonJS({
 
 // node_modules/bindings/bindings.js
 var require_bindings = __commonJS({
-  "node_modules/bindings/bindings.js"(exports, module2) {
+  "node_modules/bindings/bindings.js"(exports, module) {
     var fs = __require("fs");
     var path = __require("path");
     var fileURLToPath = require_file_uri_to_path();
@@ -813,7 +813,7 @@ var require_bindings = __commonJS({
       err.tries = tries;
       throw err;
     }
-    module2.exports = exports = bindings;
+    module.exports = exports = bindings;
     exports.getFileName = function getFileName(calling_file) {
       var origPST = Error.prepareStackTrace, origSTL = Error.stackTraceLimit, dummy = {}, fileName;
       Error.stackTraceLimit = 10;
@@ -927,11 +927,11 @@ var require_wrappers = __commonJS({
 
 // node_modules/better-sqlite3/lib/methods/transaction.js
 var require_transaction = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/transaction.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/methods/transaction.js"(exports, module) {
     "use strict";
     var { cppdb } = require_util();
     var controllers = /* @__PURE__ */ new WeakMap();
-    module2.exports = function transaction(fn) {
+    module.exports = function transaction(fn) {
       if (typeof fn !== "function") throw new TypeError("Expected first argument to be a function");
       const db = this[cppdb];
       const controller = getController(db, this);
@@ -1000,10 +1000,10 @@ var require_transaction = __commonJS({
 
 // node_modules/better-sqlite3/lib/methods/pragma.js
 var require_pragma = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/pragma.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/methods/pragma.js"(exports, module) {
     "use strict";
     var { getBooleanOption, cppdb } = require_util();
-    module2.exports = function pragma(source, options) {
+    module.exports = function pragma(source, options) {
       if (options == null) options = {};
       if (typeof source !== "string") throw new TypeError("Expected first argument to be a string");
       if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
@@ -1016,14 +1016,14 @@ var require_pragma = __commonJS({
 
 // node_modules/better-sqlite3/lib/methods/backup.js
 var require_backup = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/backup.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/methods/backup.js"(exports, module) {
     "use strict";
     var fs = __require("fs");
     var path = __require("path");
     var { promisify } = __require("util");
     var { cppdb } = require_util();
     var fsAccess = promisify(fs.access);
-    module2.exports = async function backup(filename, options) {
+    module.exports = async function backup(filename, options) {
       if (options == null) options = {};
       if (typeof filename !== "string") throw new TypeError("Expected first argument to be a string");
       if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
@@ -1077,10 +1077,10 @@ var require_backup = __commonJS({
 
 // node_modules/better-sqlite3/lib/methods/serialize.js
 var require_serialize = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/serialize.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/methods/serialize.js"(exports, module) {
     "use strict";
     var { cppdb } = require_util();
-    module2.exports = function serialize3(options) {
+    module.exports = function serialize3(options) {
       if (options == null) options = {};
       if (typeof options !== "object") throw new TypeError("Expected first argument to be an options object");
       const attachedName = "attached" in options ? options.attached : "main";
@@ -1093,10 +1093,10 @@ var require_serialize = __commonJS({
 
 // node_modules/better-sqlite3/lib/methods/function.js
 var require_function = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/function.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/methods/function.js"(exports, module) {
     "use strict";
     var { getBooleanOption, cppdb } = require_util();
-    module2.exports = function defineFunction(name, options, fn) {
+    module.exports = function defineFunction(name, options, fn) {
       if (options == null) options = {};
       if (typeof options === "function") {
         fn = options;
@@ -1124,10 +1124,10 @@ var require_function = __commonJS({
 
 // node_modules/better-sqlite3/lib/methods/aggregate.js
 var require_aggregate = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/aggregate.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/methods/aggregate.js"(exports, module) {
     "use strict";
     var { getBooleanOption, cppdb } = require_util();
-    module2.exports = function defineAggregate(name, options) {
+    module.exports = function defineAggregate(name, options) {
       if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
       if (typeof options !== "object" || options === null) throw new TypeError("Expected second argument to be an options object");
       if (!name) throw new TypeError("User-defined function name cannot be an empty string");
@@ -1164,10 +1164,10 @@ var require_aggregate = __commonJS({
 
 // node_modules/better-sqlite3/lib/methods/table.js
 var require_table = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/table.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/methods/table.js"(exports, module) {
     "use strict";
     var { cppdb } = require_util();
-    module2.exports = function defineTable(name, factory) {
+    module.exports = function defineTable(name, factory) {
       if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
       if (!name) throw new TypeError("Virtual table module name cannot be an empty string");
       let eponymous = false;
@@ -1326,11 +1326,11 @@ var require_table = __commonJS({
 
 // node_modules/better-sqlite3/lib/methods/inspect.js
 var require_inspect = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/inspect.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/methods/inspect.js"(exports, module) {
     "use strict";
     var DatabaseInspection = function Database4() {
     };
-    module2.exports = function inspect(depth, opts) {
+    module.exports = function inspect(depth, opts) {
       return Object.assign(new DatabaseInspection(), this);
     };
   }
@@ -1338,7 +1338,7 @@ var require_inspect = __commonJS({
 
 // node_modules/better-sqlite3/lib/database.js
 var require_database = __commonJS({
-  "node_modules/better-sqlite3/lib/database.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/database.js"(exports, module) {
     "use strict";
     var fs = __require("fs");
     var path = __require("path");
@@ -1408,16 +1408,16 @@ var require_database = __commonJS({
     Database4.prototype.defaultSafeIntegers = wrappers.defaultSafeIntegers;
     Database4.prototype.unsafeMode = wrappers.unsafeMode;
     Database4.prototype[util.inspect] = require_inspect();
-    module2.exports = Database4;
+    module.exports = Database4;
   }
 });
 
 // node_modules/better-sqlite3/lib/index.js
 var require_lib = __commonJS({
-  "node_modules/better-sqlite3/lib/index.js"(exports, module2) {
+  "node_modules/better-sqlite3/lib/index.js"(exports, module) {
     "use strict";
-    module2.exports = require_database();
-    module2.exports.SqliteError = require_sqlite_error();
+    module.exports = require_database();
+    module.exports.SqliteError = require_sqlite_error();
   }
 });
 
@@ -3904,18 +3904,18 @@ function createInnerProxy(callback, path, memo) {
   return memo[cacheKey];
 }
 var createRecursiveProxy = (callback) => createInnerProxy(callback, [], emptyObject());
-var require_typeof = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/typeof.js"(exports, module2) {
+var require_typeof = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/typeof.js"(exports, module) {
   function _typeof$2(o) {
     "@babel/helpers - typeof";
-    return module2.exports = _typeof$2 = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o$1) {
+    return module.exports = _typeof$2 = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o$1) {
       return typeof o$1;
     } : function(o$1) {
       return o$1 && "function" == typeof Symbol && o$1.constructor === Symbol && o$1 !== Symbol.prototype ? "symbol" : typeof o$1;
-    }, module2.exports.__esModule = true, module2.exports["default"] = module2.exports, _typeof$2(o);
+    }, module.exports.__esModule = true, module.exports["default"] = module.exports, _typeof$2(o);
   }
-  module2.exports = _typeof$2, module2.exports.__esModule = true, module2.exports["default"] = module2.exports;
+  module.exports = _typeof$2, module.exports.__esModule = true, module.exports["default"] = module.exports;
 } });
-var require_toPrimitive = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/toPrimitive.js"(exports, module2) {
+var require_toPrimitive = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/toPrimitive.js"(exports, module) {
   var _typeof$1 = require_typeof()["default"];
   function toPrimitive$1(t2, r) {
     if ("object" != _typeof$1(t2) || !t2) return t2;
@@ -3927,18 +3927,18 @@ var require_toPrimitive = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+r
     }
     return ("string" === r ? String : Number)(t2);
   }
-  module2.exports = toPrimitive$1, module2.exports.__esModule = true, module2.exports["default"] = module2.exports;
+  module.exports = toPrimitive$1, module.exports.__esModule = true, module.exports["default"] = module.exports;
 } });
-var require_toPropertyKey = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/toPropertyKey.js"(exports, module2) {
+var require_toPropertyKey = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/toPropertyKey.js"(exports, module) {
   var _typeof = require_typeof()["default"];
   var toPrimitive = require_toPrimitive();
   function toPropertyKey$1(t2) {
     var i = toPrimitive(t2, "string");
     return "symbol" == _typeof(i) ? i : i + "";
   }
-  module2.exports = toPropertyKey$1, module2.exports.__esModule = true, module2.exports["default"] = module2.exports;
+  module.exports = toPropertyKey$1, module.exports.__esModule = true, module.exports["default"] = module.exports;
 } });
-var require_defineProperty = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/defineProperty.js"(exports, module2) {
+var require_defineProperty = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/defineProperty.js"(exports, module) {
   var toPropertyKey = require_toPropertyKey();
   function _defineProperty(e, r, t2) {
     return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
@@ -3948,9 +3948,9 @@ var require_defineProperty = __commonJS2({ "../../node_modules/.pnpm/@oxc-projec
       writable: true
     }) : e[r] = t2, e;
   }
-  module2.exports = _defineProperty, module2.exports.__esModule = true, module2.exports["default"] = module2.exports;
+  module.exports = _defineProperty, module.exports.__esModule = true, module.exports["default"] = module.exports;
 } });
-var require_objectSpread2 = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/objectSpread2.js"(exports, module2) {
+var require_objectSpread2 = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/objectSpread2.js"(exports, module) {
   var defineProperty = require_defineProperty();
   function ownKeys(e, r) {
     var t2 = Object.keys(e);
@@ -3973,7 +3973,7 @@ var require_objectSpread2 = __commonJS2({ "../../node_modules/.pnpm/@oxc-project
     }
     return e;
   }
-  module2.exports = _objectSpread2, module2.exports.__esModule = true, module2.exports["default"] = module2.exports;
+  module.exports = _objectSpread2, module.exports.__esModule = true, module.exports["default"] = module.exports;
 } });
 var import_objectSpread2 = __toESM2(require_objectSpread2(), 1);
 
@@ -4313,7 +4313,7 @@ function getParseFn(procedureParser) {
   };
   throw new Error("Could not find a validator fn");
 }
-var require_objectWithoutPropertiesLoose = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/objectWithoutPropertiesLoose.js"(exports, module2) {
+var require_objectWithoutPropertiesLoose = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/objectWithoutPropertiesLoose.js"(exports, module) {
   function _objectWithoutPropertiesLoose(r, e) {
     if (null == r) return {};
     var t2 = {};
@@ -4323,9 +4323,9 @@ var require_objectWithoutPropertiesLoose = __commonJS2({ "../../node_modules/.pn
     }
     return t2;
   }
-  module2.exports = _objectWithoutPropertiesLoose, module2.exports.__esModule = true, module2.exports["default"] = module2.exports;
+  module.exports = _objectWithoutPropertiesLoose, module.exports.__esModule = true, module.exports["default"] = module.exports;
 } });
-var require_objectWithoutProperties = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/objectWithoutProperties.js"(exports, module2) {
+var require_objectWithoutProperties = __commonJS2({ "../../node_modules/.pnpm/@oxc-project+runtime@0.72.2/node_modules/@oxc-project/runtime/src/helpers/objectWithoutProperties.js"(exports, module) {
   var objectWithoutPropertiesLoose = require_objectWithoutPropertiesLoose();
   function _objectWithoutProperties$1(e, t2) {
     if (null == e) return {};
@@ -4336,7 +4336,7 @@ var require_objectWithoutProperties = __commonJS2({ "../../node_modules/.pnpm/@o
     }
     return i;
   }
-  module2.exports = _objectWithoutProperties$1, module2.exports.__esModule = true, module2.exports["default"] = module2.exports;
+  module.exports = _objectWithoutProperties$1, module.exports.__esModule = true, module.exports["default"] = module.exports;
 } });
 var import_objectWithoutProperties = __toESM2(require_objectWithoutProperties(), 1);
 var import_objectSpread2$12 = __toESM2(require_objectSpread2(), 1);
@@ -25708,7 +25708,7 @@ function seedDatabase(dbPath) {
   console.log(`Seeded ${allUnits.length} polling units across ${osunLGAs.length} LGAs!`);
   client.close();
 }
-if (__require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const dbPath = process.argv[2] || "./local.db";
   seedDatabase(dbPath);
 }
