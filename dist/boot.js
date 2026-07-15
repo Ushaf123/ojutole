@@ -1328,7 +1328,7 @@ var require_table = __commonJS({
 var require_inspect = __commonJS({
   "node_modules/better-sqlite3/lib/methods/inspect.js"(exports, module) {
     "use strict";
-    var DatabaseInspection = function Database4() {
+    var DatabaseInspection = function Database3() {
     };
     module.exports = function inspect(depth, opts) {
       return Object.assign(new DatabaseInspection(), this);
@@ -1345,9 +1345,9 @@ var require_database = __commonJS({
     var util = require_util();
     var SqliteError = require_sqlite_error();
     var DEFAULT_ADDON;
-    function Database4(filenameGiven, options) {
+    function Database3(filenameGiven, options) {
       if (new.target == null) {
-        return new Database4(filenameGiven, options);
+        return new Database3(filenameGiven, options);
       }
       let buffer;
       if (Buffer.isBuffer(filenameGiven)) {
@@ -1394,21 +1394,21 @@ var require_database = __commonJS({
       });
     }
     var wrappers = require_wrappers();
-    Database4.prototype.prepare = wrappers.prepare;
-    Database4.prototype.transaction = require_transaction();
-    Database4.prototype.pragma = require_pragma();
-    Database4.prototype.backup = require_backup();
-    Database4.prototype.serialize = require_serialize();
-    Database4.prototype.function = require_function();
-    Database4.prototype.aggregate = require_aggregate();
-    Database4.prototype.table = require_table();
-    Database4.prototype.loadExtension = wrappers.loadExtension;
-    Database4.prototype.exec = wrappers.exec;
-    Database4.prototype.close = wrappers.close;
-    Database4.prototype.defaultSafeIntegers = wrappers.defaultSafeIntegers;
-    Database4.prototype.unsafeMode = wrappers.unsafeMode;
-    Database4.prototype[util.inspect] = require_inspect();
-    module.exports = Database4;
+    Database3.prototype.prepare = wrappers.prepare;
+    Database3.prototype.transaction = require_transaction();
+    Database3.prototype.pragma = require_pragma();
+    Database3.prototype.backup = require_backup();
+    Database3.prototype.serialize = require_serialize();
+    Database3.prototype.function = require_function();
+    Database3.prototype.aggregate = require_aggregate();
+    Database3.prototype.table = require_table();
+    Database3.prototype.loadExtension = wrappers.loadExtension;
+    Database3.prototype.exec = wrappers.exec;
+    Database3.prototype.close = wrappers.close;
+    Database3.prototype.defaultSafeIntegers = wrappers.defaultSafeIntegers;
+    Database3.prototype.unsafeMode = wrappers.unsafeMode;
+    Database3.prototype[util.inspect] = require_inspect();
+    module.exports = Database3;
   }
 });
 
@@ -25618,105 +25618,10 @@ var appRouter = createRouter({
 });
 
 // api/boot.ts
-var import_better_sqlite36 = __toESM(require_lib(), 1);
-
-// db/seed.ts
 var import_better_sqlite34 = __toESM(require_lib(), 1);
-var osunLGAs = [
-  "Aiyedaade",
-  "Aiyedire",
-  "Atakunmosa East",
-  "Atakunmosa West",
-  "Boluwaduro",
-  "Boripe",
-  "Ede North",
-  "Ede South",
-  "Egbedore",
-  "Ejigbo",
-  "Ife Central",
-  "Ife East",
-  "Ife North",
-  "Ife South",
-  "Ifedayo",
-  "Ifelodun",
-  "Ila",
-  "Ilesa East",
-  "Ilesa West",
-  "Irepodun",
-  "Irewole",
-  "Isokan",
-  "Iwo",
-  "Obokun",
-  "Odo-Otin",
-  "Ola-Oluwa",
-  "Olorunda",
-  "Oriade",
-  "Orolu",
-  "Osogbo"
-];
-var puTemplates = [
-  "St. Peter's Pry Sch",
-  "Baptist Day Sch",
-  "Community Pry Sch",
-  "Town Hall",
-  "Market Square",
-  "L.A. Pry Sch",
-  "N.U.D. Pry Sch",
-  "Methodist Pry Sch",
-  "C.A.C. Pry Sch",
-  "Health Centre"
-];
-function seedDatabase(dbPath) {
-  const client = new import_better_sqlite34.default(dbPath);
-  const db = drizzle(client, { schema: schema_exports });
-  console.log("Checking if seeding is needed...");
-  const count = client.prepare("SELECT COUNT(*) as count FROM polling_units").get();
-  if (count && count.count > 0) {
-    console.log(`Database already has ${count.count} polling units, skipping seed.`);
-    client.close();
-    return;
-  }
-  console.log("Seeding Osun State polling units...");
-  const allUnits = [];
-  for (let i = 0; i < osunLGAs.length; i++) {
-    const lga = osunLGAs[i];
-    const numWards = 8 + i % 5;
-    const numUnits = 3 + i % 3;
-    for (let w = 0; w < numWards && w < 4; w++) {
-      for (let u = 0; u < numUnits; u++) {
-        const template = puTemplates[(i + w + u) % puTemplates.length];
-        allUnits.push({
-          name: `${template}, ${lga} ${w + 1}`,
-          lga,
-          ward: `Ward ${w + 1}`,
-          latitude: 7.5 + Math.random() * 0.5,
-          longitude: 4.2 + Math.random() * 0.8,
-          registrationAreaCode: `${String(i + 1).padStart(2, "0")}-${String(w + 1).padStart(2, "0")}-${String(u + 1).padStart(3, "0")}`
-        });
-      }
-    }
-  }
-  const insert = client.prepare(
-    "INSERT INTO polling_units (name, lga, ward, latitude, longitude, registration_area_code) VALUES (?, ?, ?, ?, ?, ?)"
-  );
-  const insertMany = client.transaction((units) => {
-    for (const u of units) {
-      insert.run(u.name, u.lga, u.ward, u.latitude, u.longitude, u.registrationAreaCode);
-    }
-  });
-  insertMany(allUnits);
-  console.log(`Seeded ${allUnits.length} polling units across ${osunLGAs.length} LGAs!`);
-  client.close();
-}
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const dbPath = process.argv[2] || "./local.db";
-  seedDatabase(dbPath);
-}
-
-// api/boot.ts
 function bootstrap() {
   const dbPath = env.databaseUrl?.startsWith("file:") ? env.databaseUrl.replace("file:", "") : env.databaseUrl || "./local.db";
-  const client = new import_better_sqlite36.default(dbPath);
+  const client = new import_better_sqlite34.default(dbPath);
   client.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25778,7 +25683,68 @@ function bootstrap() {
     );
   `);
   client.close();
-  seedDatabase(dbPath);
+  const osunLGAs = [
+    "Aiyedaade",
+    "Aiyedire",
+    "Atakunmosa East",
+    "Atakunmosa West",
+    "Boluwaduro",
+    "Boripe",
+    "Ede North",
+    "Ede South",
+    "Egbedore",
+    "Ejigbo",
+    "Ife Central",
+    "Ife East",
+    "Ife North",
+    "Ife South",
+    "Ifedayo",
+    "Ifelodun",
+    "Ila",
+    "Ilesa East",
+    "Ilesa West",
+    "Irepodun",
+    "Irewole",
+    "Isokan",
+    "Iwo",
+    "Obokun",
+    "Odo-Otin",
+    "Ola-Oluwa",
+    "Olorunda",
+    "Oriade",
+    "Orolu",
+    "Osogbo"
+  ];
+  const puTemplates = [
+    "St. Peter's Pry Sch",
+    "Baptist Day Sch",
+    "Community Pry Sch",
+    "Town Hall",
+    "Market Square",
+    "L.A. Pry Sch",
+    "N.U.D. Pry Sch",
+    "Methodist Pry Sch",
+    "C.A.C. Pry Sch",
+    "Health Centre"
+  ];
+  const count = client.prepare("SELECT COUNT(*) as c FROM polling_units").get();
+  if (!count || count.c === 0) {
+    const insert = client.prepare("INSERT INTO polling_units (name, lga, ward, latitude, longitude, registration_area_code) VALUES (?, ?, ?, ?, ?, ?)");
+    for (let i = 0; i < osunLGAs.length; i++) {
+      for (let w = 0; w < 4; w++) {
+        for (let u = 0; u < 3 + i % 3; u++) {
+          insert.run(
+            `${puTemplates[(i + w + u) % puTemplates.length]}, ${osunLGAs[i]} ${w + 1}`,
+            osunLGAs[i],
+            `Ward ${w + 1}`,
+            7.5 + Math.random() * 0.5,
+            4.2 + Math.random() * 0.8,
+            `${String(i + 1).padStart(2, "0")}-${String(w + 1).padStart(2, "0")}-${String(u + 1).padStart(3, "0")}`
+          );
+        }
+      }
+    }
+  }
   const app = new Hono2();
   app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
   const apiRoutes = appRouter;

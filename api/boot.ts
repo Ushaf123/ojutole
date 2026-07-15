@@ -7,7 +7,7 @@ import { bodyLimit } from "hono/body-limit";
 import { appRouter } from "./router";
 import { Paths } from "@contracts/constants";
 import Database from "better-sqlite3";
-import { seedDatabase } from "@db/seed";
+// Seed data inline - avoid ESM module issues
 
 function bootstrap() {
   const dbPath = env.databaseUrl?.startsWith("file:")
@@ -79,7 +79,38 @@ function bootstrap() {
 
   client.close();
 
-  seedDatabase(dbPath);
+  // Inline seed - avoid ESM module issues
+  const osunLGAs = [
+    "Aiyedaade","Aiyedire","Atakunmosa East","Atakunmosa West",
+    "Boluwaduro","Boripe","Ede North","Ede South","Egbedore",
+    "Ejigbo","Ife Central","Ife East","Ife North","Ife South",
+    "Ifedayo","Ifelodun","Ila","Ilesa East","Ilesa West",
+    "Irepodun","Irewole","Isokan","Iwo","Obokun",
+    "Odo-Otin","Ola-Oluwa","Olorunda","Oriade","Orolu","Osogbo",
+  ];
+  const puTemplates = [
+    "St. Peter's Pry Sch","Baptist Day Sch","Community Pry Sch",
+    "Town Hall","Market Square","L.A. Pry Sch","N.U.D. Pry Sch",
+    "Methodist Pry Sch","C.A.C. Pry Sch","Health Centre",
+  ];
+  const count = client.prepare("SELECT COUNT(*) as c FROM polling_units").get() as { c: number } | undefined;
+  if (!count || count.c === 0) {
+    const insert = client.prepare("INSERT INTO polling_units (name, lga, ward, latitude, longitude, registration_area_code) VALUES (?, ?, ?, ?, ?, ?)");
+    for (let i = 0; i < osunLGAs.length; i++) {
+      for (let w = 0; w < 4; w++) {
+        for (let u = 0; u < 3 + (i % 3); u++) {
+          insert.run(
+            `${puTemplates[(i + w + u) % puTemplates.length]}, ${osunLGAs[i]} ${w + 1}`,
+            osunLGAs[i],
+            `Ward ${w + 1}`,
+            7.5 + Math.random() * 0.5,
+            4.2 + Math.random() * 0.8,
+            `${String(i + 1).padStart(2, "0")}-${String(w + 1).padStart(2, "0")}-${String(u + 1).padStart(3, "0")}`,
+          );
+        }
+      }
+    }
+  }
 
   const app = new Hono<{ Bindings: HttpBindings }>();
 
