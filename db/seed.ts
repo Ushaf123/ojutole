@@ -1,5 +1,6 @@
-import { getDb } from "../api/queries/connection";
-import { pollingUnits } from "./schema";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import * as schema from "./schema";
 
 const osunLGAs = [
   "Aiyedaade", "Aiyedire", "Atakunmosa East", "Atakunmosa West",
@@ -16,12 +17,22 @@ const puTemplates = [
   "Methodist Pry Sch", "C.A.C. Pry Sch", "Health Centre",
 ];
 
-async function seed() {
-  const db = getDb();
+export function seedDatabase(dbPath: string) {
+  const client = new Database(dbPath);
+  const db = drizzle(client, { schema });
+
+  console.log("Checking if seeding is needed...");
+
+  const count = client.prepare("SELECT COUNT(*) as count FROM polling_units").get() as { count: number } | undefined;
+  if (count && count.count > 0) {
+    console.log(`Database already has ${count.count} polling units, skipping seed.`);
+    client.close();
+    return;
+  }
+
   console.log("Seeding Osun State polling units...");
 
-  // Insert 3-5 representative units per LGA
-  const allUnits: { name: string; lga: string; ward: string; latitude: string; longitude: string; registrationAreaCode: string }[] = [];
+  const allUnits: { name: string; lga: string; ward: string; latitude: number; longitude: number; registrationAreaCode: string }[] = [];
 
   for (let i = 0; i < osunLGAs.length; i++) {
     const lga = osunLGAs[i];
@@ -35,22 +46,31 @@ async function seed() {
           name: `${template}, ${lga} ${w + 1}`,
           lga,
           ward: `Ward ${w + 1}`,
-          latitude: (7.5 + Math.random() * 0.5).toFixed(7),
-          longitude: (4.2 + Math.random() * 0.8).toFixed(7),
+          latitude: 7.5 + Math.random() * 0.5,
+          longitude: 4.2 + Math.random() * 0.8,
           registrationAreaCode: `${String(i + 1).padStart(2, "0")}-${String(w + 1).padStart(2, "0")}-${String(u + 1).padStart(3, "0")}`,
         });
       }
     }
   }
 
-  // Insert in batches
-  const batchSize = 30;
-  for (let i = 0; i < allUnits.length; i += batchSize) {
-    const batch = allUnits.slice(i, i + batchSize);
-    await db.insert(pollingUnits).values(batch);
-  }
+  const insert = client.prepare(
+    "INSERT INTO polling_units (name, lga, ward, latitude, longitude, registration_area_code) VALUES (?, ?, ?, ?, ?, ?)"
+  );
+
+  const insertMany = client.transaction((units) => {
+    for (const u of units) {
+      insert.run(u.name, u.lga, u.ward, u.latitude, u.longitude, u.registrationAreaCode);
+    }
+  });
+
+  insertMany(allUnits);
 
   console.log(`Seeded ${allUnits.length} polling units across ${osunLGAs.length} LGAs!`);
+  client.close();
 }
 
-seed().catch(console.error);
+if (require.main === module) {
+  const dbPath = process.argv[2] || "./local.db";
+  seedDatabase(dbPath);
+}
