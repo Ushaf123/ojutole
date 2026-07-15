@@ -1,0 +1,30 @@
+{
+  "name": "OJÚTÓLÉ - Election Monitoring by USHAF Nigeria",
+  "short_name": "OJÚTÓLÉ",
+  "description": "Report electoral irregularities in real-time across Osun State. An innovation from USHAF Nigeria.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0E27",
+  "theme_color": "#0A0E27",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/ojutole-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/ojutole-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "en",
+  "dir": "ltr",
+  "related_applications": [],
+  "prefer_related_applications": false
+}
