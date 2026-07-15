@@ -1,22 +1,35 @@
 /**
- * Simple JSON file-based store for OJUTOLÉ.
+ * Simple JSON file-based store for OJÚTÓLÉ.
  * Uses official INEC polling unit data for Osun State.
  * Source: INEC Directory of Polling Units, Revised January 2015
- * 30 LGAs, 332 Wards, ~3,010 Polling Units
+ * 30 LGAs, 332 Wards, 2,834 Polling Units
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname } from "path";
-import { OSUN_POLLING_UNITS } from "./osun-pu-data";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ============================================================
-// POLLING UNIT DATA (Official INEC)
+// POLLING UNIT DATA (Official INEC) - Loaded from JSON at runtime
 // ============================================================
 
-interface OsunPUEntry {
+interface PUEntry {
   lga: string;
   ward: string;
   units: Array<{ name: string; code: string }>;
+}
+
+let _puData: PUEntry[] | null = null;
+
+function loadPUData(): PUEntry[] {
+  if (_puData === null) {
+    const jsonPath = join(__dirname, "osun-pu-data.json");
+    const raw = readFileSync(jsonPath, "utf-8");
+    _puData = JSON.parse(raw) as PUEntry[];
+  }
+  return _puData;
 }
 
 let _flatPollingUnits: Array<{
@@ -33,7 +46,7 @@ function getFlatPollingUnits() {
   if (_flatPollingUnits === null) {
     _flatPollingUnits = [];
     let id = 1;
-    for (const entry of OSUN_POLLING_UNITS) {
+    for (const entry of loadPUData()) {
       for (const unit of entry.units) {
         _flatPollingUnits.push({
           id,
@@ -41,7 +54,7 @@ function getFlatPollingUnits() {
           lga: entry.lga,
           ward: entry.ward,
           code: unit.code,
-          // Approximate coordinates - centered around Osun State
+          // Approximate coordinates for Osun State
           latitude: 7.5 + (id * 0.0001),
           longitude: 4.5 + (id * 0.0001),
         });
@@ -54,7 +67,7 @@ function getFlatPollingUnits() {
 
 export function getLGAs(): string[] {
   const lgas = new Set<string>();
-  for (const entry of OSUN_POLLING_UNITS) {
+  for (const entry of loadPUData()) {
     lgas.add(entry.lga);
   }
   return Array.from(lgas).sort();
@@ -62,7 +75,7 @@ export function getLGAs(): string[] {
 
 export function getWardsByLGA(lga: string): string[] {
   const wards = new Set<string>();
-  for (const entry of OSUN_POLLING_UNITS) {
+  for (const entry of loadPUData()) {
     if (entry.lga === lga) {
       wards.add(entry.ward);
     }
@@ -72,7 +85,7 @@ export function getWardsByLGA(lga: string): string[] {
 
 export function getUnitsByLGAAndWard(lga: string, ward?: string) {
   const results = [];
-  for (const entry of OSUN_POLLING_UNITS) {
+  for (const entry of loadPUData()) {
     if (entry.lga === lga && (!ward || entry.ward === ward)) {
       for (const unit of entry.units) {
         results.push({
@@ -129,6 +142,11 @@ export function getNearbyPollingUnits(
   }
   results.sort((a, b) => (a.distance || 0) - (b.distance || 0));
   return results.slice(0, limit);
+}
+
+// Raw data access for stats
+export function getRawPUData(): PUEntry[] {
+  return loadPUData();
 }
 
 // ============================================================
@@ -307,7 +325,6 @@ export const reportStore = {
     loadReports().push(report);
     saveReports();
 
-    // Save media if provided
     if (data.media && data.media.length > 0) {
       const mediaRecords: ReportMediaRecord[] = data.media.map((m) => ({
         id: mediaNextId++,

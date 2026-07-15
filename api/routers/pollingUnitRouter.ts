@@ -8,8 +8,8 @@ import {
   getPollingUnitById,
   searchPollingUnits,
   getPollingUnits,
+  getRawPUData,
 } from "../json-store";
-import { OSUN_POLLING_UNITS } from "../osun-pu-data";
 
 export const pollingUnitRouter = createRouter({
   list: publicQuery
@@ -96,12 +96,12 @@ export const pollingUnitRouter = createRouter({
     const lgas = getLGAs();
     let totalWards = 0;
     let totalUnits = 0;
-    for (const entry of OSUN_POLLING_UNITS) {
+    for (const entry of getRawPUData()) {
       totalUnits += entry.units.length;
     }
     // Count unique wards
     const wardSet = new Set();
-    for (const entry of OSUN_POLLING_UNITS) {
+    for (const entry of getRawPUData()) {
       wardSet.add(`${entry.lga}|${entry.ward}`);
     }
     totalWards = wardSet.size;
