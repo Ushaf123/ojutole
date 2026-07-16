@@ -414,14 +414,41 @@ export default function Admin() {
                           )}
                         </div>
                         <p className="text-white font-medium text-sm">{incidentLabels[report.incidentType] || report.incidentType}</p>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-xs text-white/40">{report.lga}</span>
-                          {report.ward && <span className="text-xs text-white/30">{report.ward}</span>}
+
+                        {/* Location: LGA + Ward */}
+                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                          <span className="text-xs font-medium text-white/70 bg-white/5 px-2 py-0.5 rounded">{report.lga}</span>
+                          {report.ward && (
+                            <span className="text-xs text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded flex items-center gap-1">
+                              <MapPin size={10} /> {report.ward}
+                            </span>
+                          )}
                         </div>
+
+                        {/* Description */}
                         {report.description && (
-                          <p className="text-xs text-white/30 mt-1 line-clamp-2">{report.description}</p>
+                          <p className="text-xs text-white/40 mt-2 line-clamp-2">{report.description}</p>
                         )}
-                        <p className="text-[10px] text-white/20 mt-2">{new Date(report.submittedAt).toLocaleString("en-NG")}</p>
+
+                        {/* Exact Date & Time */}
+                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
+                          <Clock size={12} className="text-white/30" />
+                          <span className="text-xs text-white/50">
+                            {new Date(report.submittedAt).toLocaleString("en-NG", {
+                              weekday: "short",
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                              hour12: true,
+                            })}
+                          </span>
+                        </div>
+
+                        {/* View Details hint */}
+                        <p className="text-[10px] text-[#2563EB]/60 mt-1">Tap to view full details, media & location</p>
                       </div>
                       <ChevronDown size={16} className="text-white/20 flex-shrink-0 mt-1 rotate-[-90deg]" />
                     </div>
