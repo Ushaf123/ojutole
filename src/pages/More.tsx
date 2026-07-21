@@ -116,7 +116,7 @@ export default function More() {
           icon: ExternalLink,
           label: t("visit.title"),
           desc: t("visit.desc"),
-          action: () => window.open("mailto:ushafnigeria@gmail.com?subject=Partnering%20with%20OJUT%C3%93L%C3%89", "_blank"),
+          action: () => window.open("mailto:oloboushafng@gmail.com?subject=Partnering%20with%20OJUT%C3%93L%C3%89", "_blank"),
         },
       ],
     },
@@ -475,7 +475,7 @@ export default function More() {
                     ))}
                   </div>
                   <a
-                    href="mailto:ushafnigeria@gmail.com?subject=Partnering%20with%20OJUT%C3%93L%C3%89"
+                    href="mailto:oloboushafng@gmail.com?subject=Partnering%20with%20OJUT%C3%93L%C3%89"
                     className="w-full py-4 rounded-2xl bg-[#2563EB] text-white font-bold flex items-center justify-center gap-2"
                   >
                     <Mail size={18} />
@@ -498,8 +498,14 @@ export default function More() {
                   <div className="glass rounded-2xl p-4 space-y-4">
                     <div>
                       <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Email</p>
-                      <a href="mailto:ushafnigeria@gmail.com" className="text-sm text-[#2563EB] font-medium">
-                        ushafnigeria@gmail.com
+                      <a href="mailto:oloboushafng@gmail.com" className="text-sm text-[#2563EB] font-medium">
+                        oloboushafng@gmail.com
+                      </a>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Website</p>
+                      <a href="https://www.ushaf.org.ng" target="_blank" rel="noopener noreferrer" className="text-sm text-[#2563EB] font-medium">
+                        www.ushaf.org.ng
                       </a>
                     </div>
                     <div>
@@ -553,7 +559,7 @@ export default function More() {
                     <h4 className="font-bold text-white">3. Data Protection</h4>
                     <p>All media uploads are reviewed. Exact GPS locations are only visible to authorized admin personnel. Phone numbers are stored securely.</p>
                     <h4 className="font-bold text-white">4. Your Rights</h4>
-                    <p>You can report anonymously. You may request deletion of your data by contacting ushafnigeria@gmail.com.</p>
+                    <p>You can report anonymously. You may request deletion of your data by contacting oloboushafng@gmail.com.</p>
                   </div>
                   <p className="text-[10px] text-[#F59E0B]/60 uppercase tracking-wider text-center">
                     {t("version.innovation")}

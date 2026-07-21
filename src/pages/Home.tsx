@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { Shield, Camera, MapPin, TrendingUp, Activity, Users, Phone } from "lucide-react";
+import { Shield, Camera, MapPin, TrendingUp, Activity, Users, Phone, ExternalLink } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 
 // USHAF HOTLINE
@@ -79,7 +79,7 @@ export default function Home() {
             {t("hero.description")}
           </p>
 
-          {/* CTA Buttons */}
+          {/* Main CTA Button */}
           <button
             onClick={() => navigate("/report")}
             className="btn-primary text-lg mt-2 flex items-center gap-2"
@@ -88,26 +88,41 @@ export default function Home() {
             {t("hero.cta")}
           </button>
 
-          {/* Call to Report - Hotline Button */}
-          <a
-            href={`tel:${USHAF_HOTLINE}`}
-            className="flex items-center justify-center gap-2 px-6 py-3 rounded-full border-2 border-emerald-500/40 text-emerald-400 font-medium text-sm hover:bg-emerald-500/10 transition-all active:scale-[0.98]"
-          >
-            <Phone size={16} />
-            <span>Call to Report</span>
-            <span className="text-emerald-400/60 text-xs">{HOTLINE_DISPLAY}</span>
-          </a>
-
           {/* USHAF Nigeria Branding */}
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full glass-inner">
+          <a
+            href="https://www.ushaf.org.ng"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-1.5 rounded-full glass-inner hover:bg-white/5 transition-all"
+          >
             <span className="text-[10px] text-white/40 uppercase tracking-wider">{t("hero.poweredBy")}</span>
             <span className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider">USHAF Nigeria</span>
-          </div>
+            <ExternalLink size={10} className="text-white/30" />
+          </a>
         </div>
       </section>
 
+      {/* Hotline Banner - Very Visible */}
+      <section className="px-4 -mt-8 relative z-10 mb-4">
+        <a
+          href={`tel:${USHAF_HOTLINE}`}
+          className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 active:scale-[0.98] transition-all"
+        >
+          <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+            <Phone size={20} className="text-emerald-400" />
+          </div>
+          <div className="text-left">
+            <p className="text-[10px] text-emerald-400/60 uppercase tracking-wider font-medium">USHAF Hotline</p>
+            <p className="text-xl font-black text-emerald-400 tracking-tight">{HOTLINE_DISPLAY}</p>
+          </div>
+          <div className="ml-auto px-3 py-1.5 rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-400 uppercase">
+            Tap to Call
+          </div>
+        </a>
+      </section>
+
       {/* Quick Stats */}
-      <section className="px-4 -mt-8 relative z-10">
+      <section className="px-4 -mt-4 relative z-10">
         <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4">
           {[
             { icon: Activity, label: t("stats.reports"), value: stats?.total || 0, color: "text-[#F59E0B]" },
