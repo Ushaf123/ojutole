@@ -135,16 +135,18 @@ export default function Admin() {
   const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null);
   const [backupStatus, setBackupStatus] = useState<"idle" | "loading" | "done">("idle");
 
-  const statsQuery = trpc.report.getStats.useQuery();
+  // Only fetch data when authenticated - prevents data loading before password
+  const statsQuery = trpc.report.getStats.useQuery(undefined, { enabled: authenticated });
   const reportsQuery = trpc.report.list.useQuery(
     {
       status: (statusFilter as "submitted" | "pending" | "resolved" | "escalated") || undefined,
       lga: lgaFilter || undefined,
       limit: 50,
-    }
+    },
+    { enabled: authenticated }
   );
-  const lgaQuery = trpc.pollingUnit.getLGAs.useQuery();
-  const puStatsQuery = trpc.pollingUnit.stats.useQuery();
+  const lgaQuery = trpc.pollingUnit.getLGAs.useQuery(undefined, { enabled: authenticated });
+  const puStatsQuery = trpc.pollingUnit.stats.useQuery(undefined, { enabled: authenticated });
 
   const stats = statsQuery.data;
   const reports = reportsQuery.data?.reports || [];
