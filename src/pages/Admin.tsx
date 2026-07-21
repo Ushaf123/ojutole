@@ -14,6 +14,10 @@ import {
 const ADMIN_PASSWORD = "USHAF2025";
 const PW_KEY = "ojutole_admin_auth";
 
+// USHAF Hotline
+const USHAF_HOTLINE = "+2349034610970";
+const HOTLINE_DISPLAY = "09034610970";
+
 interface ReportDetail {
   id: number;
   incidentType: string;
@@ -372,6 +376,14 @@ export default function Admin() {
             <span className="text-xs text-emerald-400">Live</span>
           </div>
         </div>
+
+        {/* Hotline */}
+        <a
+          href={`tel:${USHAF_HOTLINE}`}
+          className="flex items-center gap-2 mt-2 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+        >
+          <Phone size={12} /> USHAF Hotline: <span className="font-bold">{HOTLINE_DISPLAY}</span>
+        </a>
 
         {/* Logout + Backup buttons */}
         <div className="flex items-center gap-2 mt-3">

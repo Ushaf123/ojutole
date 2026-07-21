@@ -8,6 +8,10 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 
+// USHAF Hotline
+const USHAF_HOTLINE = "+2349034610970";
+const HOTLINE_DISPLAY = "09034610970";
+
 type IncidentType = "vote_buying" | "ballot_snatching" | "intimidation" | "bvas_failure" | "overvoting" | "late_arrival" | "other";
 
 interface CapturedMedia {
@@ -390,6 +394,16 @@ export default function Report() {
           </button>
         </div>
       </div>
+
+      {/* Hotline Banner */}
+      <a
+        href={`tel:${USHAF_HOTLINE}`}
+        className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-500/10 border-b border-emerald-500/20"
+      >
+        <Phone size={14} className="text-emerald-400" />
+        <span className="text-xs text-emerald-400 font-medium">Need help? Call USHAF Hotline:</span>
+        <span className="text-sm text-emerald-300 font-bold">{HOTLINE_DISPLAY}</span>
+      </a>
 
       <div className="px-4 py-6 space-y-6">
         {/* Incident Type */}
