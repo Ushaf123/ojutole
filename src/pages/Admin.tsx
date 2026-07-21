@@ -10,8 +10,8 @@ import {
   ShieldCheck, Package
 } from "lucide-react";
 
-// ADMIN PASSWORD - Change this to your own secure password
-const ADMIN_PASSWORD = "USHAF2025";
+// ADMIN PASSWORD
+const ADMIN_PASSWORD = "725289";
 const PW_KEY = "ojutole_admin_auth";
 
 // USHAF Hotline
