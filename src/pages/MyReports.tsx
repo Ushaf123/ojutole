@@ -34,13 +34,17 @@ export default function MyReports() {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null);
 
+  // Get report IDs submitted from this device
+  const myReportIds = JSON.parse(localStorage.getItem("ojutole_my_reports") || "[]") as number[];
+
+  // Fetch recent reports but only show ones submitted from this phone
   const reportsQuery = trpc.report.list.useQuery(
-    filter !== "all" && filter !== "offline"
-      ? { status: filter as "submitted" | "pending" | "resolved" | "escalated", limit: 50 }
-      : { limit: 50 }
+    { limit: 100 },
+    { enabled: myReportIds.length > 0 }
   );
 
-  const allReports = reportsQuery.data?.reports || [];
+  // Filter to only show reports from this device
+  const allReports = (reportsQuery.data?.reports || []).filter((r) => myReportIds.includes(r.id));
   const offlineQueue = JSON.parse(localStorage.getItem("ojutole_offline_queue") || "[]");
 
   const filteredReports = filter === "offline" ? [] : filter === "all" ? allReports : allReports.filter((r) => r.status === filter);

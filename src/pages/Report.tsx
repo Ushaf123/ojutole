@@ -90,9 +90,15 @@ export default function Report() {
 
   const utils = trpc.useUtils();
   const createReport = trpc.report.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       utils.report.getStats.invalidate();
       utils.report.getRecent.invalidate();
+      // Save report ID to localStorage so user can see their own reports
+      if (data?.id) {
+        const myReportIds = JSON.parse(localStorage.getItem("ojutole_my_reports") || "[]");
+        myReportIds.push(data.id);
+        localStorage.setItem("ojutole_my_reports", JSON.stringify(myReportIds));
+      }
       setSubmitted(true);
       setTimeout(() => {
         navigate("/");
