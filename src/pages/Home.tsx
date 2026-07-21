@@ -1,7 +1,10 @@
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { Shield, Camera, MapPin, TrendingUp, Activity, Users } from "lucide-react";
+import { Shield, Camera, MapPin, TrendingUp, Activity, Users, Phone } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+
+// USHAF HOTLINE - Change this to your actual hotline number
+const USHAF_HOTLINE = "+2348012345678";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -75,7 +78,7 @@ export default function Home() {
             {t("hero.description")}
           </p>
 
-          {/* CTA Button */}
+          {/* CTA Buttons */}
           <button
             onClick={() => navigate("/report")}
             className="btn-primary text-lg mt-2 flex items-center gap-2"
@@ -83,6 +86,16 @@ export default function Home() {
             <Camera size={20} />
             {t("hero.cta")}
           </button>
+
+          {/* Call to Report - Hotline Button */}
+          <a
+            href={`tel:${USHAF_HOTLINE}`}
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-full border-2 border-emerald-500/40 text-emerald-400 font-medium text-sm hover:bg-emerald-500/10 transition-all active:scale-[0.98]"
+          >
+            <Phone size={16} />
+            <span>Call to Report</span>
+            <span className="text-emerald-400/60 text-xs">{USHAF_HOTLINE}</span>
+          </a>
 
           {/* USHAF Nigeria Branding */}
           <div className="flex items-center gap-2 px-4 py-1.5 rounded-full glass-inner">

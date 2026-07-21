@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLanguage } from "@/hooks/useLanguage";
 import {
   FileText, TrendingUp, CheckCircle,
   Clock, Filter, Download, ChevronDown,
   MapPin, Phone, Camera, Video, Mic, X,
-  ExternalLink, Image, Play, AudioLines,
-  ChevronLeft
+  ExternalLink, Image, AudioLines,
+  ChevronLeft, Lock, Unlock, AlertTriangle,
+  ShieldCheck, Package
 } from "lucide-react";
+
+// ADMIN PASSWORD - Change this to your own secure password
+const ADMIN_PASSWORD = "USHAF2025";
+const PW_KEY = "ojutole_admin_auth";
 
 interface ReportDetail {
   id: number;
@@ -36,21 +41,95 @@ interface ReportDetail {
   }>;
 }
 
-// Get full URL for a media path (handles /uploads/ paths and absolute URLs)
 function getFullMediaUrl(url: string): string {
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  if (url.startsWith("blob:")) return url; // Fallback for old data
+  if (url.startsWith("blob:")) return url;
   const base = window.location.origin;
   return url.startsWith("/") ? `${base}${url}` : `${base}/${url}`;
 }
 
+function isAuthenticated(): boolean {
+  return localStorage.getItem(PW_KEY) === "true";
+}
+
+function authenticate() {
+  localStorage.setItem(PW_KEY, "true");
+}
+
+function logout() {
+  localStorage.removeItem(PW_KEY);
+}
+
+// Password Gate Component
+function PasswordGate({ onSuccess }: { onSuccess: () => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === ADMIN_PASSWORD) {
+      authenticate();
+      onSuccess();
+    } else {
+      setError(true);
+      setPassword("");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0A0E27] flex flex-col items-center justify-center px-6">
+      <div className="glass rounded-3xl p-8 w-full max-w-sm">
+        <div className="w-16 h-16 rounded-full bg-[#2563EB]/20 flex items-center justify-center mx-auto mb-4">
+          <Lock size={28} className="text-[#2563EB]" />
+        </div>
+        <h1 className="text-xl font-black text-white text-center uppercase tracking-tight">
+          Admin Dashboard
+        </h1>
+        <p className="text-xs text-white/40 text-center mt-2">
+          OJÚTÓLÉ | USHAF Nigeria
+        </p>
+        <p className="text-sm text-white/50 text-center mt-4">
+          This page is password protected.
+        </p>
+
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(false); }}
+            placeholder="Enter admin password"
+            className="w-full h-12 px-4 rounded-xl glass text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50"
+            autoFocus
+          />
+          {error && (
+            <p className="text-xs text-red-400 flex items-center gap-1">
+              <AlertTriangle size={12} /> Incorrect password
+            </p>
+          )}
+          <button
+            type="submit"
+            className="w-full h-12 rounded-xl bg-[#2563EB] text-white font-bold flex items-center justify-center gap-2"
+          >
+            <Unlock size={16} /> Access Dashboard
+          </button>
+        </form>
+
+        <p className="text-[10px] text-white/20 text-center mt-6">
+          Contact USHAF Nigeria for access
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const { t } = useLanguage();
+  const [authenticated, setAuthenticated] = useState(isAuthenticated);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [lgaFilter, setLgaFilter] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null);
-  const [showMediaModal, setShowMediaModal] = useState<string | null>(null);
+  const [backupStatus, setBackupStatus] = useState<"idle" | "loading" | "done">("idle");
 
   const statsQuery = trpc.report.getStats.useQuery();
   const reportsQuery = trpc.report.list.useQuery(
@@ -86,25 +165,49 @@ export default function Admin() {
     escalated: { color: "text-red-400", bg: "bg-red-500/20", label: t("status.escalated") },
   };
 
-  const mediaIcon = (type: string) => {
-    switch (type) {
-      case "photo": return <Camera size={14} />;
-      case "video": return <Video size={14} />;
-      case "audio": return <Mic size={14} />;
-      default: return <FileText size={14} />;
+  // Export all data as CSV
+  const handleExportCSV = () => {
+    const rows = reports.map((r) => ({
+      ID: r.id,
+      Type: incidentLabels[r.incidentType] || r.incidentType,
+      LGA: r.lga,
+      Ward: r.ward || "",
+      Description: (r.description || "").replace(/\n/g, " "),
+      Status: r.status,
+      Latitude: r.latitude || "",
+      Longitude: r.longitude || "",
+      Location: r.locationAddress || "",
+      Phone: r.reporterPhone || "",
+      MediaCount: r.media?.length || 0,
+      Submitted: new Date(r.submittedAt).toLocaleString("en-NG"),
+    }));
+
+    if (rows.length === 0) {
+      alert("No reports to export");
+      return;
     }
+
+    const headers = Object.keys(rows[0]).join(",");
+    const csv = [headers, ...rows.map((r) => Object.values(r).map((v) => `"${v}"`).join(","))].join("\n");
+
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `OJUTOLÉ-Reports-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setBackupStatus("done");
+    setTimeout(() => setBackupStatus("idle"), 3000);
   };
 
-  const mediaColor = (type: string) => {
-    switch (type) {
-      case "photo": return "text-blue-400 bg-blue-500/20";
-      case "video": return "text-pink-400 bg-pink-500/20";
-      case "audio": return "text-amber-400 bg-amber-500/20";
-      default: return "text-white/40 bg-white/10";
-    }
-  };
+  if (!authenticated) {
+    return <PasswordGate onSuccess={() => setAuthenticated(true)} />;
+  }
 
-  // Report Detail Modal
+  // Report Detail View
   if (selectedReport) {
     const st = statusConfig[selectedReport.status] || statusConfig.submitted;
     const hasMedia = selectedReport.media && selectedReport.media.length > 0;
@@ -112,7 +215,6 @@ export default function Admin() {
 
     return (
       <div className="min-h-screen bg-[#0A0E27] pb-8">
-        {/* Header */}
         <div className="glass border-b border-white/10 px-4 py-4">
           <div className="flex items-center gap-3">
             <button onClick={() => setSelectedReport(null)} className="w-8 h-8 flex items-center justify-center rounded-full glass">
@@ -126,7 +228,6 @@ export default function Admin() {
         </div>
 
         <div className="px-4 py-4 space-y-4">
-          {/* Status Badge */}
           <div className="flex items-center gap-3">
             <span className={`text-xs px-3 py-1 rounded-full ${st.bg} ${st.color} font-medium`}>{st.label}</span>
             <span className="text-xs text-white/40">{incidentLabels[selectedReport.incidentType] || selectedReport.incidentType}</span>
@@ -193,21 +294,13 @@ export default function Admin() {
                     <div key={m.id} className="relative rounded-xl overflow-hidden bg-white/5">
                       {m.mediaType === "photo" && (
                         <>
-                          <img
-                            src={fullUrl}
-                            alt={`Evidence ${idx + 1}`}
-                            className="w-full aspect-square object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).className = 'w-full aspect-square object-cover bg-red-500/10'; }}
-                          />
+                          <img src={fullUrl} alt={`Evidence ${idx + 1}`} className="w-full aspect-square object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                           <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-white/80 flex items-center gap-1">
                             <Camera size={10} /> Photo
                           </div>
-                          <a
-                            href={fullUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-[#2563EB] flex items-center gap-1"
-                          >
+                          <a href={fullUrl} target="_blank" rel="noopener noreferrer"
+                            className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-[#2563EB] flex items-center gap-1">
                             <ExternalLink size={10} /> Open
                           </a>
                         </>
@@ -249,7 +342,7 @@ export default function Admin() {
                 <Phone size={14} /> {selectedReport.reporterPhone}
               </a>
             ) : (
-              <p className="text-sm text-white/40">No phone number provided</p>
+              <p className="text-sm text-white/40">No phone number provided (anonymous)</p>
             )}
           </section>
 
@@ -267,6 +360,7 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen pb-8 bg-[#0A0E27]">
+      {/* Header */}
       <div className="glass border-b border-white/10 px-4 py-4">
         <div className="flex items-center justify-between">
           <div>
@@ -277,6 +371,27 @@ export default function Admin() {
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-xs text-emerald-400">Live</span>
           </div>
+        </div>
+
+        {/* Logout + Backup buttons */}
+        <div className="flex items-center gap-2 mt-3">
+          <button
+            onClick={handleExportCSV}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              backupStatus === "done"
+                ? "bg-emerald-500/20 text-emerald-400"
+                : "bg-[#2563EB]/20 text-[#2563EB]"
+            }`}
+          >
+            {backupStatus === "done" ? <CheckCircle size={12} /> : <Package size={12} />}
+            {backupStatus === "done" ? "Downloaded!" : "Download All Data"}
+          </button>
+          <button
+            onClick={() => { logout(); setAuthenticated(false); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white/40 hover:text-white/60"
+          >
+            <Lock size={12} /> Lock
+          </button>
         </div>
       </div>
 
@@ -376,14 +491,6 @@ export default function Admin() {
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg glass text-xs text-white/60">
                 <Filter size={12} /> Filter <ChevronDown size={10} />
               </button>
-              <button onClick={() => {
-                  const csv = reports.map((r) => `${r.id},${r.incidentType},${r.lga},${r.ward || ""},${r.status},${new Date(r.submittedAt).toISOString()},${r.latitude || ""},${r.longitude || ""},${r.reporterPhone || ""}`).join("\n");
-                  const blob = new Blob([`ID,Type,LGA,Ward,Status,Date,Lat,Lng,Phone\n${csv}`], { type: "text/csv" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a"); a.href = url; a.download = "ojutole-reports-ushaf-nigeria.csv"; a.click();
-                }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg glass text-xs text-white/60">
-                <Download size={12} /> CSV
-              </button>
             </div>
           </div>
 
@@ -439,7 +546,7 @@ export default function Admin() {
                         </div>
                         <p className="text-white font-medium text-sm">{incidentLabels[report.incidentType] || report.incidentType}</p>
 
-                        {/* Location: LGA + Ward */}
+                        {/* LGA + Ward */}
                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
                           <span className="text-xs font-medium text-white/70 bg-white/5 px-2 py-0.5 rounded">{report.lga}</span>
                           {report.ward && (
@@ -459,19 +566,12 @@ export default function Admin() {
                           <Clock size={12} className="text-white/30" />
                           <span className="text-xs text-white/50">
                             {new Date(report.submittedAt).toLocaleString("en-NG", {
-                              weekday: "short",
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              second: "2-digit",
-                              hour12: true,
+                              weekday: "short", year: "numeric", month: "short", day: "numeric",
+                              hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
                             })}
                           </span>
                         </div>
 
-                        {/* View Details hint */}
                         <p className="text-[10px] text-[#2563EB]/60 mt-1">Tap to view full details, media & location</p>
                       </div>
                       <ChevronDown size={16} className="text-white/20 flex-shrink-0 mt-1 rotate-[-90deg]" />

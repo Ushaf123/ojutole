@@ -3,7 +3,8 @@ import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import {
   Camera, Video, Mic, MapPin, X, Check, Send,
-  Loader2, Phone, Upload, AlertTriangle, WifiOff
+  Loader2, Phone, Upload, AlertTriangle, WifiOff,
+  ShieldCheck
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 
@@ -55,6 +56,11 @@ export default function Report() {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [locationAddress, setLocationAddress] = useState("");
   const [gpsStatus, setGpsStatus] = useState<"idle" | "requesting" | "granted" | "denied" | "error">("idle");
+  const [anonymous, setAnonymous] = useState(false);
+
+  // Video safety limits
+  const VIDEO_MAX_SIZE_MB = 10;
+  const VIDEO_MAX_DURATION_SEC = 60;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -170,10 +176,17 @@ export default function Report() {
     }
   };
 
-  // Video capture + immediate upload
+  // Video capture + immediate upload (with size limit)
   const handleVideoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Check video file size (max 10MB)
+    if (file.size > VIDEO_MAX_SIZE_MB * 1024 * 1024) {
+      alert(`Video too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is ${VIDEO_MAX_SIZE_MB}MB. Please record a shorter video.`);
+      e.target.value = "";
+      return;
+    }
 
     const localUrl = URL.createObjectURL(file);
     const mediaId = crypto.randomUUID();
@@ -304,11 +317,12 @@ export default function Report() {
         lga: lga || "Unknown",
         ward: ward || undefined,
         description: description || undefined,
-        latitude: gps?.lat,
-        longitude: gps?.lng,
-        locationAccuracy: gps?.accuracy,
-        locationAddress: locationAddress || undefined,
-        reporterPhone: reporterPhone || undefined,
+        // If anonymous, don't send GPS or phone
+        latitude: anonymous ? undefined : gps?.lat,
+        longitude: anonymous ? undefined : gps?.lng,
+        locationAccuracy: anonymous ? undefined : gps?.accuracy,
+        locationAddress: anonymous ? undefined : locationAddress || undefined,
+        reporterPhone: anonymous ? undefined : reporterPhone || undefined,
         media: mediaUrls.length > 0 ? mediaUrls : undefined,
       });
     } catch {
@@ -319,9 +333,9 @@ export default function Report() {
         lga: lga || "Unknown",
         ward,
         description,
-        gps,
-        locationAddress,
-        reporterPhone,
+        gps: anonymous ? undefined : gps,
+        locationAddress: anonymous ? undefined : locationAddress,
+        reporterPhone: anonymous ? undefined : reporterPhone,
         media: mediaUrls,
         submittedAt: new Date().toISOString(),
       };
@@ -602,7 +616,40 @@ export default function Report() {
           </p>
         </section>
 
-        {/* GPS with Better Error Handling */}
+        {/* Anonymous Mode Toggle */}
+        <section className="glass rounded-2xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={16} className="text-emerald-400" />
+              <span className="text-sm font-medium text-white">Report Anonymously</span>
+            </div>
+            <button
+              onClick={() => {
+                setAnonymous(!anonymous);
+                if (!anonymous) {
+                  // Turning ON anonymous - clear GPS and phone
+                  setGps(null);
+                  setReporterPhone("");
+                }
+              }}
+              className={`w-12 h-6 rounded-full transition-all relative ${
+                anonymous ? "bg-emerald-500" : "bg-white/20"
+              }`}
+            >
+              <div className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all ${
+                anonymous ? "left-6" : "left-0.5"
+              }`} />
+            </button>
+          </div>
+          <p className="text-xs text-white/40 mt-2">
+            {anonymous
+              ? "Your phone number and GPS location will NOT be sent. Only the incident type, LGA, ward, description, and attachments will be submitted."
+              : "Toggle on to hide your identity from the report."}
+          </p>
+        </section>
+
+        {/* GPS with Better Error Handling - hidden in anonymous mode */}
+        {!anonymous && (
         <section>
           <div className="flex items-center justify-between">
             <label className="text-sm font-semibold text-white/60 uppercase tracking-wider">
@@ -664,8 +711,10 @@ export default function Report() {
             </div>
           )}
         </section>
+        )}
 
-        {/* Phone */}
+        {/* Phone - hidden in anonymous mode */}
+        {!anonymous && (
         <section>
           <label className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 block">
             {t("report.phone")}
@@ -684,6 +733,7 @@ export default function Report() {
             />
           </div>
         </section>
+        )}
 
         {/* Submit */}
         <button
