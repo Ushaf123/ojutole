@@ -1211,6 +1211,13 @@ var init_json_store = __esm({
         const limit = options.limit || 20;
         const offset = options.offset || 0;
         results = results.slice(offset, offset + limit);
+        if (options.includeMedia !== false) {
+          const allMedia = loadMedia();
+          results = results.map((r) => ({
+            ...r,
+            media: allMedia.filter((m) => m.reportId === r.id)
+          }));
+        }
         return { reports: results, total };
       }
     };
@@ -24305,8 +24312,34 @@ async function createContext(opts) {
 }
 
 // api/boot.ts
-import { readFileSync as readFileSync2, existsSync as existsSync2 } from "fs";
-import { join, resolve } from "path";
+import { readFileSync as readFileSync2, existsSync as existsSync2, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, readdirSync, statSync } from "fs";
+import { join, resolve, basename } from "path";
+import { randomUUID } from "crypto";
+var UPLOAD_DIR = "/tmp/uploads";
+try {
+  if (!existsSync2(UPLOAD_DIR)) {
+    mkdirSync2(UPLOAD_DIR, { recursive: true });
+    console.log("[UPLOAD] Created upload directory:", UPLOAD_DIR);
+  }
+} catch (err) {
+  console.error("[UPLOAD] Failed to create upload directory:", err.message);
+}
+function cleanupOldUploads() {
+  try {
+    const files = readdirSync(UPLOAD_DIR);
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1e3;
+    let cleaned = 0;
+    for (const file2 of files) {
+      const filepath = join(UPLOAD_DIR, file2);
+      const stats = statSync(filepath);
+      if (stats.mtimeMs < thirtyDaysAgo) {
+      }
+    }
+    if (cleaned > 0) console.log("[UPLOAD] Cleaned up", cleaned, "old files");
+  } catch {
+  }
+}
+cleanupOldUploads();
 function serveStaticFiles(root) {
   return async (c) => {
     const url2 = new URL(c.req.url);
@@ -24353,13 +24386,92 @@ function serveStaticFiles(root) {
     }
   };
 }
+function serveUploads(c) {
+  const filename = c.req.param("filename");
+  if (!filename || filename.includes("..") || filename.includes("/")) {
+    return c.json({ error: "Invalid filename" }, 400);
+  }
+  const filepath = join(UPLOAD_DIR, basename(filename));
+  if (!existsSync2(filepath)) {
+    return c.json({ error: "File not found" }, 404);
+  }
+  try {
+    const content = readFileSync2(filepath);
+    const ext = filepath.split(".").pop()?.toLowerCase() || "";
+    const mimeTypes = {
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      webp: "image/webp",
+      webm: "video/webm",
+      mp4: "video/mp4",
+      mp3: "audio/mpeg",
+      wav: "audio/wav",
+      ogg: "audio/ogg"
+    };
+    const contentType = mimeTypes[ext] || "application/octet-stream";
+    return new Response(content, {
+      headers: {
+        "Content-Type": contentType,
+        "Cache-Control": "public, max-age=86400"
+      }
+    });
+  } catch {
+    return c.json({ error: "Failed to read file" }, 500);
+  }
+}
 function createApp() {
   try {
-    console.log("[BOOT] Starting OJUTOL\xC9...");
+    console.log("[BOOT] Starting OJ\xDAT\xD3L\xC9...");
     console.log("[BOOT] Environment:", env.isProduction ? "production" : "development");
     const app2 = new Hono2();
     app2.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
     console.log("[BOOT] Hono app created");
+    app2.post("/api/upload", async (c) => {
+      try {
+        const body = await c.req.parseBody({ all: false });
+        const file2 = body.file;
+        if (!file2 || !(file2 instanceof File)) {
+          return c.json({ error: "No file provided" }, 400);
+        }
+        if (file2.size > 20 * 1024 * 1024) {
+          return c.json({ error: "File too large (max 20MB)" }, 400);
+        }
+        const allowedTypes = [
+          "image/",
+          "video/",
+          "audio/",
+          "application/octet-stream"
+        ];
+        const isAllowed = allowedTypes.some((t2) => file2.type.startsWith(t2));
+        if (!isAllowed) {
+          return c.json({ error: "Invalid file type: " + file2.type }, 400);
+        }
+        const ext = file2.name.split(".").pop()?.toLowerCase() || "bin";
+        const safeExt = ["jpg", "jpeg", "png", "gif", "webp", "webm", "mp4", "mp3", "wav", "ogg"].includes(ext) ? ext : "bin";
+        const uuid3 = randomUUID();
+        const filename = `${uuid3}.${safeExt}`;
+        const filepath = join(UPLOAD_DIR, filename);
+        const buffer = Buffer.from(await file2.arrayBuffer());
+        writeFileSync2(filepath, buffer);
+        const publicUrl = `/uploads/${filename}`;
+        console.log("[UPLOAD] Saved", filename, `(${(file2.size / 1024).toFixed(1)}KB)`);
+        return c.json({
+          success: true,
+          url: publicUrl,
+          fileName: file2.name,
+          fileSize: file2.size,
+          fileType: file2.type
+        });
+      } catch (err) {
+        console.error("[UPLOAD] Error:", err.message);
+        return c.json({ error: "Upload failed: " + err.message }, 500);
+      }
+    });
+    console.log("[BOOT] File upload endpoint registered at POST /api/upload");
+    app2.get("/uploads/:filename", serveUploads);
+    console.log("[BOOT] File serving registered at GET /uploads/:filename");
     app2.all("/api/trpc/*", async (c) => {
       const response = await fetchRequestHandler({
         endpoint: "/api/trpc",
@@ -24386,7 +24498,7 @@ function createApp() {
       }
       return c.json({ error: "Internal server error", code: 500 }, 500);
     });
-    console.log("[BOOT] OJUTOL\xC9 ready!");
+    console.log("[BOOT] OJ\xDAT\xD3L\xC9 ready!");
     return app2;
   } catch (err) {
     console.error("[BOOT FAILED]", err.message);

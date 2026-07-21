@@ -36,6 +36,14 @@ interface ReportDetail {
   }>;
 }
 
+// Get full URL for a media path (handles /uploads/ paths and absolute URLs)
+function getFullMediaUrl(url: string): string {
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("blob:")) return url; // Fallback for old data
+  const base = window.location.origin;
+  return url.startsWith("/") ? `${base}${url}` : `${base}/${url}`;
+}
+
 export default function Admin() {
   const { t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -179,38 +187,54 @@ export default function Admin() {
                 <Image size={14} /> Evidence Attachments ({selectedReport.media?.length})
               </h2>
               <div className="grid grid-cols-2 gap-3">
-                {selectedReport.media?.map((m, idx) => (
-                  <div key={m.id} className="relative rounded-xl overflow-hidden bg-white/5">
-                    {m.mediaType === "photo" && (
-                      <>
-                        <img src={m.url} alt={`Evidence ${idx + 1}`} className="w-full aspect-square object-cover" />
-                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-white/80 flex items-center gap-1">
-                          <Camera size={10} /> Photo
+                {selectedReport.media?.map((m, idx) => {
+                  const fullUrl = getFullMediaUrl(m.url);
+                  return (
+                    <div key={m.id} className="relative rounded-xl overflow-hidden bg-white/5">
+                      {m.mediaType === "photo" && (
+                        <>
+                          <img
+                            src={fullUrl}
+                            alt={`Evidence ${idx + 1}`}
+                            className="w-full aspect-square object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).className = 'w-full aspect-square object-cover bg-red-500/10'; }}
+                          />
+                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-white/80 flex items-center gap-1">
+                            <Camera size={10} /> Photo
+                          </div>
+                          <a
+                            href={fullUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-[#2563EB] flex items-center gap-1"
+                          >
+                            <ExternalLink size={10} /> Open
+                          </a>
+                        </>
+                      )}
+                      {m.mediaType === "video" && (
+                        <>
+                          <video src={fullUrl} className="w-full aspect-square object-cover" controls />
+                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-white/80 flex items-center gap-1">
+                            <Video size={10} /> Video
+                          </div>
+                        </>
+                      )}
+                      {m.mediaType === "audio" && (
+                        <div className="p-4 flex flex-col items-center justify-center aspect-square">
+                          <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mb-2">
+                            <AudioLines size={24} className="text-amber-400" />
+                          </div>
+                          <audio src={fullUrl} controls className="w-full max-w-[200px]" />
+                          <div className="mt-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 flex items-center gap-1">
+                            <Mic size={10} /> Voice Note
+                          </div>
+                          {m.fileName && <p className="text-[10px] text-white/30 mt-1 truncate max-w-full">{m.fileName}</p>}
                         </div>
-                      </>
-                    )}
-                    {m.mediaType === "video" && (
-                      <>
-                        <video src={m.url} className="w-full aspect-square object-cover" controls />
-                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-white/80 flex items-center gap-1">
-                          <Video size={10} /> Video
-                        </div>
-                      </>
-                    )}
-                    {m.mediaType === "audio" && (
-                      <div className="p-4 flex flex-col items-center justify-center aspect-square">
-                        <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mb-2">
-                          <AudioLines size={24} className="text-amber-400" />
-                        </div>
-                        <audio src={m.url} controls className="w-full max-w-[200px]" />
-                        <div className="mt-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 flex items-center gap-1">
-                          <Mic size={10} /> Voice Note
-                        </div>
-                        {m.fileName && <p className="text-[10px] text-white/30 mt-1 truncate max-w-full">{m.fileName}</p>}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </section>
           )}

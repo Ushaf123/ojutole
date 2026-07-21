@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import {
   Camera, Video, Mic, MapPin, X, Check, Send,
-  Loader2, Phone
+  Loader2, Phone, Upload, AlertTriangle, WifiOff
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 
@@ -12,8 +12,30 @@ type IncidentType = "vote_buying" | "ballot_snatching" | "intimidation" | "bvas_
 interface CapturedMedia {
   id: string;
   type: "photo" | "video" | "audio";
-  url: string;
+  url: string;        // local blob URL for preview
+  serverUrl?: string; // real uploaded URL from server
   file: File;
+  uploading: boolean;
+  uploadError?: string;
+}
+
+// Upload a single file to the server
+async function uploadToServer(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const resp = await fetch("/api/upload", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: "Upload failed" }));
+    throw new Error(err.error || "Upload failed");
+  }
+
+  const data = await resp.json();
+  return data.url as string; // Returns "/uploads/uuid.ext"
 }
 
 export default function Report() {
@@ -31,6 +53,8 @@ export default function Report() {
   const [submitted, setSubmitted] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [locationAddress, setLocationAddress] = useState("");
+  const [gpsStatus, setGpsStatus] = useState<"idle" | "requesting" | "granted" | "denied" | "error">("idle");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -66,22 +90,122 @@ export default function Report() {
     },
   });
 
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // GPS capture with better error handling
+  const getLocation = useCallback(() => {
+    setGpsLoading(true);
+    setGpsStatus("requesting");
+
+    if (!("geolocation" in navigator)) {
+      setGpsStatus("error");
+      setGpsLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setGps({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+        setGpsStatus("granted");
+        setGpsLoading(false);
+
+        // Try to get address from coordinates
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&zoom=18&addressdetails=1`,
+            { headers: { "User-Agent": "OJUTOLÉ/1.0" } }
+          );
+          const data = await response.json();
+          if (data.display_name) {
+            setLocationAddress(data.display_name);
+          }
+        } catch {
+          // Address lookup failed silently
+        }
+      },
+      (err) => {
+        console.error("[GPS] Error:", err.code, err.message);
+        setGpsStatus("denied");
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, []);
+
+  // Photo capture + immediate upload
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setMedia((prev) => [...prev, { id: crypto.randomUUID(), type: "photo", url, file }]);
+
+    const localUrl = URL.createObjectURL(file);
+    const mediaId = crypto.randomUUID();
+    const newMedia: CapturedMedia = {
+      id: mediaId,
+      type: "photo",
+      url: localUrl,
+      file,
+      uploading: true,
+    };
+    setMedia((prev) => [...prev, newMedia]);
     e.target.value = "";
+
+    // Upload to server immediately
+    try {
+      const serverUrl = await uploadToServer(file);
+      setMedia((prev) =>
+        prev.map((m) =>
+          m.id === mediaId ? { ...m, serverUrl, uploading: false } : m
+        )
+      );
+    } catch (err: any) {
+      setMedia((prev) =>
+        prev.map((m) =>
+          m.id === mediaId
+            ? { ...m, uploading: false, uploadError: err.message }
+            : m
+        )
+      );
+    }
   };
 
-  const handleVideoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Video capture + immediate upload
+  const handleVideoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setMedia((prev) => [...prev, { id: crypto.randomUUID(), type: "video", url, file }]);
+
+    const localUrl = URL.createObjectURL(file);
+    const mediaId = crypto.randomUUID();
+    const newMedia: CapturedMedia = {
+      id: mediaId,
+      type: "video",
+      url: localUrl,
+      file,
+      uploading: true,
+    };
+    setMedia((prev) => [...prev, newMedia]);
     e.target.value = "";
+
+    try {
+      const serverUrl = await uploadToServer(file);
+      setMedia((prev) =>
+        prev.map((m) =>
+          m.id === mediaId ? { ...m, serverUrl, uploading: false } : m
+        )
+      );
+    } catch (err: any) {
+      setMedia((prev) =>
+        prev.map((m) =>
+          m.id === mediaId
+            ? { ...m, uploading: false, uploadError: err.message }
+            : m
+        )
+      );
+    }
   };
 
+  // Voice recording
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -93,12 +217,41 @@ export default function Report() {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const url = URL.createObjectURL(blob);
-        const file = new File([blob], `recording_${Date.now()}.webm`, { type: "audio/webm" });
-        setMedia((prev) => [...prev, { id: crypto.randomUUID(), type: "audio", url, file }]);
+        const localUrl = URL.createObjectURL(blob);
+        const file = new File([blob], `recording_${Date.now()}.webm`, {
+          type: "audio/webm",
+        });
+        const mediaId = crypto.randomUUID();
+
+        const newMedia: CapturedMedia = {
+          id: mediaId,
+          type: "audio",
+          url: localUrl,
+          file,
+          uploading: true,
+        };
+        setMedia((prev) => [...prev, newMedia]);
         stream.getTracks().forEach((t) => t.stop());
+
+        // Upload voice note to server
+        try {
+          const serverUrl = await uploadToServer(file);
+          setMedia((prev) =>
+            prev.map((m) =>
+              m.id === mediaId ? { ...m, serverUrl, uploading: false } : m
+            )
+          );
+        } catch (err: any) {
+          setMedia((prev) =>
+            prev.map((m) =>
+              m.id === mediaId
+                ? { ...m, uploading: false, uploadError: err.message }
+                : m
+            )
+          );
+        }
       };
 
       recorder.start();
@@ -124,53 +277,23 @@ export default function Report() {
     setMedia((prev) => prev.filter((m) => m.id !== id));
   };
 
-  // Get human-readable address from GPS coordinates
-  const [locationAddress, setLocationAddress] = useState("");
-
-  const getLocation = useCallback(() => {
-    setGpsLoading(true);
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          setGps({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-          });
-          setGpsLoading(false);
-
-          // Try to get address from coordinates (reverse geocoding)
-          try {
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&zoom=18&addressdetails=1`,
-              { headers: { "User-Agent": "OJUTOLÉ/1.0" } }
-            );
-            const data = await response.json();
-            if (data.display_name) {
-              setLocationAddress(data.display_name);
-            }
-          } catch {
-            // Address lookup failed, use coordinates only
-          }
-        },
-        () => {
-          setGpsLoading(false);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    } else {
-      setGpsLoading(false);
-    }
-  }, []);
-
   const handleSubmit = async () => {
     if (!incidentType) return;
+
+    // Check if any media is still uploading
+    const uploadingCount = media.filter((m) => m.uploading).length;
+    if (uploadingCount > 0) {
+      alert(`${uploadingCount} file(s) still uploading. Please wait...`);
+      return;
+    }
+
     setSubmitting(true);
 
+    // Use server URLs if available, otherwise local URLs
     const mediaUrls = media.map((m) => ({
       mediaType: m.type as "photo" | "video" | "audio",
-      url: m.url,
-      thumbnail: m.type === "photo" ? m.url : undefined,
+      url: m.serverUrl || m.url, // serverUrl is the real uploaded URL
+      thumbnail: m.type === "photo" ? m.serverUrl || m.url : undefined,
       fileName: m.file.name,
       fileSize: m.file.size,
     }));
@@ -189,6 +312,7 @@ export default function Report() {
         media: mediaUrls.length > 0 ? mediaUrls : undefined,
       });
     } catch {
+      // Save to offline queue
       const offlineReport = {
         id: crypto.randomUUID(),
         incidentType,
@@ -201,7 +325,9 @@ export default function Report() {
         media: mediaUrls,
         submittedAt: new Date().toISOString(),
       };
-      const queue = JSON.parse(localStorage.getItem("ojutole_offline_queue") || "[]");
+      const queue = JSON.parse(
+        localStorage.getItem("ojutole_offline_queue") || "[]"
+      );
       queue.push(offlineReport);
       localStorage.setItem("ojutole_offline_queue", JSON.stringify(queue));
       setSubmitted(true);
@@ -219,7 +345,9 @@ export default function Report() {
         <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center mb-6 animate-fade-in">
           <Check size={40} className="text-emerald-400" />
         </div>
-        <h2 className="text-2xl font-black text-white mb-2 animate-fade-in">{t("common.success")}!</h2>
+        <h2 className="text-2xl font-black text-white mb-2 animate-fade-in">
+          {t("common.success")}!
+        </h2>
         <p className="text-white/60 text-center animate-fade-in">
           {t("hero.tagline")}
         </p>
@@ -233,10 +361,17 @@ export default function Report() {
       <div className="sticky top-0 z-40 glass border-b border-white/10 px-4 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-black uppercase tracking-tight text-white">{t("report.title")}</h1>
-            <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">{t("report.ushaf")}</p>
+            <h1 className="text-xl font-black uppercase tracking-tight text-white">
+              {t("report.title")}
+            </h1>
+            <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">
+              {t("report.ushaf")}
+            </p>
           </div>
-          <button onClick={() => navigate("/")} className="w-8 h-8 flex items-center justify-center rounded-full glass">
+          <button
+            onClick={() => navigate("/")}
+            className="w-8 h-8 flex items-center justify-center rounded-full glass"
+          >
             <X size={18} className="text-white/60" />
           </button>
         </div>
@@ -272,12 +407,19 @@ export default function Report() {
           </label>
           <select
             value={lga}
-            onChange={(e) => { setLga(e.target.value); setWard(""); }}
+            onChange={(e) => {
+              setLga(e.target.value);
+              setWard("");
+            }}
             className="w-full h-12 px-4 rounded-xl glass text-white appearance-none focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50"
           >
-            <option value="" className="bg-[#0A0E27]">{t("report.selectLGA")}</option>
+            <option value="" className="bg-[#0A0E27]">
+              {t("report.selectLGA")}
+            </option>
             {(lgaQuery.data || []).map((l) => (
-              <option key={l} value={l} className="bg-[#0A0E27]">{l}</option>
+              <option key={l} value={l} className="bg-[#0A0E27]">
+                {l}
+              </option>
             ))}
           </select>
 
@@ -287,9 +429,13 @@ export default function Report() {
               onChange={(e) => setWard(e.target.value)}
               className="w-full h-12 px-4 rounded-xl glass text-white appearance-none focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50"
             >
-              <option value="" className="bg-[#0A0E27]">{t("report.selectWard")}</option>
+              <option value="" className="bg-[#0A0E27]">
+                {t("report.selectWard")}
+              </option>
               {(wardQuery.data || []).map((w) => (
-                <option key={w} value={w} className="bg-[#0A0E27]">{w}</option>
+                <option key={w} value={w} className="bg-[#0A0E27]">
+                  {w}
+                </option>
               ))}
             </select>
           )}
@@ -300,6 +446,8 @@ export default function Report() {
           <label className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 block">
             {t("report.evidence")}
           </label>
+
+          {/* Media upload buttons */}
           <div className="flex items-center justify-center gap-6">
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -309,7 +457,14 @@ export default function Report() {
                 <Camera size={24} className="text-[#2563EB]" />
               </div>
               <span className="text-xs text-white/50">{t("report.photo")}</span>
-              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="hidden" />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoCapture}
+                className="hidden"
+              />
             </button>
 
             <button
@@ -320,7 +475,14 @@ export default function Report() {
                 <Video size={24} className="text-[#FF4D6D]" />
               </div>
               <span className="text-xs text-white/50">{t("report.video")}</span>
-              <input ref={videoInputRef} type="file" accept="video/*" capture="environment" onChange={handleVideoCapture} className="hidden" />
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                capture="environment"
+                onChange={handleVideoCapture}
+                className="hidden"
+              />
             </button>
 
             <button
@@ -330,9 +492,11 @@ export default function Report() {
               onTouchEnd={stopRecording}
               className="flex flex-col items-center gap-2"
             >
-              <div className={`w-16 h-16 rounded-full border-2 border-[#F59E0B] flex items-center justify-center transition-all ${
+              <div
+                className={`w-16 h-16 rounded-full border-2 border-[#F59E0B] flex items-center justify-center transition-all ${
                   isRecording ? "bg-[#F59E0B]/20 scale-110" : ""
-                }`}>
+                }`}
+              >
                 <Mic size={24} className="text-[#F59E0B]" />
               </div>
               <span className="text-xs text-white/50">
@@ -344,26 +508,76 @@ export default function Report() {
           {isRecording && (
             <div className="mt-3 flex items-center justify-center gap-2">
               <div className="w-3 h-3 rounded-full bg-[#FF4D6D] animate-pulse-glow" />
-              <span className="text-sm text-[#FF4D6D] font-medium">{t("report.recording")}</span>
+              <span className="text-sm text-[#FF4D6D] font-medium">
+                {t("report.recording")}
+              </span>
               <span className="text-sm text-white/40">{recordingDuration}s</span>
             </div>
           )}
 
+          {/* Media Preview with Upload Status */}
           {media.length > 0 && (
             <div className="grid grid-cols-3 gap-2 mt-4">
               {media.map((m) => (
-                <div key={m.id} className="relative aspect-square rounded-xl overflow-hidden glass">
-                  {m.type === "photo" && <img src={m.url} alt="" className="w-full h-full object-cover" />}
-                  {m.type === "video" && <video src={m.url} className="w-full h-full object-cover" />}
+                <div
+                  key={m.id}
+                  className="relative aspect-square rounded-xl overflow-hidden glass"
+                >
+                  {m.type === "photo" && (
+                    <img
+                      src={m.url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  {m.type === "video" && (
+                    <video
+                      src={m.url}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                   {m.type === "audio" && (
                     <div className="w-full h-full flex items-center justify-center bg-[#F59E0B]/10">
                       <Mic size={24} className="text-[#F59E0B]" />
                     </div>
                   )}
-                  <button onClick={() => removeMedia(m.id)} className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center">
+
+                  {/* Upload status overlay */}
+                  {m.uploading && (
+                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
+                      <Loader2 size={20} className="text-white animate-spin" />
+                      <span className="text-[10px] text-white mt-1">
+                        Uploading...
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Upload error */}
+                  {m.uploadError && (
+                    <div className="absolute inset-0 bg-red-900/60 flex flex-col items-center justify-center">
+                      <AlertTriangle size={16} className="text-red-400" />
+                      <span className="text-[10px] text-red-300 mt-1 text-center px-1">
+                        Failed
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Uploaded checkmark */}
+                  {m.serverUrl && !m.uploading && (
+                    <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-emerald-500/80 flex items-center justify-center">
+                      <Check size={10} className="text-white" />
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => removeMedia(m.id)}
+                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center"
+                  >
                     <X size={12} className="text-white" />
                   </button>
-                  <span className="absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white/80 uppercase">{m.type}</span>
+                  <span className="absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white/80 uppercase">
+                    {m.type}
+                  </span>
                 </div>
               ))}
             </div>
@@ -383,18 +597,49 @@ export default function Report() {
             rows={4}
             className="w-full px-4 py-3 rounded-xl glass text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50 resize-none"
           />
-          <p className="text-xs text-white/30 mt-1 text-right">{description.length}/500</p>
+          <p className="text-xs text-white/30 mt-1 text-right">
+            {description.length}/500
+          </p>
         </section>
 
-        {/* GPS */}
+        {/* GPS with Better Error Handling */}
         <section>
           <div className="flex items-center justify-between">
-            <label className="text-sm font-semibold text-white/60 uppercase tracking-wider">{t("report.gps")}</label>
-            <button onClick={getLocation} disabled={gpsLoading} className="text-xs text-[#2563EB] font-medium flex items-center gap-1">
-              {gpsLoading ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
+            <label className="text-sm font-semibold text-white/60 uppercase tracking-wider">
+              {t("report.gps")}
+            </label>
+            <button
+              onClick={getLocation}
+              disabled={gpsLoading}
+              className="text-xs text-[#2563EB] font-medium flex items-center gap-1"
+            >
+              {gpsLoading ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <MapPin size={12} />
+              )}
               {gps ? t("report.captured") : t("report.captureGPS")}
             </button>
           </div>
+
+          {/* GPS Status Messages */}
+          {gpsStatus === "requesting" && (
+            <p className="text-xs text-amber-400 mt-2">
+              Please allow location access when prompted...
+            </p>
+          )}
+          {gpsStatus === "denied" && (
+            <div className="mt-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+              <p className="text-xs text-red-400 font-medium">
+                Location access denied
+              </p>
+              <p className="text-xs text-white/40 mt-1">
+                Please enable location in your browser settings, or enter the
+                polling unit name manually above.
+              </p>
+            </div>
+          )}
+
           {gps && (
             <div className="mt-2 space-y-1">
               <p className="text-xs text-white/40">
@@ -404,7 +649,9 @@ export default function Report() {
                 Accuracy: ±{Math.round(gps.accuracy)}m
               </p>
               {locationAddress && (
-                <p className="text-xs text-emerald-400/80 line-clamp-2">{locationAddress}</p>
+                <p className="text-xs text-emerald-400/80 line-clamp-2">
+                  {locationAddress}
+                </p>
               )}
               <a
                 href={`https://www.google.com/maps?q=${gps.lat},${gps.lng}`}
@@ -424,22 +671,44 @@ export default function Report() {
             {t("report.phone")}
           </label>
           <div className="relative">
-            <Phone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
-            <input type="tel" value={reporterPhone} onChange={(e) => setReporterPhone(e.target.value)}
+            <Phone
+              size={16}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
+            />
+            <input
+              type="tel"
+              value={reporterPhone}
+              onChange={(e) => setReporterPhone(e.target.value)}
               placeholder={t("report.phonePlaceholder")}
-              className="w-full h-12 pl-10 pr-4 rounded-xl glass text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50" />
+              className="w-full h-12 pl-10 pr-4 rounded-xl glass text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50"
+            />
           </div>
         </section>
 
         {/* Submit */}
-        <button onClick={handleSubmit} disabled={!canSubmit}
+        <button
+          onClick={handleSubmit}
+          disabled={!canSubmit}
           className={`w-full h-14 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all duration-300 ${
-            canSubmit ? "bg-[#2563EB] text-white shadow-lg shadow-[#2563EB]/40 active:scale-[0.98]" : "bg-white/10 text-white/30 cursor-not-allowed"
-          }`}>
-          {submitting ? <Loader2 size={20} className="animate-spin" /> : <><Send size={18} /> {t("report.submit")}</>}
+            canSubmit
+              ? "bg-[#2563EB] text-white shadow-lg shadow-[#2563EB]/40 active:scale-[0.98]"
+              : "bg-white/10 text-white/30 cursor-not-allowed"
+          }`}
+        >
+          {submitting ? (
+            <Loader2 size={20} className="animate-spin" />
+          ) : (
+            <>
+              <Send size={18} /> {t("report.submit")}
+            </>
+          )}
         </button>
 
-        {!incidentType && <p className="text-xs text-center text-white/30">{t("report.selectIncident")}</p>}
+        {!incidentType && (
+          <p className="text-xs text-center text-white/30">
+            {t("report.selectIncident")}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -405,6 +405,7 @@ export const reportStore = {
     incidentType?: string;
     limit?: number;
     offset?: number;
+    includeMedia?: boolean;
   }) {
     let results = loadReports();
 
@@ -427,6 +428,15 @@ export const reportStore = {
     const limit = options.limit || 20;
     const offset = options.offset || 0;
     results = results.slice(offset, offset + limit);
+
+    // Include media for each report if requested
+    if (options.includeMedia !== false) {
+      const allMedia = loadMedia();
+      results = results.map((r) => ({
+        ...r,
+        media: allMedia.filter((m) => m.reportId === r.id),
+      })) as (ReportRecord & { media: ReportMediaRecord[] })[];
+    }
 
     return { reports: results, total };
   },
