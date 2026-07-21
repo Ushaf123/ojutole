@@ -223,8 +223,19 @@ export default function Report() {
   };
 
   // Voice recording
+  // Voice recording with proper mobile support
+  const MAX_RECORDING_SECONDS = 60;
+  const autoStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const startRecording = async () => {
+    // Prevent double-start
+    if (isRecording || mediaRecorderRef.current?.state === "recording") {
+      console.log("[RECORD] Already recording, ignoring start request");
+      return;
+    }
+
     try {
+      console.log("[RECORD] Requesting microphone...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
@@ -235,6 +246,15 @@ export default function Report() {
       };
 
       recorder.onstop = async () => {
+        console.log("[RECORD] Recording stopped, processing...");
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach((t) => t.stop());
+
+        if (chunksRef.current.length === 0) {
+          console.log("[RECORD] No audio data captured");
+          return;
+        }
+
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         const localUrl = URL.createObjectURL(blob);
         const file = new File([blob], `recording_${Date.now()}.webm`, {
@@ -250,7 +270,6 @@ export default function Report() {
           uploading: true,
         };
         setMedia((prev) => [...prev, newMedia]);
-        stream.getTracks().forEach((t) => t.stop());
 
         // Upload voice note to server
         try {
@@ -271,23 +290,64 @@ export default function Report() {
         }
       };
 
-      recorder.start();
+      recorder.onerror = (e) => {
+        console.error("[RECORD] MediaRecorder error:", e);
+        stopRecordingCleanup();
+      };
+
+      recorder.start(1000); // Collect data every 1 second
       setIsRecording(true);
       setRecordingDuration(0);
+      console.log("[RECORD] Recording started");
 
+      // Timer for duration display
       recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration((d) => d + 1);
+        setRecordingDuration((d) => {
+          const next = d + 1;
+          if (next >= MAX_RECORDING_SECONDS) {
+            // Auto-stop at max duration
+            console.log("[RECORD] Auto-stopping at max duration");
+            stopRecordingCleanup();
+          }
+          return next;
+        });
       }, 1000);
-    } catch {
-      alert("Microphone access is required for voice recording.");
+
+      // Auto-stop safety timer
+      autoStopTimerRef.current = setTimeout(() => {
+        console.log("[RECORD] Safety auto-stop triggered");
+        stopRecordingCleanup();
+      }, (MAX_RECORDING_SECONDS + 5) * 1000);
+
+    } catch (err: any) {
+      console.error("[RECORD] Failed to start:", err.message);
+      alert("Microphone access is required. Please allow microphone permission in your browser settings.");
     }
   };
 
-  const stopRecording = () => {
-    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-    mediaRecorderRef.current?.stop();
+  const stopRecordingCleanup = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+    } catch (e) {
+      console.log("[RECORD] Stop error (already stopped):", e);
+    }
     setIsRecording(false);
     setRecordingDuration(0);
+    mediaRecorderRef.current = null;
+  };
+
+  const stopRecording = () => {
+    stopRecordingCleanup();
   };
 
   const removeMedia = (id: string) => {
@@ -513,33 +573,48 @@ export default function Report() {
               />
             </button>
 
+            {/* Voice Recording Button - Uses onClick toggle to avoid touch/mouse event conflicts */}
             <button
-              onMouseDown={startRecording}
-              onMouseUp={stopRecording}
-              onTouchStart={startRecording}
-              onTouchEnd={stopRecording}
-              className="flex flex-col items-center gap-2"
+              onClick={() => {
+                if (isRecording) {
+                  stopRecording();
+                } else {
+                  startRecording();
+                }
+              }}
+              className="flex flex-col items-center gap-2 select-none"
+              style={{ touchAction: "none", WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
             >
               <div
                 className={`w-16 h-16 rounded-full border-2 border-[#F59E0B] flex items-center justify-center transition-all ${
-                  isRecording ? "bg-[#F59E0B]/20 scale-110" : ""
+                  isRecording ? "bg-[#F59E0B]/20 scale-110 animate-pulse" : ""
                 }`}
               >
                 <Mic size={24} className="text-[#F59E0B]" />
               </div>
               <span className="text-xs text-white/50">
-                {isRecording ? `${recordingDuration}s` : t("report.voice")}
+                {isRecording ? `${recordingDuration}s / ${MAX_RECORDING_SECONDS}s` : t("report.voice")}
               </span>
             </button>
           </div>
 
           {isRecording && (
-            <div className="mt-3 flex items-center justify-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-[#FF4D6D] animate-pulse-glow" />
-              <span className="text-sm text-[#FF4D6D] font-medium">
-                {t("report.recording")}
-              </span>
-              <span className="text-sm text-white/40">{recordingDuration}s</span>
+            <div className="mt-3 glass rounded-xl p-3 text-center">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <div className="w-3 h-3 rounded-full bg-[#FF4D6D] animate-pulse" />
+                <span className="text-sm text-[#FF4D6D] font-medium">
+                  Recording... Tap mic button to stop
+                </span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden mt-2">
+                <div
+                  className="h-full rounded-full bg-[#F59E0B] transition-all duration-1000"
+                  style={{ width: `${Math.min((recordingDuration / MAX_RECORDING_SECONDS) * 100, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-white/40 mt-1">
+                {recordingDuration}s / {MAX_RECORDING_SECONDS}s max
+              </p>
             </div>
           )}
 
