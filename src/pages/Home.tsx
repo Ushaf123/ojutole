@@ -3,8 +3,9 @@ import { trpc } from "@/providers/trpc";
 import { Shield, Camera, MapPin, TrendingUp, Activity, Users, Phone } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 
-// USHAF HOTLINE - Change this to your actual hotline number
-const USHAF_HOTLINE = "+2348012345678";
+// USHAF HOTLINE
+const USHAF_HOTLINE = "+2349034610970";
+const HOTLINE_DISPLAY = "09034610970";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -94,7 +95,7 @@ export default function Home() {
           >
             <Phone size={16} />
             <span>Call to Report</span>
-            <span className="text-emerald-400/60 text-xs">{USHAF_HOTLINE}</span>
+            <span className="text-emerald-400/60 text-xs">{HOTLINE_DISPLAY}</span>
           </a>
 
           {/* USHAF Nigeria Branding */}
