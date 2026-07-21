@@ -936,6 +936,7 @@ var init_cookies = __esm({
 
 // api/json-store.ts
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { dirname } from "path";
 function findPUDataPath() {
   const candidates = [
     "./api/osun-pu-data.json",
@@ -24313,7 +24314,7 @@ async function createContext(opts) {
 
 // api/boot.ts
 import { readFileSync as readFileSync2, existsSync as existsSync2, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, readdirSync, statSync } from "fs";
-import { join, resolve, basename } from "path";
+import { join as join2, resolve, basename } from "path";
 import { randomUUID } from "crypto";
 var UPLOAD_DIR = "/tmp/uploads";
 try {
@@ -24330,7 +24331,7 @@ function cleanupOldUploads() {
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1e3;
     let cleaned = 0;
     for (const file2 of files) {
-      const filepath = join(UPLOAD_DIR, file2);
+      const filepath = join2(UPLOAD_DIR, file2);
       const stats = statSync(filepath);
       if (stats.mtimeMs < thirtyDaysAgo) {
       }
@@ -24343,14 +24344,14 @@ cleanupOldUploads();
 function serveStaticFiles(root) {
   return async (c) => {
     const url2 = new URL(c.req.url);
-    let filepath = join(root, url2.pathname === "/" ? "/index.html" : url2.pathname);
+    let filepath = join2(root, url2.pathname === "/" ? "/index.html" : url2.pathname);
     const fullPath = resolve(filepath);
     const rootPath = resolve(root);
     if (!fullPath.startsWith(rootPath)) {
       return c.json({ error: "Forbidden" }, 403);
     }
     if (!existsSync2(filepath)) {
-      filepath = join(root, "index.html");
+      filepath = join2(root, "index.html");
       if (!existsSync2(filepath)) {
         return c.json({ error: "Not found" }, 404);
       }
@@ -24391,7 +24392,7 @@ function serveUploads(c) {
   if (!filename || filename.includes("..") || filename.includes("/")) {
     return c.json({ error: "Invalid filename" }, 400);
   }
-  const filepath = join(UPLOAD_DIR, basename(filename));
+  const filepath = join2(UPLOAD_DIR, basename(filename));
   if (!existsSync2(filepath)) {
     return c.json({ error: "File not found" }, 404);
   }
@@ -24452,7 +24453,7 @@ function createApp() {
         const safeExt = ["jpg", "jpeg", "png", "gif", "webp", "webm", "mp4", "mp3", "wav", "ogg"].includes(ext) ? ext : "bin";
         const uuid3 = randomUUID();
         const filename = `${uuid3}.${safeExt}`;
-        const filepath = join(UPLOAD_DIR, filename);
+        const filepath = join2(UPLOAD_DIR, filename);
         const buffer = Buffer.from(await file2.arrayBuffer());
         writeFileSync2(filepath, buffer);
         const publicUrl = `/uploads/${filename}`;

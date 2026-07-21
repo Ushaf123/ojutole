@@ -6,7 +6,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
+import { dirname, join } from "path";
 
 // Find the PU data JSON file - works both in dev and bundled production
 function findPUDataPath(): string {
