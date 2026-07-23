@@ -1082,7 +1082,7 @@ function saveReports() {
 }
 function loadMedia() {
   if (mediaCache === null) {
-    mediaCache = readJsonFile("/tmp/report_media.json", []);
+    mediaCache = readJsonFile("./data/report_media.json", []);
     for (const m of mediaCache) {
       if (m.id >= mediaNextId) mediaNextId = m.id + 1;
     }
@@ -1091,7 +1091,7 @@ function loadMedia() {
 }
 function saveMedia() {
   if (mediaCache !== null) {
-    writeJsonFile("/tmp/report_media.json", mediaCache);
+    writeJsonFile("./data/report_media.json", mediaCache);
   }
 }
 function loadUsers() {
@@ -1113,8 +1113,8 @@ var init_json_store = __esm({
   "api/json-store.ts"() {
     _puData = null;
     _flatPollingUnits = null;
-    REPORTS_FILE = "/tmp/reports.json";
-    USERS_FILE = "/tmp/users.json";
+    REPORTS_FILE = "./data/reports.json";
+    USERS_FILE = "./data/users.json";
     reportsCache = null;
     reportsNextId = 1;
     mediaCache = null;
@@ -24316,7 +24316,7 @@ async function createContext(opts) {
 import { readFileSync as readFileSync2, existsSync as existsSync2, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, readdirSync, statSync } from "fs";
 import { join as join2, resolve, basename } from "path";
 import { randomUUID } from "crypto";
-var UPLOAD_DIR = "/tmp/uploads";
+var UPLOAD_DIR = "./data/uploads";
 try {
   if (!existsSync2(UPLOAD_DIR)) {
     mkdirSync2(UPLOAD_DIR, { recursive: true });

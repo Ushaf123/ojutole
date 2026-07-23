@@ -14,7 +14,7 @@ import { randomUUID } from "crypto";
 // File Upload & Storage
 // ============================================================
 
-const UPLOAD_DIR = "/tmp/uploads";
+const UPLOAD_DIR = "./data/uploads";
 
 // Ensure upload directory exists
 try {

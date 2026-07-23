@@ -170,8 +170,8 @@ export function getRawPUData(): PUEntry[] {
 // JSON FILE STORE FOR REPORTS
 // ============================================================
 
-const REPORTS_FILE = "/tmp/reports.json";
-const USERS_FILE = "/tmp/users.json";
+const REPORTS_FILE = "./data/reports.json";
+const USERS_FILE = "./data/users.json";
 
 export interface ReportRecord {
   id: number;
@@ -264,7 +264,7 @@ let mediaNextId = 1;
 
 function loadMedia(): ReportMediaRecord[] {
   if (mediaCache === null) {
-    mediaCache = readJsonFile<ReportMediaRecord[]>("/tmp/report_media.json", []);
+    mediaCache = readJsonFile<ReportMediaRecord[]>("./data/report_media.json", []);
     for (const m of mediaCache) {
       if (m.id >= mediaNextId) mediaNextId = m.id + 1;
     }
@@ -274,7 +274,7 @@ function loadMedia(): ReportMediaRecord[] {
 
 function saveMedia() {
   if (mediaCache !== null) {
-    writeJsonFile("/tmp/report_media.json", mediaCache);
+    writeJsonFile("./data/report_media.json", mediaCache);
   }
 }
 
