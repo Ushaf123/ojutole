@@ -2,37 +2,22 @@
  * Admin Authentication - Role-Based Access Control
  * Two-person rule: Verifier and Supervisor roles
  *
- * Role passwords are set server-side.
- * When an admin logs in with a role + password, we issue a JWT-like token
- * stored in the session and returned to the client.
+ * Tokens are DETERMINISTIC (based on role + password hash)
+ * This means tokens SURVIVE server restarts - critical for Render deployment
  */
 
-import { randomBytes, createHash } from "crypto";
+import { createHash } from "crypto";
 
 // ============================================================
 // ROLE PASSWORDS (set these for your team)
 // ============================================================
-// VERIFIER: can triage, review, add notes, move to under_verification
-// SUPERVISOR: can verify, escalate, close (two-person rule)
-
 const ROLE_PASSWORDS: Record<string, string> = {
-  verifier: "725289",   // Current admin password becomes verifier
-  supervisor: "725290", // Different password for supervisor
+  verifier: "725289",
+  supervisor: "725290",
 };
 
-// In-memory session store (clears on restart - acceptable for single-server)
-const sessions = new Map<string, { role: string; name: string; createdAt: number }>();
-
-// Clean old sessions every hour
-setInterval(() => {
-  const now = Date.now();
-  const oneDay = 24 * 60 * 60 * 1000;
-  for (const [token, session] of sessions.entries()) {
-    if (now - session.createdAt > oneDay) {
-      sessions.delete(token);
-    }
-  }
-}, 60 * 60 * 1000);
+// Simple secret for token hashing (not for security, just for consistency)
+const TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET || "ojutole-admin-v1";
 
 // ============================================================
 // ADMIN USER TYPE
@@ -50,6 +35,26 @@ export interface AdminUser {
 }
 
 // ============================================================
+// DETERMINISTIC TOKEN (survives server restarts)
+// ============================================================
+
+function generateToken(role: string, password: string): string {
+  // Deterministic: same role + password always produces same token
+  return createHash("sha256")
+    .update(`${TOKEN_SECRET}:${role.toLowerCase()}:${password}`)
+    .digest("hex")
+    .substring(0, 48);
+}
+
+function validateTokenFormat(token: string, role: string): boolean {
+  // Check if token matches what we'd generate for this role
+  const password = ROLE_PASSWORDS[role.toLowerCase()];
+  if (!password) return false;
+  const expected = generateToken(role, password);
+  return token === expected;
+}
+
+// ============================================================
 // AUTH FUNCTIONS
 // ============================================================
 
@@ -62,8 +67,8 @@ export function adminLogin(role: string, password: string): { token: string; use
     return null;
   }
 
-  // Create session token
-  const token = randomBytes(32).toString("hex");
+  // Deterministic token - survives server restarts!
+  const token = generateToken(role, password);
 
   const now = new Date().toISOString();
   const user: AdminUser = {
@@ -76,48 +81,38 @@ export function adminLogin(role: string, password: string): { token: string; use
     lastSignInAt: now,
   };
 
-  sessions.set(token, { role: user.role, name: user.name, createdAt: Date.now() });
-
   return { token, user };
 }
 
 /**
  * Validate token and return user
+ * Works even after server restart because tokens are deterministic
  */
 export function validateAdminToken(token: string): AdminUser | null {
-  const session = sessions.get(token);
-  if (!session) return null;
-
-  return {
-    id: session.role === "supervisor" ? 1 : 2,
-    unionId: `admin_${session.role}`,
-    name: session.name,
-    role: session.role as "verifier" | "supervisor" | "admin",
-    createdAt: new Date(session.createdAt).toISOString(),
-    updatedAt: new Date().toISOString(),
-    lastSignInAt: new Date().toISOString(),
-  };
+  // Try each role to see if token matches
+  for (const role of ["supervisor", "verifier"]) {
+    if (validateTokenFormat(token, role)) {
+      const name = role === "supervisor" ? "Verification Supervisor" : "Desk Verifier";
+      return {
+        id: role === "supervisor" ? 1 : 2,
+        unionId: `admin_${role}`,
+        name,
+        role: role as "verifier" | "supervisor" | "admin",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastSignInAt: new Date().toISOString(),
+      };
+    }
+  }
+  return null;
 }
 
 /**
- * Logout (invalidate token)
+ * Logout (client-side only with deterministic tokens)
  */
-export function adminLogout(token: string): void {
-  sessions.delete(token);
-}
-
-/**
- * Get all active sessions count
- */
-export function getActiveSessionCount(): number {
-  return sessions.size;
-}
-
-/**
- * Change role password (for admin use)
- */
-export function setRolePassword(role: string, password: string): void {
-  ROLE_PASSWORDS[role.toLowerCase()] = password;
+export function adminLogout(_token: string): void {
+  // With deterministic tokens, logout is client-side only
+  // The token remains valid but the client removes it from localStorage
 }
 
 /**
@@ -128,4 +123,18 @@ export function getAvailableRoles(): { role: string; label: string }[] {
     { role: "verifier", label: "Desk Verifier" },
     { role: "supervisor", label: "Verification Supervisor" },
   ];
+}
+
+/**
+ * Change role password (for admin use)
+ */
+export function setRolePassword(role: string, password: string): void {
+  ROLE_PASSWORDS[role.toLowerCase()] = password;
+}
+
+/**
+ * Check if email backup is configured
+ */
+export function isEmailBackupConfigured(): boolean {
+  return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
 }

@@ -36548,29 +36548,27 @@ var reportRouter = createRouter({
 });
 
 // api/admin-auth.ts
-import { randomBytes } from "crypto";
+import { createHash } from "crypto";
 var ROLE_PASSWORDS = {
   verifier: "725289",
-  // Current admin password becomes verifier
   supervisor: "725290"
-  // Different password for supervisor
 };
-var sessions = /* @__PURE__ */ new Map();
-setInterval(() => {
-  const now = Date.now();
-  const oneDay = 24 * 60 * 60 * 1e3;
-  for (const [token, session] of sessions.entries()) {
-    if (now - session.createdAt > oneDay) {
-      sessions.delete(token);
-    }
-  }
-}, 60 * 60 * 1e3);
+var TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET || "ojutole-admin-v1";
+function generateToken(role, password) {
+  return createHash("sha256").update(`${TOKEN_SECRET}:${role.toLowerCase()}:${password}`).digest("hex").substring(0, 48);
+}
+function validateTokenFormat(token, role) {
+  const password = ROLE_PASSWORDS[role.toLowerCase()];
+  if (!password) return false;
+  const expected = generateToken(role, password);
+  return token === expected;
+}
 function adminLogin(role, password) {
   const expectedPassword = ROLE_PASSWORDS[role.toLowerCase()];
   if (!expectedPassword || expectedPassword !== password) {
     return null;
   }
-  const token = randomBytes(32).toString("hex");
+  const token = generateToken(role, password);
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const user = {
     id: role === "supervisor" ? 1 : 2,
@@ -36581,24 +36579,26 @@ function adminLogin(role, password) {
     updatedAt: now,
     lastSignInAt: now
   };
-  sessions.set(token, { role: user.role, name: user.name, createdAt: Date.now() });
   return { token, user };
 }
 function validateAdminToken(token) {
-  const session = sessions.get(token);
-  if (!session) return null;
-  return {
-    id: session.role === "supervisor" ? 1 : 2,
-    unionId: `admin_${session.role}`,
-    name: session.name,
-    role: session.role,
-    createdAt: new Date(session.createdAt).toISOString(),
-    updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    lastSignInAt: (/* @__PURE__ */ new Date()).toISOString()
-  };
+  for (const role of ["supervisor", "verifier"]) {
+    if (validateTokenFormat(token, role)) {
+      const name = role === "supervisor" ? "Verification Supervisor" : "Desk Verifier";
+      return {
+        id: role === "supervisor" ? 1 : 2,
+        unionId: `admin_${role}`,
+        name,
+        role,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        lastSignInAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+    }
+  }
+  return null;
 }
-function adminLogout(token) {
-  sessions.delete(token);
+function adminLogout(_token) {
 }
 function getAvailableRoles() {
   return [
