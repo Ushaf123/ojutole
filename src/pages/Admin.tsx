@@ -160,6 +160,21 @@ export default function Admin() {
   const role = session?.role || null;
   const isSupervisor = role === "supervisor";
 
+  // Validate session token on load
+  const meQuery = trpc.adminAuth.me.useQuery(
+    { token: session?.token || "" },
+    { enabled: !!session?.token, retry: 0 }
+  );
+
+  // Auto-logout if token is invalid
+  if (meQuery.isError || (meQuery.data && !meQuery.data.authenticated)) {
+    clearSession();
+    if (session) {
+      setSessionState(null);
+      window.location.reload();
+    }
+  }
+
   // Queries
   const statsQuery = trpc.report.getStats.useQuery(undefined, { enabled: !!role, retry: 1 });
   const reportsQuery = trpc.report.listAdmin.useQuery(
@@ -171,6 +186,9 @@ export default function Admin() {
     { id: selectedReport?.id || 0 },
     { enabled: !!selectedReport?.id && !!role, retry: 1 }
   );
+
+  // Show query errors
+  const queryError = reportsQuery.error?.message || statsQuery.error?.message;
 
   const utils = trpc.useUtils();
 
@@ -559,11 +577,22 @@ export default function Admin() {
             </div>
           )}
 
+          {/* Error display */}
+          {queryError && (
+            <div className="glass rounded-2xl p-4 border border-red-500/30 bg-red-500/10">
+              <p className="text-xs text-red-400 font-medium flex items-center gap-2"><AlertTriangle size={14} /> Error: {queryError}</p>
+              <p className="text-[10px] text-white/40 mt-1">Try logging out and back in. If problem persists, contact support.</p>
+            </div>
+          )}
+
           <div className="space-y-3">
             {reports.length === 0 ? (
               <div className="glass rounded-2xl p-8 text-center">
                 <FileText size={32} className="mx-auto text-white/20 mb-2" />
-                <p className="text-white/40 text-sm">No reports found</p>
+                <p className="text-white/40 text-sm">
+                  {reportsQuery.isLoading ? "Loading reports..." : queryError ? "Failed to load reports" : "No reports found"}
+                </p>
+                {reportsQuery.isLoading && <div className="w-6 h-6 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin mx-auto mt-3" />}
               </div>
             ) : (
               reports.map((report: any) => {
