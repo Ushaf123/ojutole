@@ -10,6 +10,7 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSy
 import { join, resolve, basename } from "path";
 import { randomUUID } from "crypto";
 import { reportStore } from "./json-store";
+import { sendBackupEmail, isEmailBackupConfigured } from "./email-backup";
 
 // ============================================================
 // File Upload & Storage
@@ -97,14 +98,24 @@ function createBackup() {
   }
 }
 
-// Create backup on startup
+// Create backup on startup + send first email
 ensureBackupDir();
 createBackup();
+// Send startup email backup (async - don't block)
+sendBackupEmail().then((sent) => {
+  if (sent) console.log("[EMAIL BACKUP] Startup email sent");
+});
 
-// Schedule backup every 24 hours (24 * 60 * 60 * 1000 ms)
-const BACKUP_INTERVAL = 24 * 60 * 60 * 1000;
-setInterval(createBackup, BACKUP_INTERVAL);
-console.log("[BACKUP] Scheduled every 24 hours. Keeps last 30 backups.");
+// Schedule backup + email every 6 hours (6 * 60 * 60 * 1000 ms)
+const BACKUP_INTERVAL = 6 * 60 * 60 * 1000;
+setInterval(() => {
+  createBackup();
+  sendBackupEmail().then((sent) => {
+    if (sent) console.log("[EMAIL BACKUP] Scheduled email sent");
+  });
+}, BACKUP_INTERVAL);
+console.log("[BACKUP] Disk backup every 6 hours. Keeps last 30 backups.");
+console.log("[EMAIL BACKUP] Email delivery:", isEmailBackupConfigured() ? "CONFIGURED" : "NOT CONFIGURED - Set SMTP_USER and SMTP_PASS env vars");
 
 // ============================================================
 // Static File Handler (for frontend + uploads)
