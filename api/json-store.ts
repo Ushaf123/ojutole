@@ -732,6 +732,9 @@ export const reportStore = {
     status?: string;
     lga?: string;
     incidentType?: string;
+    caseId?: string;
+    fromDate?: string;
+    toDate?: string;
     limit?: number;
     offset?: number;
     includeMedia?: boolean;
@@ -747,6 +750,22 @@ export const reportStore = {
     }
     if (options.incidentType) {
       results = results.filter((r) => r.incidentType === options.incidentType);
+    }
+    if (options.caseId) {
+      const q = options.caseId.toLowerCase().trim();
+      results = results.filter((r) =>
+        r.caseId.toLowerCase().includes(q) ||
+        String(r.id).includes(q)
+      );
+    }
+    if (options.fromDate) {
+      const from = new Date(options.fromDate).getTime();
+      results = results.filter((r) => new Date(r.submittedAt).getTime() >= from);
+    }
+    if (options.toDate) {
+      const to = new Date(options.toDate);
+      to.setHours(23, 59, 59, 999);
+      results = results.filter((r) => new Date(r.submittedAt).getTime() <= to.getTime());
     }
 
     results.sort(
@@ -782,6 +801,18 @@ export const reportStore = {
     }
 
     return { reports: results, total };
+  },
+
+  // Backup: export all data as JSON
+  backup() {
+    return {
+      reports: loadReports(),
+      media: loadMedia(),
+      auditLog: loadAuditLog(),
+      notes: loadNotes(),
+      exportedAt: new Date().toISOString(),
+      version: "2.0",
+    };
   },
 };
 

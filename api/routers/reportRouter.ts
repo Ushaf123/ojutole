@@ -135,7 +135,7 @@ export const reportRouter = createRouter({
   // VERIFIER ROUTES (triage, review, add notes)
   // ============================================================
 
-  // Verifier: list ALL reports (with reporter info)
+  // Verifier: list ALL reports (with reporter info + date range + case ID)
   listAdmin: verifierQuery
     .input(
       z
@@ -143,7 +143,10 @@ export const reportRouter = createRouter({
           status: z.string().optional(),
           lga: z.string().optional(),
           incidentType: z.string().optional(),
-          limit: z.number().min(1).max(100).default(50),
+          caseId: z.string().optional(),
+          fromDate: z.string().optional(),
+          toDate: z.string().optional(),
+          limit: z.number().min(1).max(500).default(50),
           offset: z.number().min(0).default(0),
         })
         .optional()
@@ -153,6 +156,9 @@ export const reportRouter = createRouter({
         status: input?.status,
         lga: input?.lga,
         incidentType: input?.incidentType,
+        caseId: input?.caseId,
+        fromDate: input?.fromDate,
+        toDate: input?.toDate,
         limit: input?.limit,
         offset: input?.offset,
         includeMedia: true,
@@ -348,4 +354,9 @@ export const reportRouter = createRouter({
     .query(({ input }) => {
       return reportStore.getAuditLog(input.reportId);
     }),
+
+  // Supervisor: full data backup (JSON export)
+  backup: supervisorQuery.query(() => {
+    return reportStore.backup();
+  }),
 });

@@ -6,7 +6,7 @@ import {
   ChevronDown, MapPin, Phone, Camera, Video, Mic, X, ExternalLink,
   Image, AudioLines, ChevronLeft, Lock, Unlock, AlertTriangle,
   ShieldCheck, Package, Shield, Eye, MessageSquare, UserCheck,
-  UserX, Send, RotateCcw, History, Award, StickyNote
+  UserX, Send, RotateCcw, History, Award, StickyNote, Search
 } from "lucide-react";
 
 // Role management
@@ -223,6 +223,11 @@ export default function Admin() {
   const [noteText, setNoteText] = useState("");
   const [actionNote, setActionNote] = useState("");
   const [showActionNote, setShowActionNote] = useState<string | null>(null);
+  // Archive & search
+  const [caseIdSearch, setCaseIdSearch] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [quickDate, setQuickDate] = useState<string>("");
 
   const role: AdminRole = session?.role || null;
   const isVerifier = role === "verifier";
@@ -234,7 +239,10 @@ export default function Admin() {
     {
       status: statusFilter || undefined,
       lga: lgaFilter || undefined,
-      limit: 50,
+      caseId: caseIdSearch || undefined,
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+      limit: 500,
     },
     { enabled: !!role }
   );
@@ -277,6 +285,55 @@ export default function Admin() {
     utils.report.getStats.invalidate();
     utils.report.getByIdAdmin.invalidate();
   }
+
+  // Quick date filter handler
+  function applyQuickDate(filter: string) {
+    setQuickDate(filter);
+    const now = new Date();
+    const iso = (d: Date) => d.toISOString().split("T")[0];
+    if (filter === "today") {
+      setFromDate(iso(now));
+      setToDate(iso(now));
+    } else if (filter === "7days") {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      setFromDate(iso(d));
+      setToDate(iso(now));
+    } else if (filter === "30days") {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 30);
+      setFromDate(iso(d));
+      setToDate(iso(now));
+    } else {
+      setFromDate("");
+      setToDate("");
+    }
+  }
+
+  // Backup download handler
+  const handleBackupDownload = async () => {
+    try {
+      const resp = await fetch("/api/trpc/report.backup", {
+        headers: {
+          "x-admin-token": localStorage.getItem("ojutole_admin_token") || "",
+        },
+      });
+      if (!resp.ok) { alert("Backup failed. Check login."); return; }
+      const result = await resp.json();
+      const data = result.result?.data || result;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `OJUTOLÉ-Full-Backup-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Backup download failed");
+    }
+  };
 
   const stats = statsQuery.data;
   const reports = reportsQuery.data?.reports || [];
@@ -842,32 +899,105 @@ export default function Admin() {
           </section>
         )}
 
-        {/* Reports Table */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">{t("admin.recentReports")}</h2>
-            <button onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg glass text-xs text-white/60">
-              <Filter size={12} /> Filter <ChevronDown size={10} />
-            </button>
+        {/* SEARCH & ARCHIVE PANEL */}
+        <section className="glass rounded-2xl p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider flex items-center gap-2">
+            <Search size={14} /> Case Archive & Search
+          </h2>
+
+          {/* Case ID Search */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={caseIdSearch}
+              onChange={(e) => setCaseIdSearch(e.target.value)}
+              placeholder="Search by Case ID or Report #..."
+              className="flex-1 h-10 px-4 rounded-xl glass text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50"
+            />
+            {caseIdSearch && (
+              <button onClick={() => setCaseIdSearch("")}
+                className="h-10 px-3 rounded-xl glass text-white/40 hover:text-white/60">
+                <X size={14} />
+              </button>
+            )}
           </div>
 
-          {showFilters && (
-            <div className="glass rounded-xl p-3 mb-3 space-y-2 animate-slide-up">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg glass text-sm text-white bg-transparent">
-                <option value="">All Statuses</option>
-                {WORKFLOW_STATUSES.map((s) => (
-                  <option key={s} value={s}>{STATUS_CONFIG[s]?.label || s}</option>
-                ))}
-              </select>
-              <select value={lgaFilter} onChange={(e) => setLgaFilter(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg glass text-sm text-white bg-transparent">
-                <option value="">{t("locator.allLGAs")}</option>
-                {(lgaQuery.data || []).map((lga: string) => <option key={lga} value={lga}>{lga}</option>)}
-              </select>
+          {/* Quick Date Filters */}
+          <div className="flex gap-2 overflow-x-auto no-scrollbar">
+            {[
+              { key: "", label: "All Time" },
+              { key: "today", label: "Today" },
+              { key: "7days", label: "Last 7 Days" },
+              { key: "30days", label: "Last 30 Days" },
+            ].map((q) => (
+              <button key={q.key} onClick={() => applyQuickDate(q.key)}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  quickDate === q.key
+                    ? "bg-[#2563EB] text-white"
+                    : "glass text-white/40 hover:text-white/60"
+                }`}>
+                {q.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Date Range Picker */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <label className="text-[10px] text-white/30 uppercase mb-1 block">From</label>
+              <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setQuickDate(""); }}
+                className="w-full h-9 px-3 rounded-lg glass text-sm text-white bg-transparent focus:outline-none" />
             </div>
-          )}
+            <div className="flex-1">
+              <label className="text-[10px] text-white/30 uppercase mb-1 block">To</label>
+              <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setQuickDate(""); }}
+                className="w-full h-9 px-3 rounded-lg glass text-sm text-white bg-transparent focus:outline-none" />
+            </div>
+          </div>
+
+          {/* Status + LGA Filters */}
+          <div className="flex gap-2">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+              className="flex-1 h-9 px-3 rounded-lg glass text-xs text-white bg-transparent">
+              <option value="">All Statuses</option>
+              {WORKFLOW_STATUSES.map((s) => (
+                <option key={s} value={s}>{STATUS_CONFIG[s]?.label || s}</option>
+              ))}
+            </select>
+            <select value={lgaFilter} onChange={(e) => setLgaFilter(e.target.value)}
+              className="flex-1 h-9 px-3 rounded-lg glass text-xs text-white bg-transparent">
+              <option value="">{t("locator.allLGAs")}</option>
+              {(lgaQuery.data || []).map((lga: string) => <option key={lga} value={lga}>{lga}</option>)}
+            </select>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleExportCSV}
+              className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-medium transition-all ${
+                backupStatus === "done" ? "bg-emerald-500/20 text-emerald-400" : "bg-[#2563EB]/20 text-[#2563EB]"
+              }`}>
+              {backupStatus === "done" ? <CheckCircle size={12} /> : <Download size={12} />}
+              {backupStatus === "done" ? "CSV Exported!" : "Export CSV"}
+            </button>
+            {isSupervisor && (
+              <button onClick={handleBackupDownload}
+                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-medium">
+                <Package size={12} /> Full Backup
+              </button>
+            )}
+          </div>
+
+          {/* Result count */}
+          <p className="text-[10px] text-white/30 text-center">
+            {reports.length} of {reportsQuery.data?.total || 0} reports shown
+            {(fromDate || toDate) && ` · ${fromDate || "Start"} to ${toDate || "Now"}`}
+            {caseIdSearch && ` · matching "${caseIdSearch}"`}
+          </p>
+        </section>
+
+        {/* Reports List */}
+        <section>
 
           <div className="space-y-3">
             {reports.length === 0 ? (

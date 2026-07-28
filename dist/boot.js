@@ -1381,6 +1381,21 @@ var init_json_store = __esm({
         if (options.incidentType) {
           results = results.filter((r) => r.incidentType === options.incidentType);
         }
+        if (options.caseId) {
+          const q = options.caseId.toLowerCase().trim();
+          results = results.filter(
+            (r) => r.caseId.toLowerCase().includes(q) || String(r.id).includes(q)
+          );
+        }
+        if (options.fromDate) {
+          const from = new Date(options.fromDate).getTime();
+          results = results.filter((r) => new Date(r.submittedAt).getTime() >= from);
+        }
+        if (options.toDate) {
+          const to = new Date(options.toDate);
+          to.setHours(23, 59, 59, 999);
+          results = results.filter((r) => new Date(r.submittedAt).getTime() <= to.getTime());
+        }
         results.sort(
           (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
         );
@@ -1407,6 +1422,17 @@ var init_json_store = __esm({
           }));
         }
         return { reports: results, total };
+      },
+      // Backup: export all data as JSON
+      backup() {
+        return {
+          reports: loadReports(),
+          media: loadMedia(),
+          auditLog: loadAuditLog(),
+          notes: loadNotes(),
+          exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          version: "2.0"
+        };
       }
     };
     userStore = {
@@ -24514,13 +24540,16 @@ var reportRouter = createRouter({
   // ============================================================
   // VERIFIER ROUTES (triage, review, add notes)
   // ============================================================
-  // Verifier: list ALL reports (with reporter info)
+  // Verifier: list ALL reports (with reporter info + date range + case ID)
   listAdmin: verifierQuery.input(
     external_exports.object({
       status: external_exports.string().optional(),
       lga: external_exports.string().optional(),
       incidentType: external_exports.string().optional(),
-      limit: external_exports.number().min(1).max(100).default(50),
+      caseId: external_exports.string().optional(),
+      fromDate: external_exports.string().optional(),
+      toDate: external_exports.string().optional(),
+      limit: external_exports.number().min(1).max(500).default(50),
       offset: external_exports.number().min(0).default(0)
     }).optional()
   ).query(({ input }) => {
@@ -24528,6 +24557,9 @@ var reportRouter = createRouter({
       status: input?.status,
       lga: input?.lga,
       incidentType: input?.incidentType,
+      caseId: input?.caseId,
+      fromDate: input?.fromDate,
+      toDate: input?.toDate,
       limit: input?.limit,
       offset: input?.offset,
       includeMedia: true,
@@ -24686,6 +24718,10 @@ var reportRouter = createRouter({
   // Verifier: get audit log for a report
   getAuditLog: verifierQuery.input(external_exports.object({ reportId: external_exports.number() })).query(({ input }) => {
     return reportStore.getAuditLog(input.reportId);
+  }),
+  // Supervisor: full data backup (JSON export)
+  backup: supervisorQuery.query(() => {
+    return reportStore.backup();
   })
 });
 
@@ -24838,6 +24874,7 @@ async function createContext(opts) {
 }
 
 // api/boot.ts
+init_json_store();
 import { readFileSync as readFileSync2, existsSync as existsSync2, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, readdirSync, statSync } from "fs";
 import { join as join2, resolve, basename } from "path";
 import { randomUUID } from "crypto";
@@ -24866,6 +24903,42 @@ function cleanupOldUploads() {
   }
 }
 cleanupOldUploads();
+var BACKUP_DIR = "./data/backups";
+function ensureBackupDir() {
+  if (!existsSync2(BACKUP_DIR)) {
+    mkdirSync2(BACKUP_DIR, { recursive: true });
+  }
+}
+function createBackup() {
+  try {
+    ensureBackupDir();
+    const data = reportStore.backup();
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+    const filename = `ojutole-backup-${timestamp}.json`;
+    const filepath = join2(BACKUP_DIR, filename);
+    writeFileSync2(filepath, JSON.stringify(data, null, 2));
+    console.log("[BACKUP] Created:", filename);
+    const latestPath = join2(BACKUP_DIR, "ojutole-latest.json");
+    writeFileSync2(latestPath, JSON.stringify(data, null, 2));
+    const files = readdirSync(BACKUP_DIR).filter((f) => f.startsWith("ojutole-backup-")).map((f) => ({ name: f, path: join2(BACKUP_DIR, f), time: statSync(join2(BACKUP_DIR, f)).mtimeMs })).sort((a, b) => b.time - a.time);
+    if (files.length > 30) {
+      for (const f of files.slice(30)) {
+        try {
+          const { rmSync } = __require("node:fs");
+          rmSync(f.path);
+        } catch {
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[BACKUP] Failed:", err.message);
+  }
+}
+ensureBackupDir();
+createBackup();
+var BACKUP_INTERVAL = 24 * 60 * 60 * 1e3;
+setInterval(createBackup, BACKUP_INTERVAL);
+console.log("[BACKUP] Scheduled every 24 hours. Keeps last 30 backups.");
 function serveStaticFiles(root) {
   return async (c) => {
     const url2 = new URL(c.req.url);
@@ -25014,6 +25087,40 @@ function createApp() {
       return handler(c);
     });
     console.log("[BOOT] OAuth callback registered");
+    app2.get("/api/backup/download/:filename", (c) => {
+      const filename = c.req.param("filename");
+      if (!filename || filename.includes("..") || filename.includes("/")) {
+        return c.json({ error: "Invalid filename" }, 400);
+      }
+      const filepath = join2(BACKUP_DIR, basename(filename));
+      if (!existsSync2(filepath)) {
+        return c.json({ error: "Backup not found" }, 404);
+      }
+      try {
+        const content = readFileSync2(filepath, "utf-8");
+        return new Response(content, {
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Disposition": `attachment; filename="${filename}"`
+          }
+        });
+      } catch {
+        return c.json({ error: "Failed to read backup" }, 500);
+      }
+    });
+    app2.get("/api/backup/list", (c) => {
+      try {
+        ensureBackupDir();
+        const files = readdirSync(BACKUP_DIR).filter((f) => f.startsWith("ojutole-backup-")).map((f) => {
+          const s = statSync(join2(BACKUP_DIR, f));
+          return { name: f, size: s.size, created: s.mtime.toISOString() };
+        }).sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+        return c.json({ backups: files, count: files.length });
+      } catch {
+        return c.json({ backups: [], count: 0 });
+      }
+    });
+    console.log("[BOOT] Backup endpoints registered");
     const staticRoot = env.isProduction ? "./dist/public" : "./public";
     app2.use("/*", serveStaticFiles(staticRoot));
     console.log("[BOOT] Static files registered from", staticRoot);

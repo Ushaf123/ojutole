@@ -6,9 +6,10 @@ import { bodyLimit } from "hono/body-limit";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { createContext } from "./context";
-import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync, copyFileSync } from "fs";
 import { join, resolve, basename } from "path";
 import { randomUUID } from "crypto";
+import { reportStore } from "./json-store";
 
 // ============================================================
 // File Upload & Storage
@@ -45,6 +46,65 @@ function cleanupOldUploads() {
   }
 }
 cleanupOldUploads();
+
+// ============================================================
+// SCHEDULED BACKUP SYSTEM
+// Creates automatic JSON backups every 24 hours
+// Keeps last 30 backups for permanent archive
+// ============================================================
+
+const BACKUP_DIR = "./data/backups";
+
+function ensureBackupDir() {
+  if (!existsSync(BACKUP_DIR)) {
+    mkdirSync(BACKUP_DIR, { recursive: true });
+  }
+}
+
+function createBackup() {
+  try {
+    ensureBackupDir();
+    const data = reportStore.backup();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `ojutole-backup-${timestamp}.json`;
+    const filepath = join(BACKUP_DIR, filename);
+    writeFileSync(filepath, JSON.stringify(data, null, 2));
+    console.log("[BACKUP] Created:", filename);
+
+    // Also copy to latest
+    const latestPath = join(BACKUP_DIR, "ojutole-latest.json");
+    writeFileSync(latestPath, JSON.stringify(data, null, 2));
+
+    // Keep only last 30 backups
+    const files = readdirSync(BACKUP_DIR)
+      .filter((f) => f.startsWith("ojutole-backup-"))
+      .map((f) => ({ name: f, path: join(BACKUP_DIR, f), time: statSync(join(BACKUP_DIR, f)).mtimeMs }))
+      .sort((a, b) => b.time - a.time);
+
+    if (files.length > 30) {
+      for (const f of files.slice(30)) {
+        try {
+          // Use rmSync to delete old backups
+          const { rmSync } = require("node:fs");
+          rmSync(f.path);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error("[BACKUP] Failed:", err.message);
+  }
+}
+
+// Create backup on startup
+ensureBackupDir();
+createBackup();
+
+// Schedule backup every 24 hours (24 * 60 * 60 * 1000 ms)
+const BACKUP_INTERVAL = 24 * 60 * 60 * 1000;
+setInterval(createBackup, BACKUP_INTERVAL);
+console.log("[BACKUP] Scheduled every 24 hours. Keeps last 30 backups.");
 
 // ============================================================
 // Static File Handler (for frontend + uploads)
@@ -230,6 +290,47 @@ function createApp() {
       return handler(c);
     });
     console.log("[BOOT] OAuth callback registered");
+
+    // Backup download endpoint - GET /api/backup/download/:filename
+    app.get("/api/backup/download/:filename", (c) => {
+      const filename = c.req.param("filename");
+      if (!filename || filename.includes("..") || filename.includes("/")) {
+        return c.json({ error: "Invalid filename" }, 400);
+      }
+      const filepath = join(BACKUP_DIR, basename(filename));
+      if (!existsSync(filepath)) {
+        return c.json({ error: "Backup not found" }, 404);
+      }
+      try {
+        const content = readFileSync(filepath, "utf-8");
+        return new Response(content, {
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Disposition": `attachment; filename="${filename}"`,
+          },
+        });
+      } catch {
+        return c.json({ error: "Failed to read backup" }, 500);
+      }
+    });
+
+    // Backup list endpoint - GET /api/backup/list
+    app.get("/api/backup/list", (c) => {
+      try {
+        ensureBackupDir();
+        const files = readdirSync(BACKUP_DIR)
+          .filter((f) => f.startsWith("ojutole-backup-"))
+          .map((f) => {
+            const s = statSync(join(BACKUP_DIR, f));
+            return { name: f, size: s.size, created: s.mtime.toISOString() };
+          })
+          .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+        return c.json({ backups: files, count: files.length });
+      } catch {
+        return c.json({ backups: [], count: 0 });
+      }
+    });
+    console.log("[BOOT] Backup endpoints registered");
 
     // Static files - use custom Node.js handler
     const staticRoot = env.isProduction ? "./dist/public" : "./public";
