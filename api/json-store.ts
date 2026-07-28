@@ -232,13 +232,17 @@ function generateCaseId(): string {
 }
 
 // ============================================================
-// FILE PATHS
+// FILE PATHS — use absolute path based on project root
 // ============================================================
 
-const REPORTS_FILE = "./data/reports.json";
-const USERS_FILE = "./data/users.json";
-const AUDIT_LOG_FILE = "./data/audit_log.json";
-const NOTES_FILE = "./data/report_notes.json";
+const DATA_DIR = process.env.DATA_DIR || (existsSync("./data") ? "./data" : existsSync("/data") ? "/data" : "./data");
+
+const REPORTS_FILE = join(DATA_DIR, "reports.json");
+const USERS_FILE = join(DATA_DIR, "users.json");
+const AUDIT_LOG_FILE = join(DATA_DIR, "audit_log.json");
+const NOTES_FILE = join(DATA_DIR, "report_notes.json");
+
+console.log("[DATA] Using data directory:", DATA_DIR);
 
 // ============================================================
 // REPORT RECORD (with new fields)

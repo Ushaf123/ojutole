@@ -16,16 +16,19 @@ import { sendBackupEmail, isEmailBackupConfigured } from "./email-backup";
 // File Upload & Storage
 // ============================================================
 
-const UPLOAD_DIR = "./data/uploads";
+// Use consistent data directory (same as json-store)
+const DATA_DIR = process.env.DATA_DIR || "./data";
+const UPLOAD_DIR = join(DATA_DIR, "uploads");
+const BACKUP_DIR = join(DATA_DIR, "backups");
 
-// Ensure upload directory exists
+// Ensure directories exist
 try {
-  if (!existsSync(UPLOAD_DIR)) {
-    mkdirSync(UPLOAD_DIR, { recursive: true });
-    console.log("[UPLOAD] Created upload directory:", UPLOAD_DIR);
-  }
+  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+  if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
+  if (!existsSync(BACKUP_DIR)) mkdirSync(BACKUP_DIR, { recursive: true });
+  console.log("[DATA] Directories ensured:", { data: DATA_DIR, uploads: UPLOAD_DIR, backups: BACKUP_DIR });
 } catch (err: any) {
-  console.error("[UPLOAD] Failed to create upload directory:", err.message);
+  console.error("[DATA] Failed to create directories:", err.message);
 }
 
 // Clean up old files (older than 30 days) - runs on startup
@@ -54,7 +57,7 @@ cleanupOldUploads();
 // Keeps last 30 backups for permanent archive
 // ============================================================
 
-const BACKUP_DIR = "./data/backups";
+// BACKUP_DIR already defined at top of file
 
 function ensureBackupDir() {
   if (!existsSync(BACKUP_DIR)) {
@@ -219,6 +222,10 @@ function createApp() {
   try {
     console.log("[BOOT] Starting OJÚTÓLÉ...");
     console.log("[BOOT] Environment:", env.isProduction ? "production" : "development");
+    console.log("[BOOT] CWD:", process.cwd());
+    console.log("[BOOT] DATA_DIR:", DATA_DIR);
+    console.log("[BOOT] Upload dir:", UPLOAD_DIR);
+    console.log("[BOOT] Backup dir:", BACKUP_DIR);
 
     const app = new Hono<{ Bindings: HTTPBindings }>();
     app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));

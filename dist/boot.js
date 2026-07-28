@@ -936,7 +936,7 @@ var init_cookies = __esm({
 
 // api/json-store.ts
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname } from "path";
+import { dirname, join } from "path";
 function findPUDataPath() {
   const candidates = [
     "./api/osun-pu-data.json",
@@ -1179,17 +1179,19 @@ function logAudit(params) {
   saveAuditLog();
   return entry;
 }
-var _puData, _flatPollingUnits, caseIdCounter, lastCaseDate, REPORTS_FILE, USERS_FILE, AUDIT_LOG_FILE, NOTES_FILE, reportsCache, reportsNextId, mediaCache, mediaNextId, auditCache, auditNextId, notesCache, notesNextId, usersCache, usersNextId, reportStore, userStore;
+var _puData, _flatPollingUnits, caseIdCounter, lastCaseDate, DATA_DIR, REPORTS_FILE, USERS_FILE, AUDIT_LOG_FILE, NOTES_FILE, reportsCache, reportsNextId, mediaCache, mediaNextId, auditCache, auditNextId, notesCache, notesNextId, usersCache, usersNextId, reportStore, userStore;
 var init_json_store = __esm({
   "api/json-store.ts"() {
     _puData = null;
     _flatPollingUnits = null;
     caseIdCounter = 0;
     lastCaseDate = "";
-    REPORTS_FILE = "./data/reports.json";
-    USERS_FILE = "./data/users.json";
-    AUDIT_LOG_FILE = "./data/audit_log.json";
-    NOTES_FILE = "./data/report_notes.json";
+    DATA_DIR = process.env.DATA_DIR || (existsSync("./data") ? "./data" : existsSync("/data") ? "/data" : "./data");
+    REPORTS_FILE = join(DATA_DIR, "reports.json");
+    USERS_FILE = join(DATA_DIR, "users.json");
+    AUDIT_LOG_FILE = join(DATA_DIR, "audit_log.json");
+    NOTES_FILE = join(DATA_DIR, "report_notes.json");
+    console.log("[DATA] Using data directory:", DATA_DIR);
     reportsCache = null;
     reportsNextId = 1;
     mediaCache = null;
@@ -36808,14 +36810,16 @@ function isEmailBackupConfigured() {
 }
 
 // api/boot.ts
-var UPLOAD_DIR = "./data/uploads";
+var DATA_DIR2 = process.env.DATA_DIR || "./data";
+var UPLOAD_DIR = join3(DATA_DIR2, "uploads");
+var BACKUP_DIR2 = join3(DATA_DIR2, "backups");
 try {
-  if (!existsSync3(UPLOAD_DIR)) {
-    mkdirSync2(UPLOAD_DIR, { recursive: true });
-    console.log("[UPLOAD] Created upload directory:", UPLOAD_DIR);
-  }
+  if (!existsSync3(DATA_DIR2)) mkdirSync2(DATA_DIR2, { recursive: true });
+  if (!existsSync3(UPLOAD_DIR)) mkdirSync2(UPLOAD_DIR, { recursive: true });
+  if (!existsSync3(BACKUP_DIR2)) mkdirSync2(BACKUP_DIR2, { recursive: true });
+  console.log("[DATA] Directories ensured:", { data: DATA_DIR2, uploads: UPLOAD_DIR, backups: BACKUP_DIR2 });
 } catch (err) {
-  console.error("[UPLOAD] Failed to create upload directory:", err.message);
+  console.error("[DATA] Failed to create directories:", err.message);
 }
 function cleanupOldUploads() {
   try {
@@ -36833,7 +36837,6 @@ function cleanupOldUploads() {
   }
 }
 cleanupOldUploads();
-var BACKUP_DIR2 = "./data/backups";
 function ensureBackupDir() {
   if (!existsSync3(BACKUP_DIR2)) {
     mkdirSync2(BACKUP_DIR2, { recursive: true });
@@ -36963,6 +36966,10 @@ function createApp() {
   try {
     console.log("[BOOT] Starting OJ\xDAT\xD3L\xC9...");
     console.log("[BOOT] Environment:", env.isProduction ? "production" : "development");
+    console.log("[BOOT] CWD:", process.cwd());
+    console.log("[BOOT] DATA_DIR:", DATA_DIR2);
+    console.log("[BOOT] Upload dir:", UPLOAD_DIR);
+    console.log("[BOOT] Backup dir:", BACKUP_DIR2);
     const app2 = new Hono2();
     app2.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
     console.log("[BOOT] Hono app created");
