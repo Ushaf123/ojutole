@@ -3,6 +3,13 @@
  * Uses official INEC polling unit data for Osun State.
  * Source: INEC Directory of Polling Units, Revised January 2015
  * 30 LGAs, 332 Wards, 2,834 Polling Units
+ *
+ * CRITICAL TIER FEATURES:
+ * - Full verification workflow: received → triaged → under_verification → verified/unverified/escalated → closed
+ * - Audit trail: every status change logged with operator, timestamp, reason
+ * - Confidence grading: auto-calculated based on source quality + media + GPS
+ * - Reporter identity wall: reporter details separated from report content
+ * - Case IDs: human-readable reference numbers (OJT-XXXXX)
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
@@ -10,19 +17,16 @@ import { dirname, join } from "path";
 
 // Find the PU data JSON file - works both in dev and bundled production
 function findPUDataPath(): string {
-  // When bundled with esbuild, the code runs from dist/boot.js
-  // The osun-pu-data.json is copied to dist/ during build
   const candidates = [
-    "./api/osun-pu-data.json",           // Development
-    "./dist/osun-pu-data.json",          // Production (from project root)
-    "./osun-pu-data.json",               // Same directory as boot.js
+    "./api/osun-pu-data.json",
+    "./dist/osun-pu-data.json",
+    "./osun-pu-data.json",
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
       return candidate;
     }
   }
-  // Default fallback - will throw a clear error if not found
   return "./dist/osun-pu-data.json";
 }
 
@@ -71,7 +75,6 @@ function getFlatPollingUnits() {
           lga: entry.lga,
           ward: entry.ward,
           code: unit.code,
-          // Approximate coordinates for Osun State
           latitude: 7.5 + (id * 0.0001),
           longitude: 4.5 + (id * 0.0001),
         });
@@ -161,20 +164,89 @@ export function getNearbyPollingUnits(
   return results.slice(0, limit);
 }
 
-// Raw data access for stats
 export function getRawPUData(): PUEntry[] {
   return loadPUData();
 }
 
 // ============================================================
-// JSON FILE STORE FOR REPORTS
+// FULL VERIFICATION WORKFLOW STATUS ENUM
+// ============================================================
+export const WORKFLOW_STATUSES = [
+  "received",
+  "triaged",
+  "under_verification",
+  "verified",
+  "unverified",
+  "escalated",
+  "closed",
+] as const;
+
+export type WorkflowStatus = (typeof WORKFLOW_STATUSES)[number];
+
+// ============================================================
+// CONFIDENCE GRADING
+// ============================================================
+export type ConfidenceLevel = "high" | "medium" | "low";
+
+export function calculateConfidence(data: {
+  reporterName?: string;
+  reporterPhone?: string;
+  mediaCount: number;
+  hasGps: boolean;
+  anonymous: boolean;
+}): ConfidenceLevel {
+  let score = 0;
+
+  // Known reporter (trained/community reporter)
+  if (data.reporterName && data.reporterPhone && !data.anonymous) score += 3;
+  // Has media evidence
+  if (data.mediaCount >= 2) score += 3;
+  else if (data.mediaCount === 1) score += 2;
+  // Has GPS
+  if (data.hasGps) score += 2;
+  // Anonymous = lower confidence
+  if (data.anonymous) score -= 2;
+  // Single source = baseline
+  score += 1;
+
+  if (score >= 6) return "high";
+  if (score >= 3) return "medium";
+  return "low";
+}
+
+// ============================================================
+// CASE ID GENERATION
+// ============================================================
+let caseIdCounter = 0;
+let lastCaseDate = "";
+
+function generateCaseId(): string {
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  if (dateStr !== lastCaseDate) {
+    lastCaseDate = dateStr;
+    caseIdCounter = 0;
+  }
+  caseIdCounter++;
+  return `OJT-${dateStr}-${String(caseIdCounter).padStart(4, "0")}`;
+}
+
+// ============================================================
+// FILE PATHS
 // ============================================================
 
 const REPORTS_FILE = "./data/reports.json";
 const USERS_FILE = "./data/users.json";
+const AUDIT_LOG_FILE = "./data/audit_log.json";
+const NOTES_FILE = "./data/report_notes.json";
+
+// ============================================================
+// REPORT RECORD (with new fields)
+// ============================================================
 
 export interface ReportRecord {
   id: number;
+  caseId: string;
   incidentType: string;
   lga: string;
   ward?: string;
@@ -184,12 +256,22 @@ export interface ReportRecord {
   longitude?: number;
   locationAccuracy?: number;
   locationAddress?: string;
-  status: string;
+  status: WorkflowStatus;
   syncStatus: string;
   reporterPhone?: string;
   reporterName?: string;
+  confidence: ConfidenceLevel;
+  anonymous: boolean;
   submittedAt: string;
   updatedAt: string;
+  triagedAt?: string;
+  verifiedAt?: string;
+  escalatedAt?: string;
+  closedAt?: string;
+  triagedBy?: string;
+  verifiedBy?: string;
+  escalatedBy?: string;
+  closedBy?: string;
 }
 
 export interface ReportMediaRecord {
@@ -200,6 +282,28 @@ export interface ReportMediaRecord {
   thumbnail?: string;
   fileName?: string;
   fileSize?: number;
+  createdAt: string;
+}
+
+export interface AuditLogRecord {
+  id: number;
+  reportId: number;
+  caseId: string;
+  action: string;
+  oldStatus?: string;
+  newStatus?: string;
+  operatorRole: string;
+  operatorName: string;
+  note?: string;
+  timestamp: string;
+}
+
+export interface ReportNoteRecord {
+  id: number;
+  reportId: number;
+  note: string;
+  authorRole: string;
+  authorName: string;
   createdAt: string;
 }
 
@@ -238,7 +342,10 @@ function writeJsonFile<T>(path: string, data: T) {
   writeFileSync(path, JSON.stringify(data, null, 2), "utf-8");
 }
 
-// Reports store
+// ============================================================
+// REPORTS STORE
+// ============================================================
+
 let reportsCache: ReportRecord[] | null = null;
 let reportsNextId = 1;
 
@@ -247,6 +354,26 @@ function loadReports(): ReportRecord[] {
     reportsCache = readJsonFile<ReportRecord[]>(REPORTS_FILE, []);
     for (const r of reportsCache) {
       if (r.id >= reportsNextId) reportsNextId = r.id + 1;
+      // Migrate old reports to new workflow
+      const oldStatus = r.status as any;
+      if (oldStatus === "submitted" || oldStatus === "pending") {
+        r.status = "received";
+      } else if (oldStatus === "resolved") {
+        r.status = "closed";
+      }
+      // "escalated" stays as "escalated"
+      // Ensure caseId exists
+      if (!r.caseId) {
+        r.caseId = `OJT-LEGACY-${String(r.id).padStart(5, "0")}`;
+      }
+      // Ensure confidence exists
+      if (!r.confidence) {
+        r.confidence = "low";
+      }
+      // Ensure anonymous exists
+      if (r.anonymous === undefined) {
+        r.anonymous = !r.reporterPhone;
+      }
     }
   }
   return reportsCache;
@@ -278,6 +405,46 @@ function saveMedia() {
   }
 }
 
+// Audit log store
+let auditCache: AuditLogRecord[] | null = null;
+let auditNextId = 1;
+
+function loadAuditLog(): AuditLogRecord[] {
+  if (auditCache === null) {
+    auditCache = readJsonFile<AuditLogRecord[]>(AUDIT_LOG_FILE, []);
+    for (const a of auditCache) {
+      if (a.id >= auditNextId) auditNextId = a.id + 1;
+    }
+  }
+  return auditCache;
+}
+
+function saveAuditLog() {
+  if (auditCache !== null) {
+    writeJsonFile(AUDIT_LOG_FILE, auditCache);
+  }
+}
+
+// Notes store
+let notesCache: ReportNoteRecord[] | null = null;
+let notesNextId = 1;
+
+function loadNotes(): ReportNoteRecord[] {
+  if (notesCache === null) {
+    notesCache = readJsonFile<ReportNoteRecord[]>(NOTES_FILE, []);
+    for (const n of notesCache) {
+      if (n.id >= notesNextId) notesNextId = n.id + 1;
+    }
+  }
+  return notesCache;
+}
+
+function saveNotes() {
+  if (notesCache !== null) {
+    writeJsonFile(NOTES_FILE, notesCache);
+  }
+}
+
 // Users store
 let usersCache: UserRecord[] | null = null;
 let usersNextId = 1;
@@ -298,7 +465,34 @@ function saveUsers() {
   }
 }
 
-// Public API
+// ============================================================
+// AUDIT LOG HELPER
+// ============================================================
+
+export function logAudit(params: {
+  reportId: number;
+  caseId: string;
+  action: string;
+  oldStatus?: string;
+  newStatus?: string;
+  operatorRole: string;
+  operatorName: string;
+  note?: string;
+}) {
+  const entry: AuditLogRecord = {
+    id: auditNextId++,
+    ...params,
+    timestamp: new Date().toISOString(),
+  };
+  loadAuditLog().push(entry);
+  saveAuditLog();
+  return entry;
+}
+
+// ============================================================
+// PUBLIC API
+// ============================================================
+
 export const reportStore = {
   getAll(): ReportRecord[] {
     return [...loadReports()].sort(
@@ -314,14 +508,49 @@ export const reportStore = {
     return { ...report, media };
   },
 
+  getByCaseId(caseId: string): (ReportRecord & { media: ReportMediaRecord[] }) | undefined {
+    const report = loadReports().find((r) => r.caseId === caseId);
+    if (!report) return undefined;
+    const media = loadMedia().filter((m) => m.reportId === report.id);
+    return { ...report, media };
+  },
+
   getMediaByReportId(reportId: number): ReportMediaRecord[] {
     return loadMedia().filter((m) => m.reportId === reportId);
+  },
+
+  getAuditLog(reportId: number): AuditLogRecord[] {
+    return loadAuditLog()
+      .filter((a) => a.reportId === reportId)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  },
+
+  getNotes(reportId: number): ReportNoteRecord[] {
+    return loadNotes()
+      .filter((n) => n.reportId === reportId)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  },
+
+  addNote(params: {
+    reportId: number;
+    note: string;
+    authorRole: string;
+    authorName: string;
+  }) {
+    const entry: ReportNoteRecord = {
+      id: notesNextId++,
+      ...params,
+      createdAt: new Date().toISOString(),
+    };
+    loadNotes().push(entry);
+    saveNotes();
+    return entry;
   },
 
   create(
     data: Omit<
       ReportRecord,
-      "id" | "submittedAt" | "updatedAt"
+      "id" | "caseId" | "submittedAt" | "updatedAt" | "status" | "confidence" | "anonymous"
     > & {
       media?: Array<{
         mediaType: "photo" | "video" | "audio";
@@ -331,16 +560,46 @@ export const reportStore = {
         fileSize?: number;
       }>;
     }
-  ): number {
+  ): { id: number; caseId: string } {
     const now = new Date().toISOString();
+    const caseId = generateCaseId();
+
+    // Calculate confidence
+    const hasGps = !!data.latitude && !!data.longitude;
+    const mediaCount = data.media?.length || 0;
+    const isAnonymous = !data.reporterPhone;
+
+    const confidence = calculateConfidence({
+      reporterName: data.reporterName,
+      reporterPhone: data.reporterPhone,
+      mediaCount,
+      hasGps,
+      anonymous: isAnonymous,
+    });
+
     const report: ReportRecord = {
       ...data,
       id: reportsNextId++,
+      caseId,
+      status: "received",
+      confidence,
+      anonymous: isAnonymous,
       submittedAt: now,
       updatedAt: now,
     };
     loadReports().push(report);
     saveReports();
+
+    // Log creation
+    logAudit({
+      reportId: report.id,
+      caseId,
+      action: "report_created",
+      newStatus: "received",
+      operatorRole: "system",
+      operatorName: "Auto-Intake",
+      note: `Report received. Confidence: ${confidence}. Media: ${mediaCount}. GPS: ${hasGps ? "yes" : "no"}.`,
+    });
 
     if (data.media && data.media.length > 0) {
       const mediaRecords: ReportMediaRecord[] = data.media.map((m) => ({
@@ -357,17 +616,81 @@ export const reportStore = {
       saveMedia();
     }
 
-    return report.id;
+    return { id: report.id, caseId };
   },
 
-  updateStatus(id: number, status: string): boolean {
+  updateStatus(params: {
+    id: number;
+    status: WorkflowStatus;
+    operatorRole: string;
+    operatorName: string;
+    note?: string;
+  }): { success: boolean; twoPersonRequired?: boolean } {
+    const { id, status, operatorRole, operatorName, note } = params;
     const reports = loadReports();
     const report = reports.find((r) => r.id === id);
-    if (!report) return false;
+    if (!report) return { success: false };
+
+    const oldStatus = report.status;
+
+    // WORKFLOW VALIDATION: enforce valid transitions
+    const validTransitions: Record<string, WorkflowStatus[]> = {
+      received: ["triaged", "escalated"],
+      triaged: ["under_verification", "escalated"],
+      under_verification: ["verified", "unverified", "escalated"],
+      verified: ["escalated", "closed"],
+      unverified: ["closed"],
+      escalated: ["closed"],
+      closed: [],
+    };
+
+    const allowed = validTransitions[oldStatus] || [];
+    if (!allowed.includes(status)) {
+      return { success: false };
+    }
+
+    // TWO-PERSON RULE: verified/escalated/closed requires supervisor
+    const supervisorOnly: WorkflowStatus[] = ["verified", "escalated", "closed"];
+    if (supervisorOnly.includes(status) && operatorRole !== "supervisor") {
+      return { success: false, twoPersonRequired: true };
+    }
+
     report.status = status;
     report.updatedAt = new Date().toISOString();
+
+    // Set role-specific timestamps
+    if (status === "triaged") {
+      report.triagedAt = report.updatedAt;
+      report.triagedBy = operatorName;
+    }
+    if (status === "verified") {
+      report.verifiedAt = report.updatedAt;
+      report.verifiedBy = operatorName;
+    }
+    if (status === "escalated") {
+      report.escalatedAt = report.updatedAt;
+      report.escalatedBy = operatorName;
+    }
+    if (status === "closed") {
+      report.closedAt = report.updatedAt;
+      report.closedBy = operatorName;
+    }
+
     saveReports();
-    return true;
+
+    // Log to audit trail
+    logAudit({
+      reportId: id,
+      caseId: report.caseId,
+      action: "status_changed",
+      oldStatus,
+      newStatus: status,
+      operatorRole,
+      operatorName,
+      note: note || undefined,
+    });
+
+    return { success: true };
   },
 
   getStats() {
@@ -375,11 +698,13 @@ export const reportStore = {
     const byStatus: Record<string, number> = {};
     const byType: Record<string, number> = {};
     const byLGA: Record<string, number> = {};
+    const byConfidence: Record<string, number> = {};
 
     for (const r of all) {
       byStatus[r.status] = (byStatus[r.status] || 0) + 1;
       byType[r.incidentType] = (byType[r.incidentType] || 0) + 1;
       byLGA[r.lga] = (byLGA[r.lga] || 0) + 1;
+      byConfidence[r.confidence] = (byConfidence[r.confidence] || 0) + 1;
     }
 
     return {
@@ -396,6 +721,10 @@ export const reportStore = {
         .map(([lga, count]) => ({ lga, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 10),
+      byConfidence: Object.entries(byConfidence).map(([level, count]) => ({
+        level,
+        count,
+      })),
     };
   },
 
@@ -406,6 +735,7 @@ export const reportStore = {
     limit?: number;
     offset?: number;
     includeMedia?: boolean;
+    redactReporter?: boolean;
   }) {
     let results = loadReports();
 
@@ -435,6 +765,19 @@ export const reportStore = {
       results = results.map((r) => ({
         ...r,
         media: allMedia.filter((m) => m.reportId === r.id),
+      })) as (ReportRecord & { media: ReportMediaRecord[] })[];
+    }
+
+    // REDACT reporter identity from public queries
+    if (options.redactReporter) {
+      results = results.map((r) => ({
+        ...r,
+        reporterPhone: undefined,
+        reporterName: undefined,
+        latitude: r.anonymous ? undefined : r.latitude,
+        longitude: r.anonymous ? undefined : r.longitude,
+        locationAccuracy: r.anonymous ? undefined : r.locationAccuracy,
+        locationAddress: r.anonymous ? undefined : r.locationAddress,
       })) as (ReportRecord & { media: ReportMediaRecord[] })[];
     }
 

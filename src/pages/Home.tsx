@@ -18,9 +18,14 @@ export default function Home() {
 
   const statusColor = (status: string) => {
     switch (status) {
+      case "verified": return "bg-emerald-500/20 text-emerald-400";
       case "resolved": return "bg-emerald-500/20 text-emerald-400";
+      case "under_verification": return "bg-amber-500/20 text-amber-400";
       case "pending": return "bg-amber-500/20 text-amber-400";
-      case "escalated": return "bg-red-500/20 text-red-400";
+      case "triaged": return "bg-purple-500/20 text-purple-400";
+      case "escalated": return "bg-orange-500/20 text-orange-400";
+      case "unverified": return "bg-red-500/20 text-red-400";
+      case "closed": return "bg-gray-500/20 text-gray-400";
       default: return "bg-blue-500/20 text-blue-400";
     }
   };
@@ -33,6 +38,19 @@ export default function Home() {
     overvoting: t("incident.overvoting"),
     late_arrival: t("incident.late_arrival"),
     other: t("incident.other"),
+  };
+
+  const statusLabels: Record<string, string> = {
+    received: "Received",
+    triaged: "Triaged",
+    under_verification: "In Review",
+    verified: "Verified",
+    unverified: "Unverified",
+    escalated: "Escalated",
+    closed: "Closed",
+    submitted: "Submitted",
+    pending: "Pending",
+    resolved: "Resolved",
   };
 
   return (
@@ -200,7 +218,7 @@ export default function Home() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(report.status)}`}>
-                        {report.status}
+                        {statusLabels[report.status] || report.status}
                       </span>
                     </div>
                     <p className="text-white font-medium">

@@ -56,6 +56,7 @@ export default function Report() {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedCaseId, setSubmittedCaseId] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [locationAddress, setLocationAddress] = useState("");
@@ -99,10 +100,11 @@ export default function Report() {
         myReportIds.push(data.id);
         localStorage.setItem("ojutole_my_reports", JSON.stringify(myReportIds));
       }
+      if (data?.caseId) {
+        setSubmittedCaseId(data.caseId);
+      }
       setSubmitted(true);
-      setTimeout(() => {
-        navigate("/");
-      }, 2000);
+      // Don't auto-redirect - let user see their case ID
     },
   });
 
@@ -430,11 +432,48 @@ export default function Report() {
           <Check size={40} className="text-emerald-400" />
         </div>
         <h2 className="text-2xl font-black text-white mb-2 animate-fade-in">
-          {t("common.success")}!
+          Report Submitted Successfully!
         </h2>
-        <p className="text-white/60 text-center animate-fade-in">
+        <p className="text-white/60 text-center animate-fade-in mb-6">
           {t("hero.tagline")}
         </p>
+
+        {/* Case ID Card */}
+        {submittedCaseId && (
+          <div className="glass rounded-2xl p-6 w-full max-w-sm mb-6 animate-fade-in border border-[#2563EB]/30">
+            <p className="text-xs text-white/40 uppercase tracking-wider text-center mb-2">Your Case ID</p>
+            <p className="text-3xl font-black text-[#2563EB] text-center tracking-wider font-mono">
+              {submittedCaseId}
+            </p>
+            <p className="text-xs text-white/40 text-center mt-2">
+              Save this ID to check your report status later
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-3 w-full max-w-sm animate-fade-in">
+          <button
+            onClick={() => navigate("/")}
+            className="w-full h-12 rounded-xl bg-[#2563EB] text-white font-bold flex items-center justify-center gap-2"
+          >
+            Return to Home
+          </button>
+          <button
+            onClick={() => {
+              setSubmitted(false);
+              setSubmittedCaseId("");
+              setIncidentType(null);
+              setLga("");
+              setWard("");
+              setDescription("");
+              setMedia([]);
+              setGps(null);
+            }}
+            className="w-full h-12 rounded-xl glass text-white/60 font-bold flex items-center justify-center gap-2 hover:text-white"
+          >
+            Submit Another Report
+          </button>
+        </div>
       </div>
     );
   }

@@ -940,11 +940,8 @@ import { dirname } from "path";
 function findPUDataPath() {
   const candidates = [
     "./api/osun-pu-data.json",
-    // Development
     "./dist/osun-pu-data.json",
-    // Production (from project root)
     "./osun-pu-data.json"
-    // Same directory as boot.js
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
@@ -975,7 +972,6 @@ function getFlatPollingUnits() {
           lga: entry.lga,
           ward: entry.ward,
           code: unit.code,
-          // Approximate coordinates for Osun State
           latitude: 7.5 + id * 1e-4,
           longitude: 4.5 + id * 1e-4
         });
@@ -1047,6 +1043,28 @@ function getNearbyPollingUnits(lat, lng, radiusKm, limit) {
 function getRawPUData() {
   return loadPUData();
 }
+function calculateConfidence(data) {
+  let score = 0;
+  if (data.reporterName && data.reporterPhone && !data.anonymous) score += 3;
+  if (data.mediaCount >= 2) score += 3;
+  else if (data.mediaCount === 1) score += 2;
+  if (data.hasGps) score += 2;
+  if (data.anonymous) score -= 2;
+  score += 1;
+  if (score >= 6) return "high";
+  if (score >= 3) return "medium";
+  return "low";
+}
+function generateCaseId() {
+  const now = /* @__PURE__ */ new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  if (dateStr !== lastCaseDate) {
+    lastCaseDate = dateStr;
+    caseIdCounter = 0;
+  }
+  caseIdCounter++;
+  return `OJT-${dateStr}-${String(caseIdCounter).padStart(4, "0")}`;
+}
 function ensureDir(path) {
   const dir = dirname(path);
   if (!existsSync(dir)) {
@@ -1071,6 +1089,21 @@ function loadReports() {
     reportsCache = readJsonFile(REPORTS_FILE, []);
     for (const r of reportsCache) {
       if (r.id >= reportsNextId) reportsNextId = r.id + 1;
+      const oldStatus = r.status;
+      if (oldStatus === "submitted" || oldStatus === "pending") {
+        r.status = "received";
+      } else if (oldStatus === "resolved") {
+        r.status = "closed";
+      }
+      if (!r.caseId) {
+        r.caseId = `OJT-LEGACY-${String(r.id).padStart(5, "0")}`;
+      }
+      if (!r.confidence) {
+        r.confidence = "low";
+      }
+      if (r.anonymous === void 0) {
+        r.anonymous = !r.reporterPhone;
+      }
     }
   }
   return reportsCache;
@@ -1094,6 +1127,34 @@ function saveMedia() {
     writeJsonFile("./data/report_media.json", mediaCache);
   }
 }
+function loadAuditLog() {
+  if (auditCache === null) {
+    auditCache = readJsonFile(AUDIT_LOG_FILE, []);
+    for (const a of auditCache) {
+      if (a.id >= auditNextId) auditNextId = a.id + 1;
+    }
+  }
+  return auditCache;
+}
+function saveAuditLog() {
+  if (auditCache !== null) {
+    writeJsonFile(AUDIT_LOG_FILE, auditCache);
+  }
+}
+function loadNotes() {
+  if (notesCache === null) {
+    notesCache = readJsonFile(NOTES_FILE, []);
+    for (const n of notesCache) {
+      if (n.id >= notesNextId) notesNextId = n.id + 1;
+    }
+  }
+  return notesCache;
+}
+function saveNotes() {
+  if (notesCache !== null) {
+    writeJsonFile(NOTES_FILE, notesCache);
+  }
+}
 function loadUsers() {
   if (usersCache === null) {
     usersCache = readJsonFile(USERS_FILE, []);
@@ -1108,17 +1169,35 @@ function saveUsers() {
     writeJsonFile(USERS_FILE, usersCache);
   }
 }
-var _puData, _flatPollingUnits, REPORTS_FILE, USERS_FILE, reportsCache, reportsNextId, mediaCache, mediaNextId, usersCache, usersNextId, reportStore, userStore;
+function logAudit(params) {
+  const entry = {
+    id: auditNextId++,
+    ...params,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  loadAuditLog().push(entry);
+  saveAuditLog();
+  return entry;
+}
+var _puData, _flatPollingUnits, caseIdCounter, lastCaseDate, REPORTS_FILE, USERS_FILE, AUDIT_LOG_FILE, NOTES_FILE, reportsCache, reportsNextId, mediaCache, mediaNextId, auditCache, auditNextId, notesCache, notesNextId, usersCache, usersNextId, reportStore, userStore;
 var init_json_store = __esm({
   "api/json-store.ts"() {
     _puData = null;
     _flatPollingUnits = null;
+    caseIdCounter = 0;
+    lastCaseDate = "";
     REPORTS_FILE = "./data/reports.json";
     USERS_FILE = "./data/users.json";
+    AUDIT_LOG_FILE = "./data/audit_log.json";
+    NOTES_FILE = "./data/report_notes.json";
     reportsCache = null;
     reportsNextId = 1;
     mediaCache = null;
     mediaNextId = 1;
+    auditCache = null;
+    auditNextId = 1;
+    notesCache = null;
+    notesNextId = 1;
     usersCache = null;
     usersNextId = 1;
     reportStore = {
@@ -1133,19 +1212,65 @@ var init_json_store = __esm({
         const media = loadMedia().filter((m) => m.reportId === id);
         return { ...report, media };
       },
+      getByCaseId(caseId) {
+        const report = loadReports().find((r) => r.caseId === caseId);
+        if (!report) return void 0;
+        const media = loadMedia().filter((m) => m.reportId === report.id);
+        return { ...report, media };
+      },
       getMediaByReportId(reportId) {
         return loadMedia().filter((m) => m.reportId === reportId);
       },
+      getAuditLog(reportId) {
+        return loadAuditLog().filter((a) => a.reportId === reportId).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      },
+      getNotes(reportId) {
+        return loadNotes().filter((n) => n.reportId === reportId).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      },
+      addNote(params) {
+        const entry = {
+          id: notesNextId++,
+          ...params,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        loadNotes().push(entry);
+        saveNotes();
+        return entry;
+      },
       create(data) {
         const now = (/* @__PURE__ */ new Date()).toISOString();
+        const caseId = generateCaseId();
+        const hasGps = !!data.latitude && !!data.longitude;
+        const mediaCount = data.media?.length || 0;
+        const isAnonymous = !data.reporterPhone;
+        const confidence = calculateConfidence({
+          reporterName: data.reporterName,
+          reporterPhone: data.reporterPhone,
+          mediaCount,
+          hasGps,
+          anonymous: isAnonymous
+        });
         const report = {
           ...data,
           id: reportsNextId++,
+          caseId,
+          status: "received",
+          confidence,
+          anonymous: isAnonymous,
           submittedAt: now,
           updatedAt: now
         };
         loadReports().push(report);
         saveReports();
+        logAudit({
+          reportId: report.id,
+          caseId,
+          action: "report_created",
+          newStatus: "received",
+          operatorRole: "system",
+          operatorName: "Auto-Intake",
+          note: `Report received. Confidence: ${confidence}. Media: ${mediaCount}. GPS: ${hasGps ? "yes" : "no"}.`
+        });
         if (data.media && data.media.length > 0) {
           const mediaRecords = data.media.map((m) => ({
             id: mediaNextId++,
@@ -1160,26 +1285,73 @@ var init_json_store = __esm({
           loadMedia().push(...mediaRecords);
           saveMedia();
         }
-        return report.id;
+        return { id: report.id, caseId };
       },
-      updateStatus(id, status) {
+      updateStatus(params) {
+        const { id, status, operatorRole, operatorName, note } = params;
         const reports = loadReports();
         const report = reports.find((r) => r.id === id);
-        if (!report) return false;
+        if (!report) return { success: false };
+        const oldStatus = report.status;
+        const validTransitions = {
+          received: ["triaged", "escalated"],
+          triaged: ["under_verification", "escalated"],
+          under_verification: ["verified", "unverified", "escalated"],
+          verified: ["escalated", "closed"],
+          unverified: ["closed"],
+          escalated: ["closed"],
+          closed: []
+        };
+        const allowed = validTransitions[oldStatus] || [];
+        if (!allowed.includes(status)) {
+          return { success: false };
+        }
+        const supervisorOnly = ["verified", "escalated", "closed"];
+        if (supervisorOnly.includes(status) && operatorRole !== "supervisor") {
+          return { success: false, twoPersonRequired: true };
+        }
         report.status = status;
         report.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+        if (status === "triaged") {
+          report.triagedAt = report.updatedAt;
+          report.triagedBy = operatorName;
+        }
+        if (status === "verified") {
+          report.verifiedAt = report.updatedAt;
+          report.verifiedBy = operatorName;
+        }
+        if (status === "escalated") {
+          report.escalatedAt = report.updatedAt;
+          report.escalatedBy = operatorName;
+        }
+        if (status === "closed") {
+          report.closedAt = report.updatedAt;
+          report.closedBy = operatorName;
+        }
         saveReports();
-        return true;
+        logAudit({
+          reportId: id,
+          caseId: report.caseId,
+          action: "status_changed",
+          oldStatus,
+          newStatus: status,
+          operatorRole,
+          operatorName,
+          note: note || void 0
+        });
+        return { success: true };
       },
       getStats() {
         const all = loadReports();
         const byStatus = {};
         const byType = {};
         const byLGA = {};
+        const byConfidence = {};
         for (const r of all) {
           byStatus[r.status] = (byStatus[r.status] || 0) + 1;
           byType[r.incidentType] = (byType[r.incidentType] || 0) + 1;
           byLGA[r.lga] = (byLGA[r.lga] || 0) + 1;
+          byConfidence[r.confidence] = (byConfidence[r.confidence] || 0) + 1;
         }
         return {
           total: all.length,
@@ -1191,7 +1363,11 @@ var init_json_store = __esm({
             incidentType,
             count
           })),
-          byLGA: Object.entries(byLGA).map(([lga, count]) => ({ lga, count })).sort((a, b) => b.count - a.count).slice(0, 10)
+          byLGA: Object.entries(byLGA).map(([lga, count]) => ({ lga, count })).sort((a, b) => b.count - a.count).slice(0, 10),
+          byConfidence: Object.entries(byConfidence).map(([level, count]) => ({
+            level,
+            count
+          }))
         };
       },
       filter(options) {
@@ -1217,6 +1393,17 @@ var init_json_store = __esm({
           results = results.map((r) => ({
             ...r,
             media: allMedia.filter((m) => m.reportId === r.id)
+          }));
+        }
+        if (options.redactReporter) {
+          results = results.map((r) => ({
+            ...r,
+            reporterPhone: void 0,
+            reporterName: void 0,
+            latitude: r.anonymous ? void 0 : r.latitude,
+            longitude: r.anonymous ? void 0 : r.longitude,
+            locationAccuracy: r.anonymous ? void 0 : r.locationAccuracy,
+            locationAddress: r.anonymous ? void 0 : r.locationAddress
           }));
         }
         return { reports: results, total };
@@ -9580,8 +9767,22 @@ function requireRole(role) {
     return next({ ctx: { ...ctx, user: ctx.user } });
   });
 }
+function requireAnyRole(roles) {
+  return t.middleware(async (opts) => {
+    const { ctx, next } = opts;
+    if (!ctx.user || !roles.includes(ctx.user.role)) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Insufficient privileges for this operation."
+      });
+    }
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  });
+}
 var authedQuery = t.procedure.use(requireAuth);
 var adminQuery = authedQuery.use(requireRole("admin"));
+var supervisorQuery = authedQuery.use(requireAnyRole(["admin", "supervisor"]));
+var verifierQuery = authedQuery.use(requireAnyRole(["admin", "supervisor", "verifier"]));
 
 // api/auth-router.ts
 var authRouter = createRouter({
@@ -24203,9 +24404,10 @@ var pollingUnitRouter = createRouter({
 // api/routers/reportRouter.ts
 init_json_store();
 var reportRouter = createRouter({
+  // Public: list reports (reporter identity REDACTED)
   list: publicQuery.input(
     external_exports.object({
-      status: external_exports.enum(["submitted", "pending", "resolved", "escalated"]).optional(),
+      status: external_exports.string().optional(),
       lga: external_exports.string().optional(),
       incidentType: external_exports.enum([
         "vote_buying",
@@ -24225,12 +24427,50 @@ var reportRouter = createRouter({
       lga: input?.lga,
       incidentType: input?.incidentType,
       limit: input?.limit,
-      offset: input?.offset
+      offset: input?.offset,
+      includeMedia: true,
+      redactReporter: true
+      // PUBLIC: hide reporter identity
     });
   }),
+  // Public: get single report by ID (REDACTED)
   getById: publicQuery.input(external_exports.object({ id: external_exports.number() })).query(({ input }) => {
-    return reportStore.getById(input.id);
+    const report = reportStore.getById(input.id);
+    if (!report) return null;
+    return {
+      ...report,
+      reporterPhone: void 0,
+      reporterName: void 0,
+      latitude: report.anonymous ? void 0 : report.latitude,
+      longitude: report.anonymous ? void 0 : report.longitude,
+      locationAccuracy: report.anonymous ? void 0 : report.locationAccuracy,
+      locationAddress: report.anonymous ? void 0 : report.locationAddress
+    };
   }),
+  // Public: get report by case ID (for reporters to check status)
+  getByCaseId: publicQuery.input(external_exports.object({ caseId: external_exports.string() })).query(({ input }) => {
+    const report = reportStore.getByCaseId(input.caseId);
+    if (!report) return null;
+    return {
+      id: report.id,
+      caseId: report.caseId,
+      incidentType: report.incidentType,
+      lga: report.lga,
+      ward: report.ward,
+      pollingUnit: report.pollingUnit,
+      description: report.description,
+      status: report.status,
+      confidence: report.confidence,
+      submittedAt: report.submittedAt,
+      updatedAt: report.updatedAt,
+      triagedAt: report.triagedAt,
+      verifiedAt: report.verifiedAt,
+      escalatedAt: report.escalatedAt,
+      closedAt: report.closedAt,
+      media: report.media
+    };
+  }),
+  // Public: create report
   create: publicQuery.input(
     external_exports.object({
       incidentType: external_exports.enum([
@@ -24264,32 +24504,294 @@ var reportRouter = createRouter({
     })
   ).mutation(({ input }) => {
     const { media, ...reportData } = input;
-    const id = reportStore.create({
+    const result = reportStore.create({
       ...reportData,
-      status: "submitted",
       syncStatus: "synced",
       media
     });
-    return { id, success: true };
+    return { id: result.id, caseId: result.caseId, success: true };
   }),
-  updateStatus: adminQuery.input(
+  // ============================================================
+  // VERIFIER ROUTES (triage, review, add notes)
+  // ============================================================
+  // Verifier: list ALL reports (with reporter info)
+  listAdmin: verifierQuery.input(
+    external_exports.object({
+      status: external_exports.string().optional(),
+      lga: external_exports.string().optional(),
+      incidentType: external_exports.string().optional(),
+      limit: external_exports.number().min(1).max(100).default(50),
+      offset: external_exports.number().min(0).default(0)
+    }).optional()
+  ).query(({ input }) => {
+    return reportStore.filter({
+      status: input?.status,
+      lga: input?.lga,
+      incidentType: input?.incidentType,
+      limit: input?.limit,
+      offset: input?.offset,
+      includeMedia: true,
+      redactReporter: false
+      // ADMIN: show full info
+    });
+  }),
+  // Verifier: get full report with audit trail
+  getByIdAdmin: verifierQuery.input(external_exports.object({ id: external_exports.number() })).query(({ input }) => {
+    const report = reportStore.getById(input.id);
+    if (!report) return null;
+    const auditLog = reportStore.getAuditLog(input.id);
+    const notes = reportStore.getNotes(input.id);
+    return { ...report, auditLog, notes };
+  }),
+  // Verifier: add internal note
+  addNote: verifierQuery.input(
+    external_exports.object({
+      reportId: external_exports.number(),
+      note: external_exports.string().min(1).max(1e3)
+    })
+  ).mutation(({ input, ctx }) => {
+    const user = ctx.user;
+    const entry = reportStore.addNote({
+      reportId: input.reportId,
+      note: input.note,
+      authorRole: user.role,
+      authorName: user.name || user.role
+    });
+    return { success: true, note: entry };
+  }),
+  // Verifier: triage (move received → triaged)
+  triage: verifierQuery.input(
     external_exports.object({
       id: external_exports.number(),
-      status: external_exports.enum(["submitted", "pending", "resolved", "escalated"])
+      note: external_exports.string().optional()
     })
-  ).mutation(({ input }) => {
-    reportStore.updateStatus(input.id, input.status);
-    return { success: true };
+  ).mutation(({ input, ctx }) => {
+    const user = ctx.user;
+    const result = reportStore.updateStatus({
+      id: input.id,
+      status: "triaged",
+      operatorRole: user.role,
+      operatorName: user.name || `${user.role}`,
+      note: input.note
+    });
+    return result;
   }),
+  // Verifier: move to under verification
+  startVerification: verifierQuery.input(
+    external_exports.object({
+      id: external_exports.number(),
+      note: external_exports.string().optional()
+    })
+  ).mutation(({ input, ctx }) => {
+    const user = ctx.user;
+    return reportStore.updateStatus({
+      id: input.id,
+      status: "under_verification",
+      operatorRole: user.role,
+      operatorName: user.name || `${user.role}`,
+      note: input.note
+    });
+  }),
+  // ============================================================
+  // SUPERVISOR ROUTES (verify, escalate, close)
+  // Two-person rule: these require supervisor role
+  // ============================================================
+  // Supervisor: mark verified
+  verify: supervisorQuery.input(
+    external_exports.object({
+      id: external_exports.number(),
+      note: external_exports.string().optional()
+    })
+  ).mutation(({ input, ctx }) => {
+    const user = ctx.user;
+    return reportStore.updateStatus({
+      id: input.id,
+      status: "verified",
+      operatorRole: user.role,
+      operatorName: user.name || `${user.role}`,
+      note: input.note
+    });
+  }),
+  // Supervisor: mark unverified
+  markUnverified: supervisorQuery.input(
+    external_exports.object({
+      id: external_exports.number(),
+      note: external_exports.string().optional()
+    })
+  ).mutation(({ input, ctx }) => {
+    const user = ctx.user;
+    return reportStore.updateStatus({
+      id: input.id,
+      status: "unverified",
+      operatorRole: user.role,
+      operatorName: user.name || `${user.role}`,
+      note: input.note
+    });
+  }),
+  // Supervisor: escalate
+  escalate: supervisorQuery.input(
+    external_exports.object({
+      id: external_exports.number(),
+      note: external_exports.string().optional()
+    })
+  ).mutation(({ input, ctx }) => {
+    const user = ctx.user;
+    return reportStore.updateStatus({
+      id: input.id,
+      status: "escalated",
+      operatorRole: user.role,
+      operatorName: user.name || `${user.role}`,
+      note: input.note
+    });
+  }),
+  // Supervisor: close
+  close: supervisorQuery.input(
+    external_exports.object({
+      id: external_exports.number(),
+      note: external_exports.string().optional()
+    })
+  ).mutation(({ input, ctx }) => {
+    const user = ctx.user;
+    return reportStore.updateStatus({
+      id: input.id,
+      status: "closed",
+      operatorRole: user.role,
+      operatorName: user.name || `${user.role}`,
+      note: input.note
+    });
+  }),
+  // Public: stats (used on home page)
   getStats: publicQuery.query(() => {
     return reportStore.getStats();
   }),
+  // Public: recent reports (REDACTED)
   getRecent: publicQuery.input(
     external_exports.object({
       limit: external_exports.number().min(1).max(50).default(10)
     }).optional()
   ).query(({ input }) => {
-    return reportStore.getAll().slice(0, input?.limit || 10);
+    const reports = reportStore.getAll().slice(0, input?.limit || 10).map((r) => ({
+      id: r.id,
+      caseId: r.caseId,
+      incidentType: r.incidentType,
+      lga: r.lga,
+      ward: r.ward,
+      status: r.status,
+      confidence: r.confidence,
+      submittedAt: r.submittedAt,
+      mediaCount: 0
+    }));
+    return reports;
+  }),
+  // Verifier: get audit log for a report
+  getAuditLog: verifierQuery.input(external_exports.object({ reportId: external_exports.number() })).query(({ input }) => {
+    return reportStore.getAuditLog(input.reportId);
+  })
+});
+
+// api/admin-auth.ts
+import { randomBytes } from "crypto";
+var ROLE_PASSWORDS = {
+  verifier: "725289",
+  // Current admin password becomes verifier
+  supervisor: "725290"
+  // Different password for supervisor
+};
+var sessions = /* @__PURE__ */ new Map();
+setInterval(() => {
+  const now = Date.now();
+  const oneDay = 24 * 60 * 60 * 1e3;
+  for (const [token, session] of sessions.entries()) {
+    if (now - session.createdAt > oneDay) {
+      sessions.delete(token);
+    }
+  }
+}, 60 * 60 * 1e3);
+function adminLogin(role, password) {
+  const expectedPassword = ROLE_PASSWORDS[role.toLowerCase()];
+  if (!expectedPassword || expectedPassword !== password) {
+    return null;
+  }
+  const token = randomBytes(32).toString("hex");
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const user = {
+    id: role === "supervisor" ? 1 : 2,
+    unionId: `admin_${role}`,
+    name: role === "supervisor" ? "Verification Supervisor" : "Desk Verifier",
+    role: role.toLowerCase(),
+    createdAt: now,
+    updatedAt: now,
+    lastSignInAt: now
+  };
+  sessions.set(token, { role: user.role, name: user.name, createdAt: Date.now() });
+  return { token, user };
+}
+function validateAdminToken(token) {
+  const session = sessions.get(token);
+  if (!session) return null;
+  return {
+    id: session.role === "supervisor" ? 1 : 2,
+    unionId: `admin_${session.role}`,
+    name: session.name,
+    role: session.role,
+    createdAt: new Date(session.createdAt).toISOString(),
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    lastSignInAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+function adminLogout(token) {
+  sessions.delete(token);
+}
+function getAvailableRoles() {
+  return [
+    { role: "verifier", label: "Desk Verifier" },
+    { role: "supervisor", label: "Verification Supervisor" }
+  ];
+}
+
+// api/routers/adminAuthRouter.ts
+var adminAuthRouter = createRouter({
+  // Login with role + password
+  login: publicQuery.input(
+    external_exports.object({
+      role: external_exports.enum(["verifier", "supervisor"]),
+      password: external_exports.string().min(1)
+    })
+  ).mutation(({ input }) => {
+    const result = adminLogin(input.role, input.password);
+    if (!result) {
+      return { success: false, error: "Invalid role or password" };
+    }
+    return {
+      success: true,
+      token: result.token,
+      user: {
+        name: result.user.name,
+        role: result.user.role
+      }
+    };
+  }),
+  // Validate token (check if still logged in)
+  me: publicQuery.input(external_exports.object({ token: external_exports.string() }).optional()).query(({ input }) => {
+    if (!input?.token) return { authenticated: false };
+    const user = validateAdminToken(input.token);
+    if (!user) return { authenticated: false };
+    return {
+      authenticated: true,
+      user: {
+        name: user.name,
+        role: user.role
+      }
+    };
+  }),
+  // Get available roles
+  roles: publicQuery.query(() => {
+    return getAvailableRoles();
+  }),
+  // Logout
+  logout: publicQuery.input(external_exports.object({ token: external_exports.string() })).mutation(({ input }) => {
+    adminLogout(input.token);
+    return { success: true };
   })
 });
 
@@ -24298,13 +24800,36 @@ var appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
   auth: authRouter,
   pollingUnit: pollingUnitRouter,
-  report: reportRouter
+  report: reportRouter,
+  adminAuth: adminAuthRouter
 });
 
 // api/context.ts
 init_auth();
 async function createContext(opts) {
   const ctx = { req: opts.req, resHeaders: opts.resHeaders };
+  try {
+    const adminToken = opts.req.headers.get("x-admin-token");
+    if (adminToken) {
+      const adminUser = validateAdminToken(adminToken);
+      if (adminUser) {
+        ctx.user = {
+          id: adminUser.id,
+          unionId: adminUser.unionId,
+          name: adminUser.name,
+          email: adminUser.email,
+          avatar: void 0,
+          phone: void 0,
+          role: adminUser.role,
+          createdAt: adminUser.createdAt,
+          updatedAt: adminUser.updatedAt,
+          lastSignInAt: adminUser.lastSignInAt
+        };
+        return ctx;
+      }
+    }
+  } catch {
+  }
   try {
     ctx.user = await authenticateRequest(opts.req.headers);
   } catch {

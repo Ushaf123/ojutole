@@ -1,12 +1,17 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLanguage } from "@/hooks/useLanguage";
-import { FileText, MapPin, Clock, WifiOff, ChevronRight, AlertTriangle, ChevronLeft, Camera, Video, Mic, Phone, ExternalLink, Image } from "lucide-react";
+import {
+  FileText, MapPin, Clock, WifiOff, ChevronRight, AlertTriangle,
+  ChevronLeft, Camera, Video, Mic, Phone, ExternalLink, Image,
+  Search, ShieldCheck, Shield, Eye, UserX, RotateCcw
+} from "lucide-react";
 
-type FilterTab = "all" | "submitted" | "pending" | "resolved" | "offline";
+type FilterTab = "all" | "received" | "under_verification" | "verified" | "escalated" | "closed" | "offline";
 
 interface ReportDetail {
   id: number;
+  caseId: string;
   incidentType: string;
   lga: string;
   ward?: string;
@@ -17,6 +22,7 @@ interface ReportDetail {
   locationAccuracy?: number;
   locationAddress?: string;
   status: string;
+  confidence?: string;
   reporterPhone?: string;
   submittedAt: string;
   updatedAt: string;
@@ -29,10 +35,23 @@ interface ReportDetail {
   }>;
 }
 
+// New workflow status config
+const STATUS_CONFIG: Record<string, { color: string; label: string; icon: typeof Clock }> = {
+  received: { color: "bg-blue-500/20 text-blue-400", label: "Received", icon: RotateCcw },
+  triaged: { color: "bg-purple-500/20 text-purple-400", label: "Triaged", icon: Eye },
+  under_verification: { color: "bg-amber-500/20 text-amber-400", label: "Under Verification", icon: Shield },
+  verified: { color: "bg-emerald-500/20 text-emerald-400", label: "Verified", icon: ShieldCheck },
+  unverified: { color: "bg-red-500/20 text-red-400", label: "Unverified", icon: UserX },
+  escalated: { color: "bg-orange-500/20 text-orange-400", label: "Escalated", icon: AlertTriangle },
+  closed: { color: "bg-gray-500/20 text-gray-400", label: "Closed", icon: Clock },
+};
+
 export default function MyReports() {
   const { t } = useLanguage();
   const [filter, setFilter] = useState<FilterTab>("all");
   const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null);
+  const [caseIdSearch, setCaseIdSearch] = useState("");
+  const [searchedCase, setSearchedCase] = useState<any>(null);
 
   // Get report IDs submitted from this device
   const myReportIds = JSON.parse(localStorage.getItem("ojutole_my_reports") || "[]") as number[];
@@ -41,6 +60,12 @@ export default function MyReports() {
   const reportsQuery = trpc.report.list.useQuery(
     { limit: 100 },
     { enabled: myReportIds.length > 0 }
+  );
+
+  // Case ID lookup query
+  const caseIdQuery = trpc.report.getByCaseId.useQuery(
+    { caseId: caseIdSearch.trim() },
+    { enabled: false } // Manual trigger only
   );
 
   // Filter to only show reports from this device
@@ -59,26 +84,33 @@ export default function MyReports() {
     other: t("incident.other"),
   };
 
-  const statusConfig: Record<string, { color: string; label: string }> = {
-    submitted: { color: "bg-blue-500/20 text-blue-400", label: t("status.submitted") },
-    pending: { color: "bg-amber-500/20 text-amber-400", label: t("status.pending") },
-    resolved: { color: "bg-emerald-500/20 text-emerald-400", label: t("status.resolved") },
-    escalated: { color: "bg-red-500/20 text-red-400", label: t("status.escalated") },
-  };
-
   const tabs: { value: FilterTab; label: string }[] = [
-    { value: "all", label: t("myReports.filter.all") },
-    { value: "submitted", label: t("myReports.filter.submitted") },
-    { value: "pending", label: t("myReports.filter.pending") },
-    { value: "resolved", label: t("myReports.filter.resolved") },
-    { value: "offline", label: t("myReports.filter.offline") },
+    { value: "all", label: "All" },
+    { value: "received", label: "Received" },
+    { value: "under_verification", label: "In Review" },
+    { value: "verified", label: "Verified" },
+    { value: "escalated", label: "Escalated" },
+    { value: "closed", label: "Closed" },
+    { value: "offline", label: "Offline" },
   ];
+
+  const handleCaseSearch = async () => {
+    if (!caseIdSearch.trim()) return;
+    const result = await caseIdQuery.refetch();
+    if (result.data) {
+      setSearchedCase(result.data);
+    } else {
+      setSearchedCase(null);
+      alert("Case ID not found. Please check the ID and try again.");
+    }
+  };
 
   // Report Detail View
   if (selectedReport) {
-    const st = statusConfig[selectedReport.status] || statusConfig.submitted;
+    const st = STATUS_CONFIG[selectedReport.status] || STATUS_CONFIG.received;
     const hasMedia = selectedReport.media && selectedReport.media.length > 0;
     const hasLocation = selectedReport.latitude && selectedReport.longitude;
+    const StatusIcon = st.icon;
 
     return (
       <div className="min-h-screen pb-8">
@@ -88,15 +120,17 @@ export default function MyReports() {
               <ChevronLeft size={18} className="text-white/60" />
             </button>
             <div>
-              <h1 className="text-lg font-black uppercase tracking-tight text-white">Report #{selectedReport.id}</h1>
-              <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">OJÚTÓLÉ</p>
+              <h1 className="text-lg font-black uppercase tracking-tight text-white">{selectedReport.caseId}</h1>
+              <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">Report #{selectedReport.id} | OJÚTÓLÉ</p>
             </div>
           </div>
         </div>
 
         <div className="px-4 py-4 space-y-4">
-          <div className="flex items-center gap-3">
-            <span className={`text-xs px-3 py-1 rounded-full font-medium ${st.color}`}>{st.label}</span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className={`text-xs px-3 py-1 rounded-full font-medium ${st.color} flex items-center gap-1.5`}>
+              <StatusIcon size={12} /> {st.label}
+            </span>
             <span className="text-xs text-white/40">{incidentLabels[selectedReport.incidentType] || selectedReport.incidentType}</span>
           </div>
 
@@ -115,12 +149,8 @@ export default function MyReports() {
                 {selectedReport.locationAddress && (
                   <p className="text-xs text-emerald-400/80">{selectedReport.locationAddress}</p>
                 )}
-                <a
-                  href={`https://www.google.com/maps?q=${selectedReport.latitude},${selectedReport.longitude}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-[#2563EB] underline"
-                >
+                <a href={`https://www.google.com/maps?q=${selectedReport.latitude},${selectedReport.longitude}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-[#2563EB] underline">
                   <ExternalLink size={10} /> View on Map
                 </a>
               </div>
@@ -162,14 +192,13 @@ export default function MyReports() {
             </section>
           )}
 
-          {/* Reporter */}
-          {selectedReport.reporterPhone && (
-            <section className="glass rounded-2xl p-4">
-              <a href={`tel:${selectedReport.reporterPhone}`} className="text-sm text-[#2563EB] flex items-center gap-2">
-                <Phone size={14} /> {selectedReport.reporterPhone}
-              </a>
-            </section>
-          )}
+          {/* Timestamps */}
+          <section className="glass rounded-2xl p-4">
+            <div className="space-y-1">
+              <p className="text-xs text-white/40">Submitted: {new Date(selectedReport.submittedAt).toLocaleString("en-NG")}</p>
+              <p className="text-xs text-white/40">Updated: {new Date(selectedReport.updatedAt).toLocaleString("en-NG")}</p>
+            </div>
+          </section>
         </div>
       </div>
     );
@@ -182,6 +211,48 @@ export default function MyReports() {
           <h1 className="text-xl font-black uppercase tracking-tight text-white">{t("myReports.title")}</h1>
           <span className="text-[10px] text-[#F59E0B] uppercase tracking-wider">OJÚTÓLÉ</span>
         </div>
+
+        {/* Case ID Lookup */}
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+            <input
+              type="text"
+              value={caseIdSearch}
+              onChange={(e) => setCaseIdSearch(e.target.value)}
+              placeholder="Enter Case ID (e.g., OJT-20260728-0001)"
+              className="w-full h-10 pl-9 pr-3 rounded-xl glass text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50"
+            />
+          </div>
+          <button
+            onClick={handleCaseSearch}
+            disabled={!caseIdSearch.trim() || caseIdQuery.isFetching}
+            className="h-10 px-4 rounded-xl bg-[#2563EB] text-white text-xs font-bold disabled:opacity-50"
+          >
+            {caseIdQuery.isFetching ? "..." : "Check"}
+          </button>
+        </div>
+
+        {/* Searched Case Result */}
+        {searchedCase && (
+          <div className="glass rounded-xl p-3 mb-4 border border-[#2563EB]/30">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-mono text-[#2563EB]">{searchedCase.caseId}</p>
+                <p className="text-sm text-white font-medium">{incidentLabels[searchedCase.incidentType] || searchedCase.incidentType}</p>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_CONFIG[searchedCase.status]?.color || ""}`}>
+                  {STATUS_CONFIG[searchedCase.status]?.label || searchedCase.status}
+                </span>
+              </div>
+              <button
+                onClick={() => setSearchedCase(null)}
+                className="text-white/30 hover:text-white/60"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           {tabs.map((tab) => (
@@ -247,8 +318,9 @@ export default function MyReports() {
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredReports.map((report) => {
-                  const status = statusConfig[report.status] || statusConfig.submitted;
+                {filteredReports.map((report: any) => {
+                  const status = STATUS_CONFIG[report.status] || STATUS_CONFIG.received;
+                  const StatusIcon = status.icon;
                   const hasMedia = report.media && report.media.length > 0;
                   const hasLocation = report.latitude && report.longitude;
                   return (
@@ -259,8 +331,12 @@ export default function MyReports() {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
+                          {/* Case ID */}
+                          <p className="text-[10px] font-mono text-[#2563EB]/60 mb-1">{report.caseId}</p>
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>{status.label}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color} flex items-center gap-1`}>
+                              <StatusIcon size={10} /> {status.label}
+                            </span>
                             {hasMedia && <span className="text-xs text-purple-400 flex items-center gap-1"><Camera size={10} /> {report.media?.length}</span>}
                             {hasLocation && <span className="text-xs text-emerald-400 flex items-center gap-1"><MapPin size={10} /> GPS</span>}
                           </div>
