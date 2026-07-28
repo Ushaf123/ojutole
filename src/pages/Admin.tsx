@@ -156,6 +156,7 @@ export default function Admin() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [backupStatus, setBackupStatus] = useState<"idle" | "done">("idle");
+  const [noteText, setNoteText] = useState("");
 
   const role = session?.role || null;
   const isSupervisor = role === "supervisor";
@@ -199,6 +200,7 @@ export default function Admin() {
   const unverifyMutation = trpc.report.markUnverified.useMutation({ onSuccess: () => { invalidateAll(); } });
   const escalateMutation = trpc.report.escalate.useMutation({ onSuccess: () => { invalidateAll(); } });
   const closeMutation = trpc.report.close.useMutation({ onSuccess: () => { invalidateAll(); } });
+  const addNoteMutation = trpc.report.addNote.useMutation({ onSuccess: () => { invalidateAll(); setNoteText(""); } });
 
   function invalidateAll() {
     utils.report.listAdmin.invalidate();
@@ -441,6 +443,42 @@ export default function Admin() {
               </div>
             </section>
           )}
+
+          {/* Internal Notes */}
+          <section className="glass rounded-2xl p-4">
+            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2"><StickyNote size={14} /> Internal Notes</h2>
+            <div className="space-y-2 mb-3 max-h-48 overflow-y-auto">
+              {report.notes && report.notes.length > 0 ? (
+                report.notes.map((n: any) => (
+                  <div key={n.id} className="p-3 rounded-xl bg-white/5">
+                    <p className="text-xs text-white/70">{n.note}</p>
+                    <p className="text-[10px] text-white/30 mt-1">{n.authorName} ({n.authorRole}) · {new Date(n.createdAt).toLocaleString("en-NG")}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-white/30 italic">No internal notes yet</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input type="text" value={noteText} onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Add an internal note..."
+                className="flex-1 h-9 px-3 rounded-lg glass text-xs text-white placeholder:text-white/30 focus:outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && noteText.trim()) {
+                    addNoteMutation.mutate({ reportId: report.id, note: noteText.trim() });
+                  }
+                }}
+              />
+              <button onClick={() => {
+                if (noteText.trim()) {
+                  addNoteMutation.mutate({ reportId: report.id, note: noteText.trim() });
+                }
+              }} disabled={!noteText.trim() || addNoteMutation.isPending}
+                className="h-9 px-3 rounded-lg bg-[#2563EB] text-white text-xs font-bold disabled:opacity-50">
+                {addNoteMutation.isPending ? "..." : "Add"}
+              </button>
+            </div>
+          </section>
 
           {/* Audit Trail */}
           {auditLog.length > 0 && (
