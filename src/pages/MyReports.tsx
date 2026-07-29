@@ -3,11 +3,11 @@ import { trpc } from "@/providers/trpc";
 import { useLanguage } from "@/hooks/useLanguage";
 import {
   FileText, MapPin, Clock, WifiOff, ChevronRight, AlertTriangle,
-  ChevronLeft, Camera, Video, Mic, Phone, ExternalLink, Image,
-  Search, ShieldCheck, Shield, Eye, UserX, RotateCcw
+  ChevronLeft, Camera, Video, Mic, ExternalLink, Image,
+  Search, ShieldCheck, Shield, Eye, UserX, RotateCcw, Lock, Users
 } from "lucide-react";
 
-type FilterTab = "all" | "received" | "under_verification" | "verified" | "escalated" | "closed" | "offline";
+type FilterTab = "all" | "my_reports" | "community" | "offline";
 
 interface ReportDetail {
   id: number;
@@ -35,7 +35,6 @@ interface ReportDetail {
   }>;
 }
 
-// New workflow status config
 const STATUS_CONFIG: Record<string, { color: string; label: string; icon: typeof Clock }> = {
   received: { color: "bg-blue-500/20 text-blue-400", label: "Received", icon: RotateCcw },
   triaged: { color: "bg-purple-500/20 text-purple-400", label: "Triaged", icon: Eye },
@@ -56,23 +55,39 @@ export default function MyReports() {
   // Get report IDs submitted from this device
   const myReportIds = JSON.parse(localStorage.getItem("ojutole_my_reports") || "[]") as number[];
 
-  // Fetch recent reports but only show ones submitted from this phone
+  // Fetch ALL reports (public API - redacts reporter identity)
   const reportsQuery = trpc.report.list.useQuery(
-    { limit: 100 },
-    { enabled: myReportIds.length > 0 }
+    { limit: 200 },
+    { enabled: true } // Always fetch, don't require myReportIds
   );
 
   // Case ID lookup query
   const caseIdQuery = trpc.report.getByCaseId.useQuery(
     { caseId: caseIdSearch.trim() },
-    { enabled: false } // Manual trigger only
+    { enabled: false }
   );
 
-  // Filter to only show reports from this device
-  const allReports = (reportsQuery.data?.reports || []).filter((r) => myReportIds.includes(r.id));
+  const allReports = reportsQuery.data?.reports || [];
   const offlineQueue = JSON.parse(localStorage.getItem("ojutole_offline_queue") || "[]");
 
-  const filteredReports = filter === "offline" ? [] : filter === "all" ? allReports : allReports.filter((r) => r.status === filter);
+  // Split into my reports vs community reports
+  const myReports = allReports.filter((r) => myReportIds.includes(r.id));
+  const communityReports = allReports.filter((r) => !myReportIds.includes(r.id));
+
+  // Apply filter
+  let displayReports: typeof allReports = [];
+  let sectionTitle = "";
+
+  if (filter === "my_reports") {
+    displayReports = myReports;
+    sectionTitle = "My Reports";
+  } else if (filter === "community") {
+    displayReports = communityReports;
+    sectionTitle = "Community Reports";
+  } else if (filter === "all") {
+    displayReports = allReports;
+    sectionTitle = "All Reports";
+  }
 
   const incidentLabels: Record<string, string> = {
     vote_buying: t("incident.vote_buying"),
@@ -85,13 +100,10 @@ export default function MyReports() {
   };
 
   const tabs: { value: FilterTab; label: string }[] = [
-    { value: "all", label: "All" },
-    { value: "received", label: "Received" },
-    { value: "under_verification", label: "In Review" },
-    { value: "verified", label: "Verified" },
-    { value: "escalated", label: "Escalated" },
-    { value: "closed", label: "Closed" },
-    { value: "offline", label: "Offline" },
+    { value: "all", label: `All (${allReports.length})` },
+    { value: "my_reports", label: `My Reports (${myReports.length})` },
+    { value: "community", label: `Community (${communityReports.length})` },
+    { value: "offline", label: `Offline` },
   ];
 
   const handleCaseSearch = async () => {
@@ -105,8 +117,134 @@ export default function MyReports() {
     }
   };
 
+  // Helper to check if a report belongs to current user
+  const isMyReport = (reportId: number) => myReportIds.includes(reportId);
+
+  // Report Card Component
+  const ReportCard = ({ report, isMine }: { report: any; isMine: boolean }) => {
+    const st = STATUS_CONFIG[report.status] || STATUS_CONFIG.received;
+    const StatusIcon = st.icon;
+    const hasMedia = report.media && report.media.length > 0;
+    const hasLocation = report.latitude && report.longitude;
+
+    if (isMine) {
+      // My report - fully clickable
+      return (
+        <button
+          onClick={() => setSelectedReport(report as ReportDetail)}
+          className="w-full glass rounded-xl p-4 text-left hover:bg-white/5 transition-colors border-l-2 border-[#2563EB]"
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="text-[10px] font-mono text-[#2563EB]/60">{report.caseId}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${st.color} font-medium flex items-center gap-1`}>
+                  <StatusIcon size={10} /> {st.label}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2563EB]/20 text-[#2563EB] font-medium">MY REPORT</span>
+              </div>
+              <p className="text-white font-medium text-sm">{incidentLabels[report.incidentType] || report.incidentType}</p>
+              <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                <span className="text-xs font-medium text-white/70 bg-white/5 px-2 py-0.5 rounded">{report.lga}</span>
+                {report.ward && <span className="text-xs text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded flex items-center gap-1"><MapPin size={10} /> {report.ward}</span>}
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                {hasMedia && <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 flex items-center gap-1"><Camera size={10} /> {report.media?.length}</span>}
+                {hasLocation && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center gap-1"><MapPin size={10} /> GPS</span>}
+              </div>
+              {report.description && <p className="text-xs text-white/40 mt-2 line-clamp-2">{report.description}</p>}
+              <p className="text-[10px] text-white/30 mt-2">{new Date(report.submittedAt).toLocaleString("en-NG")}</p>
+            </div>
+            <ChevronRight size={16} className="text-[#2563EB] flex-shrink-0 mt-1" />
+          </div>
+        </button>
+      );
+    } else {
+      // Community report - NOT clickable, limited info
+      return (
+        <div className="w-full glass rounded-xl p-4 opacity-60 border-l-2 border-white/10">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="text-[10px] font-mono text-white/30">{report.caseId}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${st.color} font-medium flex items-center gap-1`}>
+                  <StatusIcon size={10} /> {st.label}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-white/40 font-medium flex items-center gap-1">
+                  <Users size={10} /> Community
+                </span>
+              </div>
+              <p className="text-white/60 font-medium text-sm">{incidentLabels[report.incidentType] || report.incidentType}</p>
+              <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                <span className="text-xs font-medium text-white/40 bg-white/5 px-2 py-0.5 rounded">{report.lga}</span>
+                {report.ward && <span className="text-xs text-white/30 bg-white/5 px-2 py-0.5 rounded flex items-center gap-1"><MapPin size={10} /> {report.ward}</span>}
+              </div>
+              {/* Limited info - no media count, no description */}
+              <div className="flex items-center gap-2 mt-3">
+                <Lock size={12} className="text-white/20" />
+                <span className="text-[10px] text-white/20 italic">Reported by another citizen — details protected for privacy</span>
+              </div>
+              <p className="text-[10px] text-white/20 mt-2">{new Date(report.submittedAt).toLocaleDateString("en-NG")}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  };
+
   // Report Detail View
   if (selectedReport) {
+    // SECURITY CHECK: Only allow viewing details of your own reports
+    if (!isMyReport(selectedReport.id)) {
+      // Trying to view someone else's report - show limited view
+      return (
+        <div className="min-h-screen pb-8">
+          <div className="sticky top-0 z-40 glass border-b border-white/10 px-4 py-4">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setSelectedReport(null)} className="w-8 h-8 flex items-center justify-center rounded-full glass">
+                <ChevronLeft size={18} className="text-white/60" />
+              </button>
+              <div>
+                <h1 className="text-lg font-black uppercase tracking-tight text-white">{selectedReport.caseId}</h1>
+                <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">Community Report</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 py-8 flex flex-col items-center justify-center min-h-[60vh]">
+            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-4">
+              <Lock size={32} className="text-white/20" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Details Protected</h2>
+            <p className="text-white/40 text-center max-w-sm mb-4">
+              This report was submitted by another citizen. For privacy and security, the full details are only visible to the reporter and the verification team.
+            </p>
+            <div className="glass rounded-2xl p-4 w-full max-w-sm">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-2 h-2 rounded-full ${(STATUS_CONFIG[selectedReport.status]?.color || "").split(" ")[1] || "bg-white/20"}`} />
+                <span className="text-sm text-white/60">{incidentLabels[selectedReport.incidentType] || selectedReport.incidentType}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <MapPin size={14} className="text-white/30" />
+                <span className="text-sm text-white/60">{selectedReport.lga} LGA</span>
+              </div>
+              <div className="flex items-center gap-3 mt-2">
+                <Clock size={14} className="text-white/30" />
+                <span className="text-sm text-white/60">{new Date(selectedReport.submittedAt).toLocaleDateString("en-NG")}</span>
+              </div>
+              <div className="mt-3 pt-3 border-t border-white/5">
+                <span className="text-xs text-white/30">Status: {STATUS_CONFIG[selectedReport.status]?.label || selectedReport.status}</span>
+              </div>
+            </div>
+            <button onClick={() => setSelectedReport(null)} className="mt-6 h-10 px-6 rounded-xl glass text-white/60 text-sm font-medium hover:text-white/80">
+              Go Back
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Viewing my own report - show full details
     const st = STATUS_CONFIG[selectedReport.status] || STATUS_CONFIG.received;
     const hasMedia = selectedReport.media && selectedReport.media.length > 0;
     const hasLocation = selectedReport.latitude && selectedReport.longitude;
@@ -121,38 +259,29 @@ export default function MyReports() {
             </button>
             <div>
               <h1 className="text-lg font-black uppercase tracking-tight text-white">{selectedReport.caseId}</h1>
-              <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">Report #{selectedReport.id} | OJÚTÓLÉ</p>
+              <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider">My Report | OJÚTÓLÉ</p>
             </div>
           </div>
         </div>
 
         <div className="px-4 py-4 space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className={`text-xs px-3 py-1 rounded-full font-medium ${st.color} flex items-center gap-1.5`}>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-3 py-1 rounded-full ${st.color} font-medium flex items-center gap-1.5`}>
               <StatusIcon size={12} /> {st.label}
             </span>
-            <span className="text-xs text-white/40">{incidentLabels[selectedReport.incidentType] || selectedReport.incidentType}</span>
+            <span className="text-xs px-2 py-1 rounded-full bg-[#2563EB]/20 text-[#2563EB] font-medium">MY REPORT</span>
           </div>
 
           {/* Location */}
           <section className="glass rounded-2xl p-4">
-            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <MapPin size={14} /> Location
-            </h2>
+            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2"><MapPin size={14} /> Location</h2>
             <p className="text-white font-medium">{selectedReport.lga} LGA</p>
             {selectedReport.ward && <p className="text-sm text-white/60 mt-1">{selectedReport.ward}</p>}
             {hasLocation && (
               <div className="mt-3 p-3 rounded-xl bg-white/5 space-y-2">
-                <p className="text-xs text-white/40">
-                  {selectedReport.latitude?.toFixed(6)}, {selectedReport.longitude?.toFixed(6)}
-                </p>
-                {selectedReport.locationAddress && (
-                  <p className="text-xs text-emerald-400/80">{selectedReport.locationAddress}</p>
-                )}
+                <p className="text-xs text-white/40">{selectedReport.latitude?.toFixed(6)}, {selectedReport.longitude?.toFixed(6)}</p>
                 <a href={`https://www.google.com/maps?q=${selectedReport.latitude},${selectedReport.longitude}`} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-[#2563EB] underline">
-                  <ExternalLink size={10} /> View on Map
-                </a>
+                  className="inline-flex items-center gap-1 text-xs text-[#2563EB] underline"><ExternalLink size={10} /> View on Map</a>
               </div>
             )}
           </section>
@@ -168,18 +297,12 @@ export default function MyReports() {
           {/* Media */}
           {hasMedia && (
             <section className="glass rounded-2xl p-4">
-              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Image size={14} /> Evidence ({selectedReport.media?.length})
-              </h2>
+              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3 flex items-center gap-2"><Image size={14} /> Evidence ({selectedReport.media?.length})</h2>
               <div className="space-y-3">
                 {selectedReport.media?.map((m, idx) => (
                   <div key={m.id} className="rounded-xl overflow-hidden bg-white/5">
-                    {m.mediaType === "photo" && (
-                      <img src={m.url} alt={`Evidence ${idx + 1}`} className="w-full object-contain max-h-64" />
-                    )}
-                    {m.mediaType === "video" && (
-                      <video src={m.url} className="w-full" controls />
-                    )}
+                    {m.mediaType === "photo" && <img src={m.url} alt={`Evidence ${idx + 1}`} className="w-full object-contain max-h-64" />}
+                    {m.mediaType === "video" && <video src={m.url} className="w-full" controls />}
                     {m.mediaType === "audio" && (
                       <div className="p-4 flex items-center gap-3">
                         <Mic size={20} className="text-amber-400" />
@@ -192,18 +315,13 @@ export default function MyReports() {
             </section>
           )}
 
-          {/* Timestamps */}
-          <section className="glass rounded-2xl p-4">
-            <div className="space-y-1">
-              <p className="text-xs text-white/40">Submitted: {new Date(selectedReport.submittedAt).toLocaleString("en-NG")}</p>
-              <p className="text-xs text-white/40">Updated: {new Date(selectedReport.updatedAt).toLocaleString("en-NG")}</p>
-            </div>
-          </section>
+          <p className="text-xs text-white/40">Submitted: {new Date(selectedReport.submittedAt).toLocaleString("en-NG")}</p>
         </div>
       </div>
     );
   }
 
+  // ==================== MAIN LIST VIEW ====================
   return (
     <div className="min-h-screen pb-24">
       <div className="sticky top-0 z-40 glass border-b border-white/10 px-4 py-4">
@@ -220,7 +338,7 @@ export default function MyReports() {
               type="text"
               value={caseIdSearch}
               onChange={(e) => setCaseIdSearch(e.target.value)}
-              placeholder="Enter Case ID (e.g., OJT-20260728-0001)"
+              placeholder="Enter Case ID to check status..."
               className="w-full h-10 pl-9 pr-3 rounded-xl glass text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50"
             />
           </div>
@@ -244,16 +362,14 @@ export default function MyReports() {
                   {STATUS_CONFIG[searchedCase.status]?.label || searchedCase.status}
                 </span>
               </div>
-              <button
-                onClick={() => setSearchedCase(null)}
-                className="text-white/30 hover:text-white/60"
-              >
+              <button onClick={() => setSearchedCase(null)} className="text-white/30 hover:text-white/60">
                 <ChevronLeft size={16} />
               </button>
             </div>
           </div>
         )}
 
+        {/* Tabs */}
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           {tabs.map((tab) => (
             <button key={tab.value} onClick={() => setFilter(tab.value)}
@@ -261,9 +377,6 @@ export default function MyReports() {
                 filter === tab.value ? "bg-[#2563EB] text-white" : "glass text-white/50 hover:text-white"
               }`}>
               {tab.label}
-              {tab.value === "offline" && offlineQueue.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-[#F59E0B] text-[#0A0E27] text-[10px] font-bold">{offlineQueue.length}</span>
-              )}
             </button>
           ))}
         </div>
@@ -275,28 +388,24 @@ export default function MyReports() {
             {offlineQueue.length === 0 ? (
               <div className="text-center py-12">
                 <WifiOff size={40} className="mx-auto text-white/20 mb-3" />
-                <p className="text-white/50">{t("myReports.noReports")}</p>
-                <p className="text-sm text-white/30 mt-1">{t("myReports.noReportsDesc")}</p>
+                <p className="text-white/50">No offline reports waiting</p>
               </div>
             ) : (
               <>
                 <div className="flex items-center gap-2 mb-4">
                   <AlertTriangle size={14} className="text-[#F59E0B]" />
-                  <p className="text-sm text-[#F59E0B]">{offlineQueue.length} {t("myReports.offlineWaiting")}</p>
+                  <p className="text-sm text-[#F59E0B]">{offlineQueue.length} reports waiting to sync</p>
                 </div>
                 {offlineQueue.map((report: Record<string, unknown>, i: number) => (
                   <div key={i} className="glass rounded-xl p-4">
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/50">{t("common.offline")}</span>
-                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/50">Offline</span>
                         <p className="text-white font-medium">{incidentLabels[report.incidentType as string] || report.incidentType as string}</p>
-                        <p className="text-sm text-white/50 mt-1">{report.lga as string}</p>
+                        <p className="text-sm text-white/50">{report.lga as string}</p>
                       </div>
                       <WifiOff size={16} className="text-white/30" />
                     </div>
-                    <p className="text-xs text-white/30 mt-2">{t("common.saved")}: {new Date(report.submittedAt as string).toLocaleString("en-NG")}</p>
                   </div>
                 ))}
               </>
@@ -306,52 +415,40 @@ export default function MyReports() {
 
         {filter !== "offline" && (
           <>
-            {reportsQuery.isLoading ? (
-              <div className="space-y-3">
-                {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-xl shimmer" />)}
+            {/* Section header */}
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-white/60">{sectionTitle}</h2>
+              <span className="text-[10px] text-white/30">{displayReports.length} reports</span>
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-[#2563EB]" />
+                <span className="text-[10px] text-white/40">My Reports</span>
               </div>
-            ) : filteredReports.length === 0 ? (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white/20" />
+                <span className="text-[10px] text-white/40">Community</span>
+              </div>
+            </div>
+
+            {reportsQuery.isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : displayReports.length === 0 ? (
               <div className="text-center py-12">
                 <FileText size={40} className="mx-auto text-white/20 mb-3" />
-                <p className="text-white/50">{filter === "all" ? t("myReports.noReports") : t("myReports.noFiltered")}</p>
-                <p className="text-sm text-white/30 mt-1">{filter === "all" ? t("myReports.noReportsDesc") : ""}</p>
+                <p className="text-white/50">
+                  {filter === "my_reports" ? "No reports from this device yet" : "No reports found"}
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredReports.map((report: any) => {
-                  const status = STATUS_CONFIG[report.status] || STATUS_CONFIG.received;
-                  const StatusIcon = status.icon;
-                  const hasMedia = report.media && report.media.length > 0;
-                  const hasLocation = report.latitude && report.longitude;
-                  return (
-                    <button
-                      key={report.id}
-                      onClick={() => setSelectedReport(report as unknown as ReportDetail)}
-                      className="w-full glass rounded-xl p-4 text-left hover:bg-white/5 transition-colors"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          {/* Case ID */}
-                          <p className="text-[10px] font-mono text-[#2563EB]/60 mb-1">{report.caseId}</p>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color} flex items-center gap-1`}>
-                              <StatusIcon size={10} /> {status.label}
-                            </span>
-                            {hasMedia && <span className="text-xs text-purple-400 flex items-center gap-1"><Camera size={10} /> {report.media?.length}</span>}
-                            {hasLocation && <span className="text-xs text-emerald-400 flex items-center gap-1"><MapPin size={10} /> GPS</span>}
-                          </div>
-                          <p className="text-white font-medium">{incidentLabels[report.incidentType] || report.incidentType}</p>
-                          <div className="flex items-center gap-3 mt-1.5">
-                            <span className="flex items-center gap-1 text-xs text-white/40"><MapPin size={10} />{report.lga}</span>
-                            <span className="flex items-center gap-1 text-xs text-white/40"><Clock size={10} />{new Date(report.submittedAt).toLocaleDateString("en-NG")}</span>
-                          </div>
-                          {report.description && <p className="text-sm text-white/50 mt-2 line-clamp-2">{report.description}</p>}
-                        </div>
-                        <ChevronRight size={16} className="text-white/20 flex-shrink-0 mt-1" />
-                      </div>
-                    </button>
-                  );
-                })}
+                {displayReports.map((report: any) => (
+                  <ReportCard key={report.id} report={report} isMine={isMyReport(report.id)} />
+                ))}
               </div>
             )}
           </>
