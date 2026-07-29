@@ -36268,7 +36268,7 @@ var reportRouter = createRouter({
         "late_arrival",
         "other"
       ]).optional(),
-      limit: external_exports.number().min(1).max(100).default(20),
+      limit: external_exports.number().min(1).max(200).default(20),
       offset: external_exports.number().min(0).default(0)
     }).optional()
   ).query(({ input }) => {

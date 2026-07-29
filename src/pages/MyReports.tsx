@@ -58,8 +58,11 @@ export default function MyReports() {
   // Fetch ALL reports (public API - redacts reporter identity)
   const reportsQuery = trpc.report.list.useQuery(
     { limit: 200 },
-    { enabled: true } // Always fetch, don't require myReportIds
+    { enabled: true, retry: 2 }
   );
+  
+  // Debug: log query state
+  const queryError = reportsQuery.error?.message;
 
   // Case ID lookup query
   const caseIdQuery = trpc.report.getByCaseId.useQuery(
@@ -433,16 +436,47 @@ export default function MyReports() {
               </div>
             </div>
 
+            {/* Show query error if any */}
+            {queryError && (
+              <div className="glass rounded-2xl p-4 mb-4 border border-red-500/30 bg-red-500/10">
+                <p className="text-xs text-red-400 font-medium flex items-center gap-2">
+                  <AlertTriangle size={14} /> Failed to load reports
+                </p>
+                <p className="text-[10px] text-white/40 mt-1">{queryError}</p>
+                <button 
+                  onClick={() => reportsQuery.refetch()} 
+                  className="mt-2 px-3 py-1.5 rounded-lg bg-[#2563EB] text-white text-xs font-bold"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
             {reportsQuery.isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="w-6 h-6 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="w-6 h-6 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin mb-3" />
+                <p className="text-white/40 text-sm">Loading reports...</p>
+              </div>
+            ) : reportsQuery.isError ? (
+              <div className="text-center py-12">
+                <AlertTriangle size={40} className="mx-auto text-red-400/40 mb-3" />
+                <p className="text-red-400/60 text-sm">Failed to load reports</p>
+                <button 
+                  onClick={() => reportsQuery.refetch()} 
+                  className="mt-3 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-sm font-bold"
+                >
+                  Try Again
+                </button>
               </div>
             ) : displayReports.length === 0 ? (
               <div className="text-center py-12">
                 <FileText size={40} className="mx-auto text-white/20 mb-3" />
                 <p className="text-white/50">
-                  {filter === "my_reports" ? "No reports from this device yet" : "No reports found"}
+                  {filter === "my_reports" ? "No reports from this device yet" : filter === "community" ? "No community reports yet" : "No reports found"}
                 </p>
+                {allReports.length === 0 && !reportsQuery.isLoading && (
+                  <p className="text-white/30 text-xs mt-2">Submit your first report to see it here</p>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
