@@ -215,20 +215,35 @@ export function calculateConfidence(data: {
 }
 
 // ============================================================
-// CASE ID GENERATION
+// CASE ID GENERATION — Permanent sequential counter
+// Counter persists in file, never resets. Format: OJT-XXXXXX
+// Defined after DATA_DIR to ensure correct path
 // ============================================================
 let caseIdCounter = 0;
-let lastCaseDate = "";
+let counterFilePath = "";
+
+function initCounter(dataDir: string) {
+  counterFilePath = join(dataDir, "case_counter.json");
+  try {
+    if (existsSync(counterFilePath)) {
+      const data = JSON.parse(readFileSync(counterFilePath, "utf-8"));
+      caseIdCounter = data.counter || 0;
+    }
+  } catch { /* ignore */ }
+}
+
+function saveCounter(value: number) {
+  try {
+    if (counterFilePath) {
+      writeFileSync(counterFilePath, JSON.stringify({ counter: value, lastUpdated: new Date().toISOString() }, null, 2));
+    }
+  } catch { /* ignore */ }
+}
 
 function generateCaseId(): string {
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
-  if (dateStr !== lastCaseDate) {
-    lastCaseDate = dateStr;
-    caseIdCounter = 0;
-  }
   caseIdCounter++;
-  return `OJT-${dateStr}-${String(caseIdCounter).padStart(4, "0")}`;
+  saveCounter(caseIdCounter);
+  return `OJT-${String(caseIdCounter).padStart(6, "0")}`;
 }
 
 // ============================================================
@@ -236,6 +251,9 @@ function generateCaseId(): string {
 // ============================================================
 
 const DATA_DIR = process.env.DATA_DIR || (existsSync("./data") ? "./data" : existsSync("/data") ? "/data" : "./data");
+
+// Initialize the permanent case counter
+initCounter(DATA_DIR);
 
 const REPORTS_FILE = join(DATA_DIR, "reports.json");
 const USERS_FILE = join(DATA_DIR, "users.json");

@@ -1055,15 +1055,28 @@ function calculateConfidence(data) {
   if (score >= 3) return "medium";
   return "low";
 }
-function generateCaseId() {
-  const now = /* @__PURE__ */ new Date();
-  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
-  if (dateStr !== lastCaseDate) {
-    lastCaseDate = dateStr;
-    caseIdCounter = 0;
+function initCounter(dataDir) {
+  counterFilePath = join(dataDir, "case_counter.json");
+  try {
+    if (existsSync(counterFilePath)) {
+      const data = JSON.parse(readFileSync(counterFilePath, "utf-8"));
+      caseIdCounter = data.counter || 0;
+    }
+  } catch {
   }
+}
+function saveCounter(value) {
+  try {
+    if (counterFilePath) {
+      writeFileSync(counterFilePath, JSON.stringify({ counter: value, lastUpdated: (/* @__PURE__ */ new Date()).toISOString() }, null, 2));
+    }
+  } catch {
+  }
+}
+function generateCaseId() {
   caseIdCounter++;
-  return `OJT-${dateStr}-${String(caseIdCounter).padStart(4, "0")}`;
+  saveCounter(caseIdCounter);
+  return `OJT-${String(caseIdCounter).padStart(6, "0")}`;
 }
 function ensureDir(path) {
   const dir = dirname(path);
@@ -1179,14 +1192,15 @@ function logAudit(params) {
   saveAuditLog();
   return entry;
 }
-var _puData, _flatPollingUnits, caseIdCounter, lastCaseDate, DATA_DIR, REPORTS_FILE, USERS_FILE, AUDIT_LOG_FILE, NOTES_FILE, reportsCache, reportsNextId, mediaCache, mediaNextId, auditCache, auditNextId, notesCache, notesNextId, usersCache, usersNextId, reportStore, userStore;
+var _puData, _flatPollingUnits, caseIdCounter, counterFilePath, DATA_DIR, REPORTS_FILE, USERS_FILE, AUDIT_LOG_FILE, NOTES_FILE, reportsCache, reportsNextId, mediaCache, mediaNextId, auditCache, auditNextId, notesCache, notesNextId, usersCache, usersNextId, reportStore, userStore;
 var init_json_store = __esm({
   "api/json-store.ts"() {
     _puData = null;
     _flatPollingUnits = null;
     caseIdCounter = 0;
-    lastCaseDate = "";
+    counterFilePath = "";
     DATA_DIR = process.env.DATA_DIR || (existsSync("./data") ? "./data" : existsSync("/data") ? "/data" : "./data");
+    initCounter(DATA_DIR);
     REPORTS_FILE = join(DATA_DIR, "reports.json");
     USERS_FILE = join(DATA_DIR, "users.json");
     AUDIT_LOG_FILE = join(DATA_DIR, "audit_log.json");
