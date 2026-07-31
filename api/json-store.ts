@@ -241,9 +241,11 @@ function saveCounter(value: number) {
 }
 
 function generateCaseId(): string {
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
   caseIdCounter++;
   saveCounter(caseIdCounter);
-  return `OJT-${String(caseIdCounter).padStart(6, "0")}`;
+  return `OJT-${dateStr}-${String(caseIdCounter).padStart(6, "0")}`;
 }
 
 // ============================================================
