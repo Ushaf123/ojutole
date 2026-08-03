@@ -49,6 +49,7 @@ export default function Report() {
   const [incidentType, setIncidentType] = useState<IncidentType | null>(null);
   const [lga, setLga] = useState("");
   const [ward, setWard] = useState("");
+  const [pollingUnit, setPollingUnit] = useState("");
   const [description, setDescription] = useState("");
   const [reporterPhone, setReporterPhone] = useState("");
   const [media, setMedia] = useState<CapturedMedia[]>([]);
@@ -87,6 +88,10 @@ export default function Report() {
   const wardQuery = trpc.pollingUnit.getWardsByLGA.useQuery(
     { lga },
     { enabled: !!lga }
+  );
+  const pollingUnitQuery = trpc.pollingUnit.getUnitsByLGAAndWard.useQuery(
+    { lga, ward },
+    { enabled: !!lga && !!ward }
   );
 
   const utils = trpc.useUtils();
@@ -388,6 +393,7 @@ export default function Report() {
         incidentType,
         lga: lga || "Unknown",
         ward: ward || undefined,
+        pollingUnit: pollingUnit || undefined,
         description: description || undefined,
         // If anonymous, don't send GPS or phone
         latitude: anonymous ? undefined : gps?.lat,
@@ -543,6 +549,7 @@ export default function Report() {
             onChange={(e) => {
               setLga(e.target.value);
               setWard("");
+              setPollingUnit("");
             }}
             className="w-full h-12 px-4 rounded-xl glass text-white appearance-none focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50"
           >
@@ -559,7 +566,10 @@ export default function Report() {
           {lga && (
             <select
               value={ward}
-              onChange={(e) => setWard(e.target.value)}
+              onChange={(e) => {
+                setWard(e.target.value);
+                setPollingUnit("");
+              }}
               className="w-full h-12 px-4 rounded-xl glass text-white appearance-none focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50"
             >
               <option value="" className="bg-[#0A0E27]">
@@ -568,6 +578,23 @@ export default function Report() {
               {(wardQuery.data || []).map((w) => (
                 <option key={w} value={w} className="bg-[#0A0E27]">
                   {w}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {lga && ward && (
+            <select
+              value={pollingUnit}
+              onChange={(e) => setPollingUnit(e.target.value)}
+              className="w-full h-12 px-4 rounded-xl glass text-white appearance-none focus:outline-none focus:ring-2 focus:ring-[#2563EB]/50"
+            >
+              <option value="" className="bg-[#0A0E27]">
+                Select Polling Unit
+              </option>
+              {(pollingUnitQuery.data || []).map((u) => (
+                <option key={u.code} value={u.name} className="bg-[#0A0E27]">
+                  {u.name} ({u.code})
                 </option>
               ))}
             </select>
