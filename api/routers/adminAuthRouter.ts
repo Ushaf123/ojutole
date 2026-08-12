@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "../middleware";
-import { adminLogin, adminLogout, validateAdminToken, getAvailableRoles } from "../admin-auth";
+import { adminLogin, adminLogout, validateAdminToken, getAvailableRoles, getAdminActivityLog } from "../admin-auth";
+import { supervisorQuery } from "../middleware";
 
 export const adminAuthRouter = createRouter({
   // Login with role + password
@@ -11,8 +12,8 @@ export const adminAuthRouter = createRouter({
         password: z.string().min(1),
       })
     )
-    .mutation(({ input }) => {
-      const result = adminLogin(input.role, input.password);
+    .mutation(({ input, ctx }) => {
+      const result = adminLogin(input.role, input.password, ctx.req);
       if (!result) {
         return { success: false, error: "Invalid role or password" };
       }
@@ -50,8 +51,16 @@ export const adminAuthRouter = createRouter({
   // Logout
   logout: publicQuery
     .input(z.object({ token: z.string() }))
-    .mutation(({ input }) => {
-      adminLogout(input.token);
+    .mutation(({ input, ctx }) => {
+      adminLogout(input.token, ctx.req);
       return { success: true };
+    }),
+
+  // Get admin activity log (supervisors only)
+  activityLog: supervisorQuery
+    .input(z.object({ limit: z.number().min(1).max(500).default(100) }).optional())
+    .query(({ input }) => {
+      const log = getAdminActivityLog(input?.limit || 100);
+      return log;
     }),
 });

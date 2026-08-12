@@ -5,7 +5,7 @@ import {
   FileText, CheckCircle, Clock, MapPin, Phone, Camera, Video, Mic,
   X, ExternalLink, ChevronLeft, Lock, Unlock, AlertTriangle,
   ShieldCheck, Package, Shield, Eye, UserX, RotateCcw, History,
-  Award, StickyNote, Search, ChevronDown
+  Award, StickyNote, Search, ChevronDown, ShieldAlert
 } from "lucide-react";
 
 const ADMIN_TOKEN_KEY = "ojutole_admin_token";
@@ -157,6 +157,7 @@ export default function Admin() {
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [backupStatus, setBackupStatus] = useState<"idle" | "done">("idle");
   const [noteText, setNoteText] = useState("");
+  const [showSecurityLog, setShowSecurityLog] = useState(false);
 
   const role = session?.role || null;
   const isSupervisor = role === "supervisor";
@@ -183,6 +184,10 @@ export default function Admin() {
     { enabled: !!role, retry: 1 }
   );
   const lgaQuery = trpc.pollingUnit.getLGAs.useQuery(undefined, { enabled: !!role, retry: 1 });
+  const securityLogQuery = trpc.adminAuth.activityLog.useQuery(
+    undefined,
+    { enabled: !!role && isSupervisor && showSecurityLog, retry: 1 }
+  );
   const detailQuery = trpc.report.getByIdAdmin.useQuery(
     { id: selectedReport?.id || 0 },
     { enabled: !!selectedReport?.id && !!role, retry: 1 }
@@ -534,6 +539,7 @@ export default function Admin() {
           <button onClick={handleExportCSV} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${backupStatus === "done" ? "bg-emerald-500/20 text-emerald-400" : "bg-[#2563EB]/20 text-[#2563EB]"}`}>
             {backupStatus === "done" ? <CheckCircle size={12} /> : <Package size={12} />}{backupStatus === "done" ? "Downloaded!" : "Export CSV"}</button>
           {isSupervisor && <button onClick={handleBackupDownload} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-medium"><Package size={12} /> Full Backup</button>}
+          {isSupervisor && <button onClick={() => setShowSecurityLog(!showSecurityLog)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${showSecurityLog ? "bg-red-500/20 text-red-400" : "bg-white/5 text-white/40 hover:text-white/60"}`}><ShieldAlert size={12} /> Security Log</button>}
           <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white/40 hover:text-white/60"><Lock size={12} /> Logout</button>
         </div>
       </div>
@@ -554,6 +560,39 @@ export default function Admin() {
             </div>
           ))}
         </div>
+
+        {/* Security Log Panel - Supervisor Only */}
+        {isSupervisor && showSecurityLog && (
+          <div className="glass rounded-2xl p-4 space-y-3 border border-red-500/20">
+            <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider flex items-center gap-2"><ShieldAlert size={14} /> Security Log</h2>
+            <p className="text-[10px] text-white/30">Tracks all login attempts, failures, and lockouts</p>
+            {securityLogQuery.isLoading ? (
+              <div className="flex items-center justify-center py-6"><div className="w-5 h-5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" /></div>
+            ) : securityLogQuery.data && securityLogQuery.data.length > 0 ? (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {securityLogQuery.data.slice().reverse().map((log: any) => (
+                  <div key={log.id} className="flex items-start gap-2 p-2 rounded-lg bg-white/5">
+                    <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${log.action === "login_success" ? "bg-emerald-400" : log.action === "login_failure" ? "bg-red-400" : "bg-white/20"}`} />
+                    <div className="min-w-0">
+                      <p className="text-xs text-white/70">
+                        <span className="font-mono text-[10px] text-white/40">{new Date(log.timestamp).toLocaleString("en-NG")}</span>
+                        {" — "}
+                        <span className={log.action === "login_success" ? "text-emerald-400" : log.action === "login_failure" ? "text-red-400" : "text-white/50"}>
+                          {log.action.replace("_", " ").toUpperCase()}
+                        </span>
+                      </p>
+                      {log.role && <p className="text-[10px] text-white/40">Role: {log.role}</p>}
+                      {log.ip && <p className="text-[10px] text-white/30 font-mono">IP: {log.ip}</p>}
+                      {log.details && <p className="text-[10px] text-white/30 italic">{log.details}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-white/30 py-4 text-center">No security events yet</p>
+            )}
+          </div>
+        )}
 
         {/* Search & Archive Panel */}
         <div className="glass rounded-2xl p-4 space-y-3">

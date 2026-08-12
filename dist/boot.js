@@ -36567,25 +36567,140 @@ var reportRouter = createRouter({
 
 // api/admin-auth.ts
 import { createHash } from "crypto";
-var ROLE_PASSWORDS = {
-  verifier: "725289",
-  supervisor: "725290"
-};
+import { join as join2 } from "path";
+import { existsSync as existsSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2 } from "fs";
+var DATA_DIR2 = process.env.DATA_DIR || (existsSync2("./data") ? "./data" : existsSync2("/data") ? "/data" : "./data");
+if (!existsSync2(DATA_DIR2)) mkdirSync2(DATA_DIR2, { recursive: true });
+var ACTIVITY_LOG_FILE = join2(DATA_DIR2, "admin_activity_log.json");
+function getRolePassword(role) {
+  const normalizedRole = role.toLowerCase();
+  if (normalizedRole === "verifier") {
+    return process.env.VERIFIER_PASSWORD || "725289";
+  }
+  if (normalizedRole === "supervisor") {
+    return process.env.SUPERVISOR_PASSWORD || "725290";
+  }
+  return void 0;
+}
 var TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET || "ojutole-admin-v1";
+var failedAttempts = /* @__PURE__ */ new Map();
+var MAX_ATTEMPTS = 5;
+var LOCKOUT_DURATION_MS = 15 * 60 * 1e3;
+var WINDOW_MS = 60 * 60 * 1e3;
+function getClientIP(req) {
+  const forwarded = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip");
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  return "unknown";
+}
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const record2 = failedAttempts.get(ip);
+  if (!record2) {
+    return { allowed: true };
+  }
+  if (record2.lockedUntil && now < record2.lockedUntil) {
+    const remaining = Math.ceil((record2.lockedUntil - now) / 6e4);
+    return { allowed: false, message: `Too many failed attempts. Try again in ${remaining} minute(s).` };
+  }
+  if (now - record2.firstAttempt > WINDOW_MS) {
+    failedAttempts.delete(ip);
+    return { allowed: true };
+  }
+  if (record2.count >= MAX_ATTEMPTS) {
+    record2.lockedUntil = now + LOCKOUT_DURATION_MS;
+    const remaining = Math.ceil(LOCKOUT_DURATION_MS / 6e4);
+    return { allowed: false, message: `Too many failed attempts. Locked for ${remaining} minutes.` };
+  }
+  return { allowed: true };
+}
+function recordFailedAttempt(ip) {
+  const now = Date.now();
+  const record2 = failedAttempts.get(ip);
+  if (!record2 || now - record2.firstAttempt > WINDOW_MS) {
+    failedAttempts.set(ip, { count: 1, firstAttempt: now, lockedUntil: null });
+  } else {
+    record2.count++;
+    if (record2.count >= MAX_ATTEMPTS) {
+      record2.lockedUntil = now + LOCKOUT_DURATION_MS;
+    }
+  }
+}
+function clearFailedAttempts(ip) {
+  failedAttempts.delete(ip);
+}
+function loadActivityLog() {
+  try {
+    if (existsSync2(ACTIVITY_LOG_FILE)) {
+      return JSON.parse(readFileSync2(ACTIVITY_LOG_FILE, "utf-8"));
+    }
+  } catch {
+  }
+  return [];
+}
+function saveActivityLog(log) {
+  try {
+    writeFileSync2(ACTIVITY_LOG_FILE, JSON.stringify(log, null, 2));
+  } catch {
+  }
+}
+function logAdminActivity(record2) {
+  const log = loadActivityLog();
+  const newRecord = {
+    ...record2,
+    id: log.length > 0 ? Math.max(...log.map((r) => r.id)) + 1 : 1
+  };
+  log.push(newRecord);
+  if (log.length > 5e3) {
+    log.splice(0, log.length - 5e3);
+  }
+  saveActivityLog(log);
+}
+function getAdminActivityLog(limit = 100, action) {
+  let log = loadActivityLog();
+  if (action) {
+    log = log.filter((r) => r.action === action);
+  }
+  return log.slice(-limit);
+}
 function generateToken(role, password) {
   return createHash("sha256").update(`${TOKEN_SECRET}:${role.toLowerCase()}:${password}`).digest("hex").substring(0, 48);
 }
 function validateTokenFormat(token, role) {
-  const password = ROLE_PASSWORDS[role.toLowerCase()];
+  const password = getRolePassword(role);
   if (!password) return false;
   const expected = generateToken(role, password);
   return token === expected;
 }
-function adminLogin(role, password) {
-  const expectedPassword = ROLE_PASSWORDS[role.toLowerCase()];
-  if (!expectedPassword || expectedPassword !== password) {
+function adminLogin(role, password, req) {
+  const ip = req ? getClientIP(req) : "unknown";
+  const rateLimit = checkRateLimit(ip);
+  if (!rateLimit.allowed) {
+    logAdminActivity({
+      action: "login_failure",
+      role: role.toLowerCase(),
+      ip,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      details: `Rate limited: ${rateLimit.message}`
+    });
     return null;
   }
+  const expectedPassword = getRolePassword(role);
+  if (!expectedPassword || expectedPassword !== password) {
+    recordFailedAttempt(ip);
+    const attempts = failedAttempts.get(ip);
+    const remaining = MAX_ATTEMPTS - (attempts?.count || 0);
+    logAdminActivity({
+      action: "login_failure",
+      role: role.toLowerCase(),
+      ip,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      details: `Invalid password. ${remaining} attempt(s) remaining.`
+    });
+    return null;
+  }
+  clearFailedAttempts(ip);
   const token = generateToken(role, password);
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const user = {
@@ -36597,6 +36712,13 @@ function adminLogin(role, password) {
     updatedAt: now,
     lastSignInAt: now
   };
+  logAdminActivity({
+    action: "login_success",
+    role: role.toLowerCase(),
+    ip,
+    timestamp: now,
+    details: `Login successful as ${user.name}`
+  });
   return { token, user };
 }
 function validateAdminToken(token) {
@@ -36616,7 +36738,17 @@ function validateAdminToken(token) {
   }
   return null;
 }
-function adminLogout(_token) {
+function adminLogout(token, req) {
+  const user = validateAdminToken(token);
+  if (user && req) {
+    logAdminActivity({
+      action: "logout",
+      role: user.role,
+      ip: getClientIP(req),
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      details: `Logout: ${user.name}`
+    });
+  }
 }
 function getAvailableRoles() {
   return [
@@ -36633,8 +36765,8 @@ var adminAuthRouter = createRouter({
       role: external_exports.enum(["verifier", "supervisor"]),
       password: external_exports.string().min(1)
     })
-  ).mutation(({ input }) => {
-    const result = adminLogin(input.role, input.password);
+  ).mutation(({ input, ctx }) => {
+    const result = adminLogin(input.role, input.password, ctx.req);
     if (!result) {
       return { success: false, error: "Invalid role or password" };
     }
@@ -36665,9 +36797,14 @@ var adminAuthRouter = createRouter({
     return getAvailableRoles();
   }),
   // Logout
-  logout: publicQuery.input(external_exports.object({ token: external_exports.string() })).mutation(({ input }) => {
-    adminLogout(input.token);
+  logout: publicQuery.input(external_exports.object({ token: external_exports.string() })).mutation(({ input, ctx }) => {
+    adminLogout(input.token, ctx.req);
     return { success: true };
+  }),
+  // Get admin activity log (supervisors only)
+  activityLog: supervisorQuery.input(external_exports.object({ limit: external_exports.number().min(1).max(500).default(100) }).optional()).query(({ input }) => {
+    const log = getAdminActivityLog(input?.limit || 100);
+    return log;
   })
 });
 
@@ -36715,16 +36852,16 @@ async function createContext(opts) {
 
 // api/boot.ts
 init_json_store();
-import { readFileSync as readFileSync3, existsSync as existsSync3, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, readdirSync, statSync } from "fs";
-import { join as join3, resolve, basename } from "path";
+import { readFileSync as readFileSync4, existsSync as existsSync4, writeFileSync as writeFileSync3, mkdirSync as mkdirSync3, readdirSync, statSync } from "fs";
+import { join as join4, resolve, basename } from "path";
 import { randomUUID } from "crypto";
 
 // api/email-backup.ts
 var import_nodemailer = __toESM(require_nodemailer(), 1);
-import { readFileSync as readFileSync2, existsSync as existsSync2 } from "fs";
-import { join as join2 } from "path";
+import { readFileSync as readFileSync3, existsSync as existsSync3 } from "fs";
+import { join as join3 } from "path";
 var BACKUP_DIR = "./data/backups";
-var LATEST_BACKUP = join2(BACKUP_DIR, "ojutole-latest.json");
+var LATEST_BACKUP = join3(BACKUP_DIR, "ojutole-latest.json");
 var SMTP_USER = process.env.SMTP_USER || "";
 var SMTP_PASS = process.env.SMTP_PASS || "";
 var BACKUP_EMAIL_TO = process.env.BACKUP_EMAIL_TO || SMTP_USER || "oloboushafng@gmail.com";
@@ -36747,12 +36884,12 @@ async function sendBackupEmail() {
     console.log("[EMAIL BACKUP] Not configured. Set SMTP_USER and SMTP_PASS env vars.");
     return false;
   }
-  if (!existsSync2(LATEST_BACKUP)) {
+  if (!existsSync3(LATEST_BACKUP)) {
     console.log("[EMAIL BACKUP] No backup file found yet");
     return false;
   }
   try {
-    const backupContent = readFileSync2(LATEST_BACKUP, "utf-8");
+    const backupContent = readFileSync3(LATEST_BACKUP, "utf-8");
     const data = JSON.parse(backupContent);
     const reportCount = data.reports?.length || 0;
     const now = (/* @__PURE__ */ new Date()).toLocaleString("en-NG", {
@@ -36826,14 +36963,14 @@ function isEmailBackupConfigured() {
 }
 
 // api/boot.ts
-var DATA_DIR2 = process.env.DATA_DIR || "./data";
-var UPLOAD_DIR = join3(DATA_DIR2, "uploads");
-var BACKUP_DIR2 = join3(DATA_DIR2, "backups");
+var DATA_DIR3 = process.env.DATA_DIR || "./data";
+var UPLOAD_DIR = join4(DATA_DIR3, "uploads");
+var BACKUP_DIR2 = join4(DATA_DIR3, "backups");
 try {
-  if (!existsSync3(DATA_DIR2)) mkdirSync2(DATA_DIR2, { recursive: true });
-  if (!existsSync3(UPLOAD_DIR)) mkdirSync2(UPLOAD_DIR, { recursive: true });
-  if (!existsSync3(BACKUP_DIR2)) mkdirSync2(BACKUP_DIR2, { recursive: true });
-  console.log("[DATA] Directories ensured:", { data: DATA_DIR2, uploads: UPLOAD_DIR, backups: BACKUP_DIR2 });
+  if (!existsSync4(DATA_DIR3)) mkdirSync3(DATA_DIR3, { recursive: true });
+  if (!existsSync4(UPLOAD_DIR)) mkdirSync3(UPLOAD_DIR, { recursive: true });
+  if (!existsSync4(BACKUP_DIR2)) mkdirSync3(BACKUP_DIR2, { recursive: true });
+  console.log("[DATA] Directories ensured:", { data: DATA_DIR3, uploads: UPLOAD_DIR, backups: BACKUP_DIR2 });
 } catch (err) {
   console.error("[DATA] Failed to create directories:", err.message);
 }
@@ -36843,7 +36980,7 @@ function cleanupOldUploads() {
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1e3;
     let cleaned = 0;
     for (const file2 of files) {
-      const filepath = join3(UPLOAD_DIR, file2);
+      const filepath = join4(UPLOAD_DIR, file2);
       const stats = statSync(filepath);
       if (stats.mtimeMs < thirtyDaysAgo) {
       }
@@ -36854,8 +36991,8 @@ function cleanupOldUploads() {
 }
 cleanupOldUploads();
 function ensureBackupDir() {
-  if (!existsSync3(BACKUP_DIR2)) {
-    mkdirSync2(BACKUP_DIR2, { recursive: true });
+  if (!existsSync4(BACKUP_DIR2)) {
+    mkdirSync3(BACKUP_DIR2, { recursive: true });
   }
 }
 function createBackup() {
@@ -36864,12 +37001,12 @@ function createBackup() {
     const data = reportStore.backup();
     const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
     const filename = `ojutole-backup-${timestamp}.json`;
-    const filepath = join3(BACKUP_DIR2, filename);
-    writeFileSync2(filepath, JSON.stringify(data, null, 2));
+    const filepath = join4(BACKUP_DIR2, filename);
+    writeFileSync3(filepath, JSON.stringify(data, null, 2));
     console.log("[BACKUP] Created:", filename);
-    const latestPath = join3(BACKUP_DIR2, "ojutole-latest.json");
-    writeFileSync2(latestPath, JSON.stringify(data, null, 2));
-    const files = readdirSync(BACKUP_DIR2).filter((f) => f.startsWith("ojutole-backup-")).map((f) => ({ name: f, path: join3(BACKUP_DIR2, f), time: statSync(join3(BACKUP_DIR2, f)).mtimeMs })).sort((a, b) => b.time - a.time);
+    const latestPath = join4(BACKUP_DIR2, "ojutole-latest.json");
+    writeFileSync3(latestPath, JSON.stringify(data, null, 2));
+    const files = readdirSync(BACKUP_DIR2).filter((f) => f.startsWith("ojutole-backup-")).map((f) => ({ name: f, path: join4(BACKUP_DIR2, f), time: statSync(join4(BACKUP_DIR2, f)).mtimeMs })).sort((a, b) => b.time - a.time);
     if (files.length > 30) {
       for (const f of files.slice(30)) {
         try {
@@ -36900,20 +37037,20 @@ console.log("[EMAIL BACKUP] Email delivery:", isEmailBackupConfigured() ? "CONFI
 function serveStaticFiles(root) {
   return async (c) => {
     const url2 = new URL(c.req.url);
-    let filepath = join3(root, url2.pathname === "/" ? "/index.html" : url2.pathname);
+    let filepath = join4(root, url2.pathname === "/" ? "/index.html" : url2.pathname);
     const fullPath = resolve(filepath);
     const rootPath = resolve(root);
     if (!fullPath.startsWith(rootPath)) {
       return c.json({ error: "Forbidden" }, 403);
     }
-    if (!existsSync3(filepath)) {
-      filepath = join3(root, "index.html");
-      if (!existsSync3(filepath)) {
+    if (!existsSync4(filepath)) {
+      filepath = join4(root, "index.html");
+      if (!existsSync4(filepath)) {
         return c.json({ error: "Not found" }, 404);
       }
     }
     try {
-      const content = readFileSync3(filepath);
+      const content = readFileSync4(filepath);
       const ext = filepath.split(".").pop()?.toLowerCase() || "";
       const mimeTypes = {
         html: "text/html",
@@ -36948,12 +37085,12 @@ function serveUploads(c) {
   if (!filename || filename.includes("..") || filename.includes("/")) {
     return c.json({ error: "Invalid filename" }, 400);
   }
-  const filepath = join3(UPLOAD_DIR, basename(filename));
-  if (!existsSync3(filepath)) {
+  const filepath = join4(UPLOAD_DIR, basename(filename));
+  if (!existsSync4(filepath)) {
     return c.json({ error: "File not found" }, 404);
   }
   try {
-    const content = readFileSync3(filepath);
+    const content = readFileSync4(filepath);
     const ext = filepath.split(".").pop()?.toLowerCase() || "";
     const mimeTypes = {
       png: "image/png",
@@ -36983,7 +37120,7 @@ function createApp() {
     console.log("[BOOT] Starting OJ\xDAT\xD3L\xC9...");
     console.log("[BOOT] Environment:", env.isProduction ? "production" : "development");
     console.log("[BOOT] CWD:", process.cwd());
-    console.log("[BOOT] DATA_DIR:", DATA_DIR2);
+    console.log("[BOOT] DATA_DIR:", DATA_DIR3);
     console.log("[BOOT] Upload dir:", UPLOAD_DIR);
     console.log("[BOOT] Backup dir:", BACKUP_DIR2);
     const app2 = new Hono2();
@@ -37013,9 +37150,9 @@ function createApp() {
         const safeExt = ["jpg", "jpeg", "png", "gif", "webp", "webm", "mp4", "mp3", "wav", "ogg"].includes(ext) ? ext : "bin";
         const uuid3 = randomUUID();
         const filename = `${uuid3}.${safeExt}`;
-        const filepath = join3(UPLOAD_DIR, filename);
+        const filepath = join4(UPLOAD_DIR, filename);
         const buffer = Buffer.from(await file2.arrayBuffer());
-        writeFileSync2(filepath, buffer);
+        writeFileSync3(filepath, buffer);
         const publicUrl = `/uploads/${filename}`;
         console.log("[UPLOAD] Saved", filename, `(${(file2.size / 1024).toFixed(1)}KB)`);
         return c.json({
@@ -37054,12 +37191,12 @@ function createApp() {
       if (!filename || filename.includes("..") || filename.includes("/")) {
         return c.json({ error: "Invalid filename" }, 400);
       }
-      const filepath = join3(BACKUP_DIR2, basename(filename));
-      if (!existsSync3(filepath)) {
+      const filepath = join4(BACKUP_DIR2, basename(filename));
+      if (!existsSync4(filepath)) {
         return c.json({ error: "Backup not found" }, 404);
       }
       try {
-        const content = readFileSync3(filepath, "utf-8");
+        const content = readFileSync4(filepath, "utf-8");
         return new Response(content, {
           headers: {
             "Content-Type": "application/json",
@@ -37074,7 +37211,7 @@ function createApp() {
       try {
         ensureBackupDir();
         const files = readdirSync(BACKUP_DIR2).filter((f) => f.startsWith("ojutole-backup-")).map((f) => {
-          const s = statSync(join3(BACKUP_DIR2, f));
+          const s = statSync(join4(BACKUP_DIR2, f));
           return { name: f, size: s.size, created: s.mtime.toISOString() };
         }).sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
         return c.json({ backups: files, count: files.length });
