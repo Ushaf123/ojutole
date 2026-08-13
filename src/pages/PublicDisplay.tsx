@@ -1,18 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { trpc } from "@/providers/trpc";
+import html2canvas from "html2canvas";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
 
 const COLORS = {
@@ -67,8 +58,48 @@ export default function PublicDisplay() {
       ].filter((d) => d.value > 0)
     : [];
 
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadPNG = async () => {
+    if (!dashboardRef.current) return;
+    setDownloading(true);
+    try {
+      const canvas = await html2canvas(dashboardRef.current, {
+        scale: 2,
+        backgroundColor: "#0f172a",
+        useCORS: true,
+      });
+      const link = document.createElement("a");
+      link.download = `ojutole-display-${new Date().toISOString().split("T")[0]}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (err) {
+      alert("Download failed. Try again.");
+    }
+    setDownloading(false);
+  };
+
+  const printPDF = () => {
+    window.print();
+  };
+
   return (
-    <div className="min-h-screen bg-[#0f172a] text-white overflow-hidden">
+    <div ref={dashboardRef} className="min-h-screen bg-[#0f172a] text-white overflow-hidden">
+      <style>{`
+        @media print {
+          .min-h-screen { background: white !important; }
+          button { display: none !important; }
+          .bg-\[\#0f172a\] { background: white !important; }
+          .bg-\[\#1a2744\] { background: white !important; color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .bg-\[\#1e293b\] { background: #f5f5f5 !important; border: 1px solid #ddd !important; }
+          .text-white { color: black !important; }
+          .text-gray-200 { color: #333 !important; }
+          .text-gray-300 { color: #333 !important; }
+          .text-gray-400 { color: #666 !important; }
+          .border-amber-500 { border-color: #333 !important; }
+        }
+      `}</style>
       {/* TOP HEADER BAR */}
       <div className="bg-[#1a2744] px-8 py-4 flex items-center justify-between border-b-4 border-amber-500">
         <div className="flex items-center gap-4">
@@ -80,9 +111,26 @@ export default function PublicDisplay() {
             <p className="text-sm text-gray-300">Election Monitoring Dashboard</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-4xl font-mono font-bold">{clock.toLocaleTimeString("en-NG", { hour12: false })}</p>
-          <p className="text-sm text-gray-400">{clock.toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+        <div className="text-right flex items-center gap-3">
+          <div>
+            <p className="text-4xl font-mono font-bold">{clock.toLocaleTimeString("en-NG", { hour12: false })}</p>
+            <p className="text-sm text-gray-400">{clock.toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+          </div>
+          <div className="flex flex-col gap-1.5 print:hidden">
+            <button
+              onClick={downloadPNG}
+              disabled={downloading}
+              className="px-2 py-1 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition disabled:opacity-50"
+            >
+              {downloading ? "..." : "PNG"}
+            </button>
+            <button
+              onClick={printPDF}
+              className="px-2 py-1 rounded text-xs font-medium bg-gray-600 hover:bg-gray-500 text-white transition"
+            >
+              PDF
+            </button>
+          </div>
         </div>
       </div>
 

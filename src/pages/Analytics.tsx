@@ -1,21 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { trpc } from "@/providers/trpc";
+import html2canvas from "html2canvas";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area,
 } from "recharts";
 
 const COLORS = {
@@ -40,6 +28,31 @@ const INCIDENT_COLORS = [
 export default function Analytics() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [downloading, setDownloading] = useState(false);
+  const dashboardRef = useRef<HTMLDivElement>(null);
+
+  const downloadPNG = async () => {
+    if (!dashboardRef.current) return;
+    setDownloading(true);
+    try {
+      const canvas = await html2canvas(dashboardRef.current, {
+        scale: 2,
+        backgroundColor: "#f9fafb",
+        useCORS: true,
+      });
+      const link = document.createElement("a");
+      link.download = `ojutole-analytics-${new Date().toISOString().split("T")[0]}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (err) {
+      alert("Download failed. Try again.");
+    }
+    setDownloading(false);
+  };
+
+  const printPDF = () => {
+    window.print();
+  };
 
   const overview = trpc.analytics.overview.useQuery(undefined, {
     refetchInterval: autoRefresh ? 10000 : false,
@@ -105,6 +118,18 @@ export default function Analytics() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <style>{`
+        @media print {
+          .min-h-screen { background: white !important; }
+          button, a[href="/display"] { display: none !important; }
+          .bg-\[1a2744\] { background: white !important; color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .bg-\[1a2744\] h1, .bg-\[1a2744\] p { color: black !important; }
+          .text-white { color: black !important; }
+          .text-gray-300 { color: #333 !important; }
+          .text-gray-400 { color: #666 !important; }
+          .max-w-7xl { max-width: 100% !important; padding: 0 !important; }
+        }
+      `}</style>
       {/* Header */}
       <div className="bg-[#1a2744] text-white px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -134,11 +159,24 @@ export default function Analytics() {
             >
               Open Public Display
             </a>
+            <button
+              onClick={downloadPNG}
+              disabled={downloading}
+              className="px-3 py-1.5 rounded text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition disabled:opacity-50"
+            >
+              {downloading ? "Saving..." : "Download PNG"}
+            </button>
+            <button
+              onClick={printPDF}
+              className="px-3 py-1.5 rounded text-sm font-medium bg-gray-600 hover:bg-gray-500 text-white transition"
+            >
+              Print PDF
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div ref={dashboardRef} className="max-w-7xl mx-auto px-6 py-6 print:p-0 print:max-w-none">
         {isLoading ? (
           <div className="flex items-center justify-center h-96">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a2744]"></div>
@@ -390,7 +428,7 @@ export default function Analytics() {
             </div>
 
             {/* FOOTER */}
-            <div className="text-center text-xs text-gray-400 py-4">
+            <div className="text-center text-xs text-gray-400 py-4 print:hidden">
               OJÚTÓLÉ Analytics Dashboard — Auto-refreshes every 10 seconds — Data is read-only
             </div>
           </>
