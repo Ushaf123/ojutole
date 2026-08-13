@@ -21671,7 +21671,7 @@ var authRouter = createRouter({
 
 // api/routers/analyticsRouter.ts
 init_json_store();
-var analyticsRouter = createTRPCRouter({
+var analyticsRouter = createRouter({
   // ============================================================
   // OVERVIEW STATS - Key numbers for the dashboard
   // ============================================================

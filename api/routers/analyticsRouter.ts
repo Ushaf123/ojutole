@@ -8,7 +8,7 @@ import { z } from "zod";
 import { createRouter, publicQuery } from "../middleware";
 import { reportStore } from "../json-store";
 
-export const analyticsRouter = createTRPCRouter({
+export const analyticsRouter = createRouter({
   // ============================================================
   // OVERVIEW STATS - Key numbers for the dashboard
   // ============================================================
