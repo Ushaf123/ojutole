@@ -2,7 +2,7 @@
  * Simple JSON file-based store for OJÚTÓLÉ.
  * Uses official INEC polling unit data for Osun State.
  * Source: INEC Directory of Polling Units, Revised January 2015
- * 30 LGAs, 332 Wards, 2,834 Polling Units
+ * 30 LGAs, 332 Wards, 3,763 Polling Units
  *
  * CRITICAL TIER FEATURES:
  * - Full verification workflow: received → triaged → under_verification → verified/unverified/escalated → closed
