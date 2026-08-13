@@ -5,7 +5,7 @@ import {
   FileText, CheckCircle, Clock, MapPin, Phone, Camera, Video, Mic,
   X, ExternalLink, ChevronLeft, Lock, Unlock, AlertTriangle,
   ShieldCheck, Package, Shield, Eye, UserX, RotateCcw, History,
-  Award, StickyNote, Search, ChevronDown, ShieldAlert
+  Award, StickyNote, Search, ChevronDown, ShieldAlert, BarChart3
 } from "lucide-react";
 
 const ADMIN_TOKEN_KEY = "ojutole_admin_token";
@@ -540,6 +540,7 @@ export default function Admin() {
             {backupStatus === "done" ? <CheckCircle size={12} /> : <Package size={12} />}{backupStatus === "done" ? "Downloaded!" : "Export CSV"}</button>
           {isSupervisor && <button onClick={handleBackupDownload} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-medium"><Package size={12} /> Full Backup</button>}
           {isSupervisor && <button onClick={() => setShowSecurityLog(!showSecurityLog)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${showSecurityLog ? "bg-red-500/20 text-red-400" : "bg-white/5 text-white/40 hover:text-white/60"}`}><ShieldAlert size={12} /> Security Log</button>}
+          {isSupervisor && <a href="/analytics" target="_blank" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-medium hover:bg-emerald-500/30 transition"><BarChart3 size={12} /> Analytics</a>}
           <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white/40 hover:text-white/60"><Lock size={12} /> Logout</button>
         </div>
       </div>

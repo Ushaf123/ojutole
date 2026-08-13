@@ -7,6 +7,8 @@ import MyReports from "./pages/MyReports";
 import More from "./pages/More";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
+import Analytics from "./pages/Analytics";
+import PublicDisplay from "./pages/PublicDisplay";
 import NotFound from "./pages/NotFound";
 
 export default function App() {
@@ -14,6 +16,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/admin" element={<Admin />} />
+      <Route path="/analytics" element={<Analytics />} />
+      <Route path="/display" element={<PublicDisplay />} />
       <Route
         path="*"
         element={

@@ -21669,6 +21669,235 @@ var authRouter = createRouter({
   })
 });
 
+// api/routers/analyticsRouter.ts
+init_json_store();
+var analyticsRouter = createTRPCRouter({
+  // ============================================================
+  // OVERVIEW STATS - Key numbers for the dashboard
+  // ============================================================
+  overview: publicQuery.query(() => {
+    const reports = reportStore.getAll();
+    const now = /* @__PURE__ */ new Date();
+    const today = now.toISOString().split("T")[0];
+    const total = reports.length;
+    const received = reports.filter((r) => r.status === "received").length;
+    const triaged = reports.filter((r) => r.status === "triaged").length;
+    const underVerification = reports.filter((r) => r.status === "under_verification").length;
+    const verified = reports.filter((r) => r.status === "verified").length;
+    const unverified = reports.filter((r) => r.status === "unverified").length;
+    const escalated = reports.filter((r) => r.status === "escalated").length;
+    const closed = reports.filter((r) => r.status === "closed").length;
+    const todayReports = reports.filter((r) => r.submittedAt.startsWith(today));
+    const highConfidence = reports.filter((r) => r.confidence === "high").length;
+    const mediumConfidence = reports.filter((r) => r.confidence === "medium").length;
+    const lowConfidence = reports.filter((r) => r.confidence === "low").length;
+    const pending = received + triaged + underVerification;
+    let avgVerificationMinutes = 0;
+    const verifiedWithTime = reports.filter((r) => r.status === "verified" && r.verifiedAt && r.submittedAt);
+    if (verifiedWithTime.length > 0) {
+      const totalMinutes = verifiedWithTime.reduce((sum, r) => {
+        const submitted = new Date(r.submittedAt).getTime();
+        const verified2 = new Date(r.verifiedAt).getTime();
+        return sum + (verified2 - submitted) / (1e3 * 60);
+      }, 0);
+      avgVerificationMinutes = Math.round(totalMinutes / verifiedWithTime.length);
+    }
+    return {
+      total,
+      today: todayReports.length,
+      received,
+      triaged,
+      underVerification,
+      verified,
+      unverified,
+      escalated,
+      closed,
+      pending,
+      highConfidence,
+      mediumConfidence,
+      lowConfidence,
+      avgVerificationMinutes
+    };
+  }),
+  // ============================================================
+  // BY LGA - Reports per Local Government Area
+  // ============================================================
+  byLGA: publicQuery.query(() => {
+    const reports = reportStore.getAll();
+    const lgaMap = /* @__PURE__ */ new Map();
+    for (const r of reports) {
+      const lga = r.lga || "Unknown";
+      if (!lgaMap.has(lga)) {
+        lgaMap.set(lga, { total: 0, verified: 0, escalated: 0, pending: 0 });
+      }
+      const entry = lgaMap.get(lga);
+      entry.total++;
+      if (r.status === "verified") entry.verified++;
+      if (r.status === "escalated") entry.escalated++;
+      if (["received", "triaged", "under_verification"].includes(r.status)) entry.pending++;
+    }
+    const sorted = Array.from(lgaMap.entries()).sort((a, b) => b[1].total - a[1].total).map(([name, counts]) => ({ name, ...counts }));
+    return { lgAs: sorted };
+  }),
+  // ============================================================
+  // BY INCIDENT TYPE - Breakdown of report categories
+  // ============================================================
+  byIncidentType: publicQuery.query(() => {
+    const reports = reportStore.getAll();
+    const typeMap = /* @__PURE__ */ new Map();
+    for (const r of reports) {
+      const type = r.incidentType || "other";
+      typeMap.set(type, (typeMap.get(type) || 0) + 1);
+    }
+    const sorted = Array.from(typeMap.entries()).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
+    return { types: sorted };
+  }),
+  // ============================================================
+  // BY HOUR - Hourly report volume timeline
+  // ============================================================
+  byHour: publicQuery.query(() => {
+    const reports = reportStore.getAll();
+    const now = /* @__PURE__ */ new Date();
+    const today = now.toISOString().split("T")[0];
+    const hourly = Array.from({ length: 24 }, (_, i) => ({
+      hour: `${String(i).padStart(2, "0")}:00`,
+      count: 0,
+      verified: 0,
+      escalated: 0
+    }));
+    for (const r of reports) {
+      if (!r.submittedAt.startsWith(today)) continue;
+      const h = new Date(r.submittedAt).getHours();
+      if (h >= 0 && h < 24) {
+        hourly[h].count++;
+        if (r.status === "verified") hourly[h].verified++;
+        if (r.status === "escalated") hourly[h].escalated++;
+      }
+    }
+    return { hourly };
+  }),
+  // ============================================================
+  // HOTSPOTS - Top wards/polling units with most reports
+  // ============================================================
+  hotspots: publicQuery.query(() => {
+    const reports = reportStore.getAll();
+    const locationMap = /* @__PURE__ */ new Map();
+    for (const r of reports) {
+      const key = `${r.lga}||${r.ward || "Unknown"}||${r.pollingUnit || "Unknown"}`;
+      if (!locationMap.has(key)) {
+        locationMap.set(key, {
+          lga: r.lga || "Unknown",
+          ward: r.ward || "Unknown",
+          pollingUnit: r.pollingUnit || "Unknown",
+          total: 0,
+          escalated: 0
+        });
+      }
+      const entry = locationMap.get(key);
+      entry.total++;
+      if (r.status === "escalated") entry.escalated++;
+    }
+    const sorted = Array.from(locationMap.values()).sort((a, b) => b.total - a.total).slice(0, 15).map((loc) => ({
+      location: `${loc.lga} \u2014 ${loc.ward}${loc.pollingUnit !== "Unknown" ? ` (${loc.pollingUnit})` : ""}`,
+      total: loc.total,
+      escalated: loc.escalated
+    }));
+    return { hotspots: sorted };
+  }),
+  // ============================================================
+  // EMERGING PATTERNS - Alerts for unusual activity
+  // ============================================================
+  patterns: publicQuery.query(() => {
+    const reports = reportStore.getAll();
+    const now = Date.now();
+    const oneHourAgo = now - 60 * 60 * 1e3;
+    const thirtyMinAgo = now - 30 * 60 * 1e3;
+    const alerts = [];
+    const recentByLGA = /* @__PURE__ */ new Map();
+    for (const r of reports) {
+      if (new Date(r.submittedAt).getTime() > oneHourAgo) {
+        recentByLGA.set(r.lga, (recentByLGA.get(r.lga) || 0) + 1);
+      }
+    }
+    for (const [lga, count] of recentByLGA.entries()) {
+      if (count >= 3) {
+        alerts.push({
+          type: "location_spike",
+          severity: count >= 5 ? "high" : "medium",
+          message: `${count} reports from ${lga} in the last hour`,
+          count,
+          location: lga
+        });
+      }
+    }
+    const recentEscalations = reports.filter(
+      (r) => r.status === "escalated" && r.escalatedAt && new Date(r.escalatedAt).getTime() > thirtyMinAgo
+    );
+    if (recentEscalations.length >= 2) {
+      alerts.push({
+        type: "escalation_spike",
+        severity: "high",
+        message: `${recentEscalations.length} reports escalated in the last 30 minutes`,
+        count: recentEscalations.length
+      });
+    }
+    const recentByType = /* @__PURE__ */ new Map();
+    for (const r of reports) {
+      if (new Date(r.submittedAt).getTime() > oneHourAgo) {
+        recentByType.set(r.incidentType, (recentByType.get(r.incidentType) || 0) + 1);
+      }
+    }
+    for (const [type, count] of recentByType.entries()) {
+      if (count >= 3) {
+        alerts.push({
+          type: "incident_spike",
+          severity: "medium",
+          message: `${count} ${type.replace(/_/g, " ")} reports in the last hour`,
+          count
+        });
+      }
+    }
+    const recentUnverified = reports.filter(
+      (r) => r.status === "unverified" && new Date(r.submittedAt).getTime() > oneHourAgo
+    );
+    if (recentUnverified.length >= 3) {
+      alerts.push({
+        type: "false_report_spike",
+        severity: "low",
+        message: `${recentUnverified.length} reports marked unverified in the last hour`,
+        count: recentUnverified.length
+      });
+    }
+    const severityOrder = { high: 0, medium: 1, low: 2 };
+    alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+    return { alerts };
+  }),
+  // ============================================================
+  // CONFIDENCE TREND - Verification quality over time
+  // ============================================================
+  confidenceTrend: publicQuery.query(() => {
+    const reports = reportStore.getAll();
+    const now = /* @__PURE__ */ new Date();
+    const today = now.toISOString().split("T")[0];
+    const hourly = Array.from({ length: 24 }, (_, i) => ({
+      hour: `${String(i).padStart(2, "0")}:00`,
+      high: 0,
+      medium: 0,
+      low: 0
+    }));
+    for (const r of reports) {
+      if (!r.submittedAt.startsWith(today)) continue;
+      const h = new Date(r.submittedAt).getHours();
+      if (h >= 0 && h < 24) {
+        if (r.confidence === "high") hourly[h].high++;
+        if (r.confidence === "medium") hourly[h].medium++;
+        if (r.confidence === "low") hourly[h].low++;
+      }
+    }
+    return { hourly };
+  })
+});
+
 // node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -36814,7 +37043,8 @@ var appRouter = createRouter({
   auth: authRouter,
   pollingUnit: pollingUnitRouter,
   report: reportRouter,
-  adminAuth: adminAuthRouter
+  adminAuth: adminAuthRouter,
+  analytics: analyticsRouter
 });
 
 // api/context.ts
