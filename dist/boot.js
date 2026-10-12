@@ -1243,7 +1243,7 @@ var init_json_store = __esm({
         return loadAuditLog().filter((a) => a.reportId === reportId).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       },
       getNotes(reportId) {
-        return loadNotes().filter((n) => n.reportId === reportId).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        return loadNotes().filter((n) => n.reportId === reportId).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       },
       addNote(params) {
         const entry = {
@@ -1451,6 +1451,81 @@ var init_json_store = __esm({
           exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
           version: "2.0"
         };
+      },
+      // Restore: import a backup JSON. Merge by ID — safe to run twice (no duplicates).
+      // Fixes the permanent case counter so future Case IDs never collide with restored ones.
+      restore(data, operatorName) {
+        const result = {
+          reportsAdded: 0,
+          reportsSkipped: 0,
+          mediaAdded: 0,
+          auditAdded: 0,
+          notesAdded: 0
+        };
+        const existingReports = loadReports();
+        const reportIds = new Set(existingReports.map((r) => r.id));
+        for (const r of data.reports || []) {
+          if (!r || typeof r.id !== "number" || !r.caseId) continue;
+          if (reportIds.has(r.id)) {
+            result.reportsSkipped++;
+            continue;
+          }
+          existingReports.push(r);
+          reportIds.add(r.id);
+          result.reportsAdded++;
+          if (r.id >= reportsNextId) reportsNextId = r.id + 1;
+        }
+        saveReports();
+        const existingMedia = loadMedia();
+        const mediaIds = new Set(existingMedia.map((m) => m.id));
+        for (const m of data.media || []) {
+          if (!m || typeof m.id !== "number" || mediaIds.has(m.id)) continue;
+          existingMedia.push({ ...m, restoredWithoutFile: true });
+          mediaIds.add(m.id);
+          result.mediaAdded++;
+          if (m.id >= mediaNextId) mediaNextId = m.id + 1;
+        }
+        saveMedia();
+        const existingAudit = loadAuditLog();
+        const auditIds = new Set(existingAudit.map((a) => a.id));
+        for (const a of data.auditLog || []) {
+          if (!a || typeof a.id !== "number" || auditIds.has(a.id)) continue;
+          existingAudit.push(a);
+          auditIds.add(a.id);
+          result.auditAdded++;
+          if (a.id >= auditNextId) auditNextId = a.id + 1;
+        }
+        const existingNotes = loadNotes();
+        const noteIds = new Set(existingNotes.map((n) => n.id));
+        for (const n of data.notes || []) {
+          if (!n || typeof n.id !== "number" || noteIds.has(n.id)) continue;
+          existingNotes.push(n);
+          noteIds.add(n.id);
+          result.notesAdded++;
+          if (n.id >= notesNextId) notesNextId = n.id + 1;
+        }
+        existingAudit.push({
+          id: auditNextId++,
+          reportId: 0,
+          caseId: "SYSTEM",
+          action: "archive_restored",
+          operatorRole: "supervisor",
+          operatorName,
+          note: `Archive restored from backup: +${result.reportsAdded} reports (${result.reportsSkipped} already existed), +${result.mediaAdded} media records, +${result.notesAdded} notes.`,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        saveAuditLog();
+        saveNotes();
+        let maxSeq = caseIdCounter;
+        for (const r of loadReports()) {
+          const match2 = /-(\d+)$/.exec(r.caseId || "");
+          if (match2) maxSeq = Math.max(maxSeq, parseInt(match2[1], 10));
+        }
+        if (maxSeq > caseIdCounter) {
+          caseIdCounter = maxSeq;
+          saveCounter(caseIdCounter);
+        }
+        return result;
       }
     };
     userStore = {
@@ -36791,6 +36866,28 @@ var reportRouter = createRouter({
   // Supervisor: full data backup (JSON export)
   backup: supervisorQuery.query(() => {
     return reportStore.backup();
+  }),
+  // Supervisor: restore from a backup JSON (merge by ID, idempotent)
+  restore: supervisorQuery.input(
+    external_exports.object({
+      confirm: external_exports.literal(true),
+      reports: external_exports.array(external_exports.any()).optional(),
+      media: external_exports.array(external_exports.any()).optional(),
+      auditLog: external_exports.array(external_exports.any()).optional(),
+      notes: external_exports.array(external_exports.any()).optional()
+    })
+  ).mutation(({ input, ctx }) => {
+    const operatorName = ctx.user?.name || "Supervisor";
+    const result = reportStore.restore(
+      {
+        reports: input.reports,
+        media: input.media,
+        auditLog: input.auditLog,
+        notes: input.notes
+      },
+      operatorName
+    );
+    return { success: true, ...result };
   })
 });
 

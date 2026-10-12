@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLanguage } from "@/hooks/useLanguage";
 import {
   FileText, CheckCircle, Clock, MapPin, Phone, Camera, Video, Mic,
   X, ExternalLink, ChevronLeft, Lock, Unlock, AlertTriangle,
   ShieldCheck, Package, Shield, Eye, UserX, RotateCcw, History,
-  Award, StickyNote, Search, ChevronDown, ShieldAlert, BarChart3
+  Award, StickyNote, Search, ChevronDown, ShieldAlert, BarChart3, Upload
 } from "lucide-react";
 
 const ADMIN_TOKEN_KEY = "ojutole_admin_token";
@@ -206,6 +206,76 @@ export default function Admin() {
   const escalateMutation = trpc.report.escalate.useMutation({ onSuccess: () => { invalidateAll(); } });
   const closeMutation = trpc.report.close.useMutation({ onSuccess: () => { invalidateAll(); } });
   const addNoteMutation = trpc.report.addNote.useMutation({ onSuccess: () => { invalidateAll(); setNoteText(""); } });
+
+  // Restore-from-backup state
+  const restoreFileRef = useRef<HTMLInputElement>(null);
+  const [restoreStatus, setRestoreStatus] = useState<"idle" | "confirm" | "restoring" | "done" | "error">("idle");
+  const [restorePreview, setRestorePreview] = useState<{ reports: number; media: number; notes: number; auditLog: number } | null>(null);
+  const [restorePayload, setRestorePayload] = useState<any>(null);
+  const [restoreResult, setRestoreResult] = useState<any>(null);
+  const [restoreError, setRestoreError] = useState("");
+
+  const restoreMutation = trpc.report.restore.useMutation({
+    onSuccess: (result) => {
+      setRestoreResult(result);
+      setRestoreStatus("done");
+      setRestorePayload(null);
+      invalidateAll();
+      utils.analytics?.overview?.invalidate?.();
+    },
+    onError: (err) => {
+      setRestoreError(err.message || "Restore failed");
+      setRestoreStatus("error");
+    },
+  });
+
+  const handleRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.reports)) {
+          alert("This file does not look like an OJÚTÓLÉ backup (no reports list found). Please choose the backup JSON file.");
+          return;
+        }
+        setRestorePayload({
+          confirm: true,
+          reports: parsed.reports,
+          media: Array.isArray(parsed.media) ? parsed.media : undefined,
+          auditLog: Array.isArray(parsed.auditLog) ? parsed.auditLog : undefined,
+          notes: Array.isArray(parsed.notes) ? parsed.notes : undefined,
+        });
+        setRestorePreview({
+          reports: parsed.reports.length,
+          media: parsed.media?.length || 0,
+          notes: parsed.notes?.length || 0,
+          auditLog: parsed.auditLog?.length || 0,
+        });
+        setRestoreResult(null);
+        setRestoreStatus("confirm");
+      } catch {
+        alert("Could not read this file as JSON. Please choose the backup JSON file.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleRestoreConfirm = () => {
+    if (!restorePayload) return;
+    setRestoreStatus("restoring");
+    restoreMutation.mutate(restorePayload);
+  };
+
+  const closeRestoreModal = () => {
+    setRestoreStatus("idle");
+    setRestorePayload(null);
+    setRestorePreview(null);
+    setRestoreResult(null);
+    setRestoreError("");
+  };
 
   function invalidateAll() {
     utils.report.listAdmin.invalidate();
@@ -426,6 +496,15 @@ export default function Admin() {
               <div className="grid grid-cols-2 gap-3">
                 {report.media?.map((m: any, idx: number) => {
                   const fullUrl = getFullMediaUrl(m.url);
+                  if (m.restoredWithoutFile) {
+                    return (
+                      <div key={m.id} className="rounded-xl bg-white/5 border border-dashed border-white/15 p-4 flex flex-col items-center justify-center aspect-square text-center">
+                        {m.mediaType === "photo" ? <Camera size={22} className="text-white/20 mb-2" /> : m.mediaType === "video" ? <Video size={22} className="text-white/20 mb-2" /> : <Mic size={22} className="text-white/20 mb-2" />}
+                        <p className="text-[10px] text-white/40 font-medium">Evidence archived (file lost)</p>
+                        {m.fileName && <p className="text-[9px] text-white/25 mt-1 break-all">{m.fileName}</p>}
+                      </div>
+                    );
+                  }
                   return (
                     <div key={m.id} className="relative rounded-xl overflow-hidden bg-white/5">
                       {m.mediaType === "photo" && (
@@ -539,6 +618,12 @@ export default function Admin() {
           <button onClick={handleExportCSV} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${backupStatus === "done" ? "bg-emerald-500/20 text-emerald-400" : "bg-[#2563EB]/20 text-[#2563EB]"}`}>
             {backupStatus === "done" ? <CheckCircle size={12} /> : <Package size={12} />}{backupStatus === "done" ? "Downloaded!" : "Export CSV"}</button>
           {isSupervisor && <button onClick={handleBackupDownload} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-medium"><Package size={12} /> Full Backup</button>}
+          {isSupervisor && (
+            <>
+              <input ref={restoreFileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleRestoreFile} />
+              <button onClick={() => restoreFileRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 text-xs font-medium hover:bg-purple-500/30 transition"><Upload size={12} /> Restore</button>
+            </>
+          )}
           {isSupervisor && <button onClick={() => setShowSecurityLog(!showSecurityLog)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${showSecurityLog ? "bg-red-500/20 text-red-400" : "bg-white/5 text-white/40 hover:text-white/60"}`}><ShieldAlert size={12} /> Security Log</button>}
           {isSupervisor && <a href="/analytics" target="_blank" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-medium hover:bg-emerald-500/30 transition"><BarChart3 size={12} /> Analytics</a>}
           <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white/40 hover:text-white/60"><Lock size={12} /> Logout</button>
@@ -708,6 +793,69 @@ export default function Admin() {
           </div>
         </div>
       </div>
+
+      {/* Restore from Backup Modal */}
+      {restoreStatus !== "idle" && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="glass rounded-2xl p-6 w-full max-w-sm border border-white/10">
+            {restoreStatus === "confirm" && restorePreview && (
+              <>
+                <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-3"><Upload size={20} className="text-purple-400" /></div>
+                <h3 className="text-base font-bold text-white text-center">Restore from Backup?</h3>
+                <p className="text-xs text-white/40 text-center mt-1 mb-4">This backup file contains:</p>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  {[
+                    { label: "Reports", value: restorePreview.reports },
+                    { label: "Media Records", value: restorePreview.media },
+                    { label: "Internal Notes", value: restorePreview.notes },
+                    { label: "Audit Entries", value: restorePreview.auditLog },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl bg-white/5 p-3 text-center">
+                      <p className="text-lg font-bold text-white">{item.value}</p>
+                      <p className="text-[10px] text-white/40">{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-amber-400/80 bg-amber-500/10 rounded-lg p-2 mb-4">
+                  Safe to run: existing records are kept — only missing records are added. Original Case IDs, statuses, notes and timestamps are preserved. Media files themselves are not in the backup; their records will show as archived evidence.
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={closeRestoreModal} className="flex-1 h-10 rounded-xl glass text-xs font-bold text-white/60">Cancel</button>
+                  <button onClick={handleRestoreConfirm} className="flex-1 h-10 rounded-xl bg-purple-500 text-xs font-bold text-white">Restore Now</button>
+                </div>
+              </>
+            )}
+            {restoreStatus === "restoring" && (
+              <div className="py-6 text-center">
+                <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-white/70">Restoring records...</p>
+              </div>
+            )}
+            {restoreStatus === "done" && restoreResult && (
+              <>
+                <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-3"><CheckCircle size={20} className="text-emerald-400" /></div>
+                <h3 className="text-base font-bold text-white text-center">Restore Complete</h3>
+                <div className="mt-4 space-y-1.5 text-xs text-white/70">
+                  <p>Reports added: <span className="text-emerald-400 font-bold">{restoreResult.reportsAdded}</span>{restoreResult.reportsSkipped > 0 && <span className="text-white/40"> ({restoreResult.reportsSkipped} already existed)</span>}</p>
+                  <p>Media records added: <span className="text-emerald-400 font-bold">{restoreResult.mediaAdded}</span></p>
+                  <p>Notes added: <span className="text-emerald-400 font-bold">{restoreResult.notesAdded}</span></p>
+                  <p>Audit entries added: <span className="text-emerald-400 font-bold">{restoreResult.auditAdded}</span></p>
+                </div>
+                <p className="text-[10px] text-white/40 mt-3">All Case IDs and timestamps are preserved exactly as in the backup. The restore action itself is recorded in the audit trail.</p>
+                <button onClick={closeRestoreModal} className="w-full h-10 rounded-xl bg-emerald-500 text-xs font-bold text-white mt-4">Done</button>
+              </>
+            )}
+            {restoreStatus === "error" && (
+              <>
+                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-3"><AlertTriangle size={20} className="text-red-400" /></div>
+                <h3 className="text-base font-bold text-white text-center">Restore Failed</h3>
+                <p className="text-xs text-red-400 text-center mt-2">{restoreError}</p>
+                <button onClick={closeRestoreModal} className="w-full h-10 rounded-xl glass text-xs font-bold text-white/60 mt-4">Close</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

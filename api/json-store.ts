@@ -307,6 +307,7 @@ export interface ReportMediaRecord {
   fileName?: string;
   fileSize?: number;
   createdAt: string;
+  restoredWithoutFile?: boolean; // true when record was restored from backup but binary file was lost
 }
 
 export interface AuditLogRecord {
@@ -552,7 +553,7 @@ export const reportStore = {
   getNotes(reportId: number): ReportNoteRecord[] {
     return loadNotes()
       .filter((n) => n.reportId === reportId)
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   },
 
   addNote(params: {
@@ -837,6 +838,98 @@ export const reportStore = {
       exportedAt: new Date().toISOString(),
       version: "2.0",
     };
+  },
+
+  // Restore: import a backup JSON. Merge by ID — safe to run twice (no duplicates).
+  // Fixes the permanent case counter so future Case IDs never collide with restored ones.
+  restore(
+    data: { reports?: any[]; media?: any[]; auditLog?: any[]; notes?: any[] },
+    operatorName: string
+  ) {
+    const result = {
+      reportsAdded: 0,
+      reportsSkipped: 0,
+      mediaAdded: 0,
+      auditAdded: 0,
+      notesAdded: 0,
+    };
+
+    // --- Reports ---
+    const existingReports = loadReports();
+    const reportIds = new Set(existingReports.map((r) => r.id));
+    for (const r of data.reports || []) {
+      if (!r || typeof r.id !== "number" || !r.caseId) continue;
+      if (reportIds.has(r.id)) {
+        result.reportsSkipped++;
+        continue;
+      }
+      existingReports.push(r as ReportRecord);
+      reportIds.add(r.id);
+      result.reportsAdded++;
+      if (r.id >= reportsNextId) reportsNextId = r.id + 1;
+    }
+    saveReports();
+
+    // --- Media (records only; binary files lost in server wipe) ---
+    const existingMedia = loadMedia();
+    const mediaIds = new Set(existingMedia.map((m) => m.id));
+    for (const m of data.media || []) {
+      if (!m || typeof m.id !== "number" || mediaIds.has(m.id)) continue;
+      existingMedia.push({ ...m, restoredWithoutFile: true } as ReportMediaRecord);
+      mediaIds.add(m.id);
+      result.mediaAdded++;
+      if (m.id >= mediaNextId) mediaNextId = m.id + 1;
+    }
+    saveMedia();
+
+    // --- Audit log ---
+    const existingAudit = loadAuditLog();
+    const auditIds = new Set(existingAudit.map((a) => a.id));
+    for (const a of data.auditLog || []) {
+      if (!a || typeof a.id !== "number" || auditIds.has(a.id)) continue;
+      existingAudit.push(a as AuditLogRecord);
+      auditIds.add(a.id);
+      result.auditAdded++;
+      if (a.id >= auditNextId) auditNextId = a.id + 1;
+    }
+
+    // --- Notes ---
+    const existingNotes = loadNotes();
+    const noteIds = new Set(existingNotes.map((n) => n.id));
+    for (const n of data.notes || []) {
+      if (!n || typeof n.id !== "number" || noteIds.has(n.id)) continue;
+      existingNotes.push(n as ReportNoteRecord);
+      noteIds.add(n.id);
+      result.notesAdded++;
+      if (n.id >= notesNextId) notesNextId = n.id + 1;
+    }
+
+    // --- Record the restore itself in the audit trail ---
+    existingAudit.push({
+      id: auditNextId++,
+      reportId: 0,
+      caseId: "SYSTEM",
+      action: "archive_restored",
+      operatorRole: "supervisor",
+      operatorName,
+      note: `Archive restored from backup: +${result.reportsAdded} reports (${result.reportsSkipped} already existed), +${result.mediaAdded} media records, +${result.notesAdded} notes.`,
+      timestamp: new Date().toISOString(),
+    });
+    saveAuditLog();
+    saveNotes();
+
+    // --- Fix the permanent case counter: never reuse a restored number ---
+    let maxSeq = caseIdCounter;
+    for (const r of loadReports()) {
+      const match = /-(\d+)$/.exec(r.caseId || "");
+      if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
+    }
+    if (maxSeq > caseIdCounter) {
+      caseIdCounter = maxSeq;
+      saveCounter(caseIdCounter);
+    }
+
+    return result;
   },
 };
 

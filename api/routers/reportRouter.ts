@@ -359,4 +359,29 @@ export const reportRouter = createRouter({
   backup: supervisorQuery.query(() => {
     return reportStore.backup();
   }),
+
+  // Supervisor: restore from a backup JSON (merge by ID, idempotent)
+  restore: supervisorQuery
+    .input(
+      z.object({
+        confirm: z.literal(true),
+        reports: z.array(z.any()).optional(),
+        media: z.array(z.any()).optional(),
+        auditLog: z.array(z.any()).optional(),
+        notes: z.array(z.any()).optional(),
+      })
+    )
+    .mutation(({ input, ctx }) => {
+      const operatorName = ctx.user?.name || "Supervisor";
+      const result = reportStore.restore(
+        {
+          reports: input.reports,
+          media: input.media,
+          auditLog: input.auditLog,
+          notes: input.notes,
+        },
+        operatorName
+      );
+      return { success: true, ...result };
+    }),
 });
